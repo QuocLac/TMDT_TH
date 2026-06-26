@@ -1,0 +1,338 @@
+﻿@using WebApplication2.Models
+@model IEnumerable<Product>
+@{
+    ViewData["Title"] = "Quản lý Sản phẩm";
+}
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <h5 class="mb-0 text-dark fw-bold"><i class="fa-solid fa-box text-dark me-2"></i>Danh sách Sản phẩm</h5>
+        <a asp-action="Create" class="btn btn-sm text-white" style="background-color: var(--primary-moss);">
+            <i class="fa-solid fa-plus me-1"></i> Thêm Sản phẩm
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0" id="productTable">
+            <thead class="table-light text-dark">
+                <tr>
+                    <th width="5%" class="text-center"></th>
+                    <th width="30%">Sản phẩm</th>
+                    <th width="15%">Danh mục</th>
+                    <th width="15%" class="text-center">Trạng thái</th>
+                    <th width="15%">Ngày tạo</th>
+                    <th width="20%" class="text-center">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model != null && Model.Any())
+                {
+                    foreach (var item in Model)
+                    {
+                        var mainImg = item.Images?.FirstOrDefault(i => i.IsMain)?.ImageUrl ?? "/images/no-image.png";
+
+                        <tr class="parent-row fw-semibold">
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-light border text-dark toggle-btn" onclick="toggleVariants(@item.Id, this)">
+                                    <i class="fa-solid fa-chevron-right"></i>
+                                </button>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <img src="@mainImg" alt="Img" class="rounded border bg-white me-3 p-1 shadow-sm" style="width: 45px; height: 45px; object-fit: contain;">
+                                    <div class="text-dark">
+                                        @item.Name
+                                        <small class="d-block text-muted fw-normal">Slug: @item.Slug</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="badge bg-light text-dark border">@(item.Category?.Name ?? "Trống")</span></td>
+                            <td class="text-center">
+                                <div class="form-check form-switch d-flex justify-content-center">
+                                    <input class="form-check-input border-secondary" type="checkbox" role="switch" @(item.IsActive ? "checked" : "") onchange="toggleProductStatus(@item.Id, this)">
+                                </div>
+                            </td>
+                            <td><small class="text-muted"><i class="fa-regular fa-clock me-1"></i>@item.CreatedAt.ToString("dd/MM/yyyy")</small></td>
+                            <td class="text-center">
+                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-sm btn-light border text-dark me-1" title="Xem chi tiết">
+                                    <i class="fa-regular fa-eye"></i>
+                                </a>
+                                <a asp-controller="PriceHistories" asp-action="Index" asp-route-productId="@item.Id"
+                                   class="btn btn-sm btn-light border text-dark me-1" title="Lịch sử giá">
+                                    <i class="fa-solid fa-chart-line text-success"></i>
+                                </a>
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-light border text-dark" title="Sửa sản phẩm">
+                                    <i class="fa-solid fa-pen"></i>
+                                </a>
+                            </td>
+                        </tr>
+
+                        <tr id="variants-@item.Id" class="d-none bg-light">
+                            <td></td>
+                            <td colspan="5" class="p-3">
+                                <div class="border-start border-3 ps-3" style="border-color: var(--primary-moss) !important;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="text-dark fw-bold mb-0"><i class="fa-solid fa-layer-group text-secondary me-2"></i>Các phiên bản (Variants)</h6>
+                                        <button class="btn btn-sm text-white" style="background-color: var(--primary-moss);" onclick="openAddVariantModal(@item.Id, '@item.Name')">
+                                            <i class="fa-solid fa-plus me-1"></i> Thêm nhanh
+                                        </button>
+                                    </div>
+                                    <table class="table table-sm align-middle bg-white border shadow-sm mb-0">
+                                        <thead class="table-light text-dark">
+                                            <tr>
+                                                <th class="text-center" width="8%">Ảnh</th>
+                                                <th width="20%">SKU</th>
+                                                <th width="22%">Thuộc tính</th>
+                                                <th width="20%">Giá bán</th>
+                                                <th width="15%">Tồn kho</th>
+                                                <th class="text-center" width="15%">Thao tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @if (item.Variants != null && item.Variants.Any())
+                                            {
+                                                foreach (var variant in item.Variants)
+                                                {
+                                                    // Nếu bị ẩn, làm mờ hàng đi
+                                                    <tr class="@(!variant.IsActive ? "opacity-50 bg-light" : "")">
+                                                        <td class="text-center p-2">
+                                                            <img src="@(string.IsNullOrEmpty(variant.ImageUrl) ? "/images/no-image.png" : variant.ImageUrl)"
+                                                                 class="rounded border" style="width: 35px; height: 35px; object-fit: cover;" alt="Variant">
+                                                        </td>
+                                                        <td class="text-dark fw-bold">@variant.SKU</td>
+                                                        <td>
+                                                            <small class="d-block text-muted">Màu: <span class="text-dark fw-semibold">@(string.IsNullOrEmpty(variant.Color) ? "-" : variant.Color)</span></small>
+                                                            <small class="d-block text-muted">Size: <span class="text-dark fw-semibold">@(string.IsNullOrEmpty(variant.Size) ? "-" : variant.Size)</span></small>
+                                                        </td>
+
+                                                        <td class="align-middle">
+                                                            @if (variant.CurrentPrice < variant.Price)
+                                                            {
+                                                                <div class="text-muted text-decoration-line-through mb-1" style="font-size: 0.8rem;">
+                                                                    @variant.Price.ToString("N0") đ
+                                                                </div>
+                                                                <div class="text-danger fw-bold">
+                                                                    @variant.CurrentPrice.ToString("N0") đ
+                                                                    <i class="fa-solid fa-bolt text-warning ms-1" title="Đang áp dụng Chiến dịch giá"></i>
+                                                                </div>
+                                                            }
+                                                            else
+                                                            {
+                                                                <div class="text-danger fw-bold">@variant.Price.ToString("N0") đ</div>
+                                                            }
+                                                        </td>
+
+                                                        <td><span class="badge bg-secondary">@variant.StockQuantity</span></td>
+                                                        <td class="text-center">
+                                                            <button class="btn btn-sm btn-light border text-dark me-1" title="Sửa nhanh"
+                                                                    onclick="openEditVariantModal(@variant.Id, @item.Id, '@item.Name', '@variant.SKU', '@variant.Color', '@variant.Size', @variant.Price, @variant.StockQuantity)">
+                                                                <i class="fa-solid fa-pen-to-square"></i>
+                                                            </button>
+                                                            <button class="btn btn-sm btn-light border @(variant.IsActive ? "text-success" : "text-secondary")" title="Ẩn/Hiện biến thể" onclick="toggleVariantStatus(@variant.Id)">
+                                                                <i class="fa-solid @(variant.IsActive ? "fa-eye" : "fa-eye-slash")"></i>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <tr><td colspan="6" class="text-center text-muted py-3">Sản phẩm này chưa có biến thể nào.</td></tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-5">Chưa có sản phẩm nào trên hệ thống.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="quickVariantModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title text-dark fw-bold" id="variantModalTitle"><i class="fa-solid fa-cube me-2"></i>Thêm biến thể</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="frmQuickVariant">
+                    <input type="hidden" id="QuickVariantId" value="0" />
+                    <input type="hidden" id="QuickProductId" />
+
+                    <div class="mb-3 text-muted small">Sản phẩm: <strong class="text-dark" id="modalProductName"></strong></div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-dark fw-bold">Mã SKU <span class="text-danger">*</span></label>
+                        <input type="text" id="QuickSKU" class="form-control bg-light border-secondary" readonly />
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-dark fw-bold">Màu sắc</label>
+                            <input type="text" id="QuickColor" class="form-control border-secondary" placeholder="Đen, Trắng..." />
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-dark fw-bold">Kích thước</label>
+                            <input type="text" id="QuickSize" class="form-control border-secondary" placeholder="XL, 64GB..." />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-dark fw-bold">Giá bán <span class="text-danger">*</span></label>
+                            <input type="number" id="QuickPrice" class="form-control border-secondary" required />
+                            <small class="text-danger fw-bold d-none mt-1 d-block" id="priceLockNotice"><i class="fa-solid fa-lock me-1"></i>Đổi giá tại Lịch sử Giá</small>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label text-dark fw-bold">Tồn kho <span class="text-danger">*</span></label>
+                            <input type="number" id="QuickStock" class="form-control border-secondary" value="0" required />
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label text-dark fw-bold"><i class="fa-solid fa-image me-1"></i>Ảnh minh họa riêng</label>
+                        <input type="file" id="QuickImage" class="form-control border-secondary" accept="image/*" />
+                        <small class="text-muted" id="imageHelperText">Chọn ảnh nếu muốn gắn ảnh riêng cho biến thể này.</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-light border text-dark" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn text-white" style="background-color: var(--primary-moss);" onclick="submitQuickVariant()">Lưu dữ liệu</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const variantModal = new bootstrap.Modal(document.getElementById('quickVariantModal'));
+
+        // Đóng mở lưới con
+        function toggleVariants(productId, btnEle) {
+            const row = document.getElementById(`variants-${productId}`);
+            const icon = btnEle.querySelector('i');
+
+            if (row.classList.contains('d-none')) {
+                row.classList.remove('d-none');
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-down');
+            } else {
+                row.classList.add('d-none');
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-right');
+            }
+        }
+
+        // Mở Modal THÊM MỚI (Mở khóa giá)
+        function openAddVariantModal(productId, productName) {
+            document.getElementById('frmQuickVariant').reset();
+            document.getElementById('QuickVariantId').value = 0;
+            document.getElementById('QuickProductId').value = productId;
+            document.getElementById('modalProductName').innerText = productName;
+            document.getElementById('variantModalTitle').innerHTML = '<i class="fa-solid fa-plus me-2"></i>Thêm biến thể mới';
+            document.getElementById('imageHelperText').innerText = 'Chọn ảnh nếu muốn gắn ảnh riêng cho biến thể này.';
+
+            // Mở khóa cho phép nhập Giá
+            document.getElementById('QuickPrice').readOnly = false;
+            document.getElementById('QuickPrice').classList.remove('bg-light');
+            document.getElementById('priceLockNotice').classList.add('d-none');
+
+            let randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+            let timestamp = Date.now().toString().slice(-4);
+            document.getElementById('QuickSKU').value = "SP-" + randomStr + "-" + timestamp;
+
+            variantModal.show();
+        }
+
+        // Mở Modal CHỈNH SỬA (Khóa giá)
+        function openEditVariantModal(variantId, productId, productName, sku, color, size, price, stock) {
+            document.getElementById('frmQuickVariant').reset();
+            document.getElementById('QuickVariantId').value = variantId;
+            document.getElementById('QuickProductId').value = productId;
+            document.getElementById('modalProductName').innerText = productName;
+            document.getElementById('variantModalTitle').innerHTML = '<i class="fa-solid fa-pen-to-square me-2"></i>Cập nhật biến thể';
+            document.getElementById('imageHelperText').innerText = 'Bỏ trống nếu muốn giữ nguyên ảnh cũ.';
+
+            // KHÓA Ô GIÁ
+            document.getElementById('QuickPrice').readOnly = true;
+            document.getElementById('QuickPrice').classList.add('bg-light');
+            document.getElementById('priceLockNotice').classList.remove('d-none');
+
+            document.getElementById('QuickSKU').value = sku;
+            document.getElementById('QuickColor').value = color;
+            document.getElementById('QuickSize').value = size;
+            document.getElementById('QuickPrice').value = price;
+            document.getElementById('QuickStock').value = stock;
+
+            variantModal.show();
+        }
+
+        // Gửi dữ liệu bằng FormData
+        function submitQuickVariant() {
+            const price = parseFloat(document.getElementById('QuickPrice').value || 0);
+            if (price <= 0) {
+                alert("Giá bán phải lớn hơn 0!");
+                return;
+            }
+
+            let formData = new FormData();
+            formData.append('VariantId', document.getElementById('QuickVariantId').value);
+            formData.append('ProductId', document.getElementById('QuickProductId').value);
+            formData.append('SKU', document.getElementById('QuickSKU').value);
+            formData.append('Color', document.getElementById('QuickColor').value);
+            formData.append('Size', document.getElementById('QuickSize').value);
+            formData.append('Price', price);
+            formData.append('StockQuantity', document.getElementById('QuickStock').value);
+
+            const fileInput = document.getElementById('QuickImage').files[0];
+            if (fileInput) {
+                formData.append('VariantImage', fileInput);
+            }
+
+            fetch('/Admin/Products/SaveQuickVariant', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(result => {
+                if (result.success) {
+                    variantModal.hide();
+                    window.location.reload();
+                } else {
+                    alert(result.message);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Có lỗi xảy ra khi kết nối đến máy chủ.");
+            });
+        }
+
+        // Toggle Ẩn/Hiện sản phẩm chính
+        function toggleProductStatus(id, checkboxEle) {
+            fetch(`/Admin/Products/ToggleStatus/${id}`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => { if (!data.success) checkboxEle.checked = !checkboxEle.checked; })
+            .catch(() => checkboxEle.checked = !checkboxEle.checked);
+        }
+
+        // Toggle Ẩn/Hiện biến thể con
+        function toggleVariantStatus(id) {
+            fetch(`/Admin/Products/ToggleVariantStatus/${id}`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(() => alert("Có lỗi xảy ra."));
+        }
+    </script>
+}

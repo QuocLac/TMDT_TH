@@ -1,0 +1,28 @@
+:root,
+[data-event-theme="default"] {
+    --event-hero-gradient: linear-gradient(135deg, var(--color-accent-soft), var(--color-bg-surface));
+    --event-highlight: var(--color-accent);
+    --event-highlight-strong: var(--color-accent-strong);
+}
+
+[data-event-theme="tet"] {
+    --color-accent: #a31919;
+    --color-accent-strong: #761111;
+    --color-accent-soft: #fff0dc;
+    --color-accent-soft-text: #7a1a13;
+    --color-on-accent: #ffffff;
+    --event-hero-gradient: linear-gradient(135deg, #fff1d5, #fde0d9 58%, var(--color-bg-surface));
+    --event-highlight: #b42318;
+    --event-highlight-strong: #8a1711;
+}
+
+[data-theme="dark"][data-event-theme="tet"] {
+    --color-accent: #f97066;
+    --color-accent-strong: #fda29b;
+    --color-accent-soft: #4a211b;
+    --color-accent-soft-text: #ffd7d2;
+    --color-on-accent: #2b0d09;
+    --event-hero-gradient: linear-gradient(135deg, #412019, #30251a 58%, var(--color-bg-surface));
+    --event-highlight: #f97066;
+    --event-highlight-strong: #fda29b;
+}

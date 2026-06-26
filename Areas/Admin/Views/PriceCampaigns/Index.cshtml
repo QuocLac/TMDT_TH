@@ -1,0 +1,172 @@
+@using WebApplication2.Models.Enums
+@model WebApplication2.Areas.Admin.ViewModels.PriceCampaigns.PriceCampaignIndexPageViewModel
+@{
+    ViewData["Title"] = "Quản lý giá";
+    var runningCount = Model.Items.Count(item =>
+        item.Status == PriceCampaignStatus.Active);
+    var scheduledCount = Model.Items.Count(item =>
+        item.Status is PriceCampaignStatus.Scheduled
+            or PriceCampaignStatus.Confirmed);
+}
+
+<section class="admin-page" data-price-campaign-index>
+    <header class="admin-page-header">
+        <div>
+            <p class="eyebrow">Pricing operations</p>
+            <h2>Quản lý kế hoạch giá</h2>
+            <p class="admin-page-lead">
+                Theo dõi giá theo biến thể, nguồn thay đổi, khoảng hiệu lực và trạng thái đồng bộ.
+            </p>
+        </div>
+        <a asp-action="Create" class="btn btn-primary">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            Tạo kế hoạch
+        </a>
+    </header>
+
+    <div class="metric-grid" aria-label="Tổng quan kế hoạch giá">
+        <article class="metric-card">
+            <span>Tổng kế hoạch</span>
+            <strong>@Model.Items.Count</strong>
+        </article>
+        <article class="metric-card">
+            <span>Đang hiệu lực</span>
+            <strong>@runningCount</strong>
+        </article>
+        <article class="metric-card">
+            <span>Đã lên lịch</span>
+            <strong>@scheduledCount</strong>
+        </article>
+    </div>
+
+    <div class="page-feedback"
+         data-page-feedback
+         role="status"
+         aria-live="polite"></div>
+
+    <div class="data-panel">
+        <div class="table-responsive">
+            <table class="table align-middle campaign-table">
+                <thead>
+                    <tr>
+                        <th>Kế hoạch</th>
+                        <th>Thời gian</th>
+                        <th class="text-center">Biến thể</th>
+                        <th>Trạng thái</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="5">
+                                <div class="empty-state compact">
+                                    <strong>Chưa có kế hoạch giá</strong>
+                                    <span>
+                                        Tạo kế hoạch đầu tiên để quản lý giá theo từng biến thể.
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.Items)
+                        {
+                            var statusText = item.Status switch
+                            {
+                                PriceCampaignStatus.Draft => "Bản nháp",
+                                PriceCampaignStatus.Confirmed => "Đã xác nhận",
+                                PriceCampaignStatus.Scheduled => "Đã lên lịch",
+                                PriceCampaignStatus.Active => "Đang hiệu lực",
+                                PriceCampaignStatus.Completed => "Đã kết thúc",
+                                PriceCampaignStatus.Cancelled => "Đã hủy",
+                                PriceCampaignStatus.Superseded => "Đã thay thế",
+                                _ => item.Status.ToString()
+                            };
+                            var statusClass = item.Status
+                                .ToString()
+                                .ToLowerInvariant();
+
+                            <tr data-campaign-row
+                                data-campaign-id="@item.Id"
+                                data-row-version="@item.RowVersion">
+                                <td>
+                                    <strong>@item.Name</strong>
+                                    <small>@item.Code · @item.SourceType</small>
+                                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                                    {
+                                        <small>@item.Description</small>
+                                    }
+                                </td>
+                                <td>
+                                    <time datetime="@item.StartDateUtc.ToString("O")"
+                                          data-local-datetime>
+                                        @item.StartDateUtc.ToString("dd/MM/yyyy HH:mm") UTC
+                                    </time>
+                                    <span class="time-separator">→</span>
+                                    @if (item.EndDateUtc.HasValue)
+                                    {
+                                        <time datetime="@item.EndDateUtc.Value.ToString("O")"
+                                              data-local-datetime>
+                                            @item.EndDateUtc.Value.ToString("dd/MM/yyyy HH:mm") UTC
+                                        </time>
+                                    }
+                                    else
+                                    {
+                                        <span>Không thời hạn</span>
+                                    }
+                                </td>
+                                <td class="text-center">
+                                    <span class="count-badge">
+                                        @item.VariantCount
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-badge status-badge--@statusClass">
+                                        @statusText
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="table-actions">
+                                        @if (item.Status is PriceCampaignStatus.Draft
+                                            or PriceCampaignStatus.Confirmed
+                                            or PriceCampaignStatus.Scheduled)
+                                        {
+                                            <a asp-action="Create"
+                                               asp-route-id="@item.Id"
+                                               class="btn btn-sm btn-outline-secondary">
+                                                Chỉnh sửa
+                                            </a>
+                                        }
+                                        @if (item.Status is PriceCampaignStatus.Confirmed
+                                            or PriceCampaignStatus.Scheduled)
+                                        {
+                                            <button type="button"
+                                                    class="btn btn-sm btn-primary"
+                                                    data-apply-campaign>
+                                                Áp dụng ngay
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/pages/admin/price-campaigns.css"
+          asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/pages/admin/price-campaigns.js"
+            asp-append-version="true"></script>
+}

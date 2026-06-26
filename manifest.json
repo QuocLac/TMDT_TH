@@ -1,0 +1,82 @@
+{
+  "patch": "TMDT_auto_sku_sample_data_v2_20260710",
+  "sku_format": "SKU-P{ProductId:D6}-V{ProductVariant.Id:D8}",
+  "supersedes": "TMDT_auto_sku_sample_data_20260710",
+  "files": [
+    {
+      "path": "Areas/Admin/Controllers/ProductsController.cs",
+      "size": 46167,
+      "sha256": "6fa2972f33bf72eb175d31422f349e33a20fe9430c6af557cad76ba256e77b07"
+    },
+    {
+      "path": "Areas/Admin/ViewModels/PriceCampaigns/SavePriceCampaignRequest.cs",
+      "size": 1135,
+      "sha256": "de3304ccb9d60a407f38e3e15234f4e952d2313b3e6799a7410814d71c3ff09a"
+    },
+    {
+      "path": "Areas/Admin/ViewModels/Products/ProductCreateViewModel.cs",
+      "size": 2254,
+      "sha256": "24eaf05479b1cb1503899aceeeecae84e6e4d8c39032ca111429a3f7b059368c"
+    },
+    {
+      "path": "Areas/Admin/ViewModels/Products/ProductVariantRequests.cs",
+      "size": 1500,
+      "sha256": "f7bbdaa412018106afb98c4a1754ad5a1d9097940aa237d5cd4e7c09eaa5bad7"
+    },
+    {
+      "path": "Areas/Admin/ViewModels/Validation/MoneyRangeAttribute.cs",
+      "size": 2137,
+      "sha256": "e7efd0c57bb8328735e25dd41ad9ebee3e50a31f1efc17b080c8ccf134846d10"
+    },
+    {
+      "path": "Areas/Admin/Views/Products/Create.cshtml",
+      "size": 8440,
+      "sha256": "86b142b4985adad01f1337df7af34bf87ddd13f1050e81abe12f471767c9357b"
+    },
+    {
+      "path": "Areas/Admin/Views/Products/Edit.cshtml",
+      "size": 9420,
+      "sha256": "b7018ef1f7db817db61bfbba6cc819226f42c9b161ad8deb74ead5a300fd3c5a"
+    },
+    {
+      "path": "Areas/Admin/Views/Products/Index.cshtml",
+      "size": 11723,
+      "sha256": "d9ffb68f5144aa0dcc7b5e4f0e50273d0df3c609dde7cf5fced5fff5c0f047f1"
+    },
+    {
+      "path": "README-APPLY.md",
+      "size": 3963,
+      "sha256": "31116958429859469b5576ea4500360dca6868f9c7b6e4dd9a30f5a62bcf37a5"
+    },
+    {
+      "path": "Services/Catalog/VariantSkuGenerator.cs",
+      "size": 1080,
+      "sha256": "22945b1060a749c3e9d4049baf4dfde0b9a0f181eae956007b60ea705b9d443b"
+    },
+    {
+      "path": "Verify-TMDT-AutoSku.ps1",
+      "size": 3914,
+      "sha256": "cb078a72c6b08fbb940044c66c902347839dd905a528176a2b205dc56aa84887"
+    },
+    {
+      "path": "scripts/insert-sample-catalog-data.sql",
+      "size": 13117,
+      "sha256": "acaea1ce48b9d747aa52c74f3f4389e860d520f8df6f2172cab98d156bd3305c"
+    },
+    {
+      "path": "wwwroot/css/pages/admin/products-editor.css",
+      "size": 5492,
+      "sha256": "6910d5013d2812a26f71e0f88470053df69ddf4814d7f30cc770e1e9cbb4e47c"
+    },
+    {
+      "path": "wwwroot/js/pages/admin/products-editor.js",
+      "size": 6700,
+      "sha256": "caff147cc8aa009dfd37b57b12b476a253810a99ad9683ff6546078c9aefd82f"
+    },
+    {
+      "path": "wwwroot/js/pages/admin/products-index.js",
+      "size": 7748,
+      "sha256": "73ffc702e505bbea1f34fc7ce7244f58cde273c47a4854a55a66f3634a328b93"
+    }
+  ]
+}

@@ -1,0 +1,194 @@
+@model WebApplication2.Areas.Admin.ViewModels.Products.ProductIndexPageViewModel
+@{
+    ViewData["Title"] = "Sản phẩm và biến thể";
+}
+
+<section class="admin-page product-index" data-product-index>
+    <header class="admin-page-header">
+        <div>
+            <p class="eyebrow">Catalog operations</p>
+            <h2>Sản phẩm và biến thể</h2>
+            <p class="admin-page-lead">Quản lý thông tin chung, SKU, giá niêm yết, giá hiệu lực và trạng thái bán.</p>
+        </div>
+        <a asp-action="Create" class="btn btn-primary">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            Tạo sản phẩm
+        </a>
+    </header>
+
+    <form method="get" class="catalog-toolbar">
+        <div class="catalog-search">
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input type="search" name="query" value="@Model.Query" placeholder="Tên sản phẩm, slug hoặc SKU" aria-label="Tìm sản phẩm" />
+        </div>
+        <button class="btn btn-outline-secondary" type="submit">Tìm kiếm</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Query))
+        {
+            <a asp-action="Index" class="btn btn-link">Xóa lọc</a>
+        }
+        <span class="catalog-toolbar__count">@Model.TotalItems sản phẩm</span>
+    </form>
+
+    <div class="page-feedback" data-page-feedback role="status" aria-live="polite"></div>
+
+    <div class="product-admin-list">
+        @if (Model.Items.Count == 0)
+        {
+            <div class="empty-state">
+                <h3>Không có sản phẩm phù hợp</h3>
+                <p>Thử đổi từ khóa hoặc tạo sản phẩm mới.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var product in Model.Items)
+            {
+                <article class="product-admin-card" data-product-id="@product.Id">
+                    <header class="product-admin-card__header">
+                        <img src="@product.ImageUrl" alt="" loading="lazy" />
+                        <div class="product-admin-card__identity">
+                            <div class="product-admin-card__title-row">
+                                <h3>@product.Name</h3>
+                                <span class="status-badge @(product.IsActive ? "status-badge--active" : "status-badge--inactive")" data-product-status>
+                                    @(product.IsActive ? "Đang hiển thị" : "Đang ẩn")
+                                </span>
+                            </div>
+                            <p>@product.CategoryName · @(product.BrandName ?? "Không có thương hiệu")</p>
+                            <small>/products/@product.Slug</small>
+                        </div>
+                        <div class="product-admin-card__actions">
+                            <a asp-action="Edit" asp-route-id="@product.Id" class="btn btn-sm btn-outline-secondary">Chỉnh sửa</a>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" data-toggle-product>
+                                @(product.IsActive ? "Ẩn" : "Hiện")
+                            </button>
+                            <button type="button" class="btn btn-sm btn-primary" data-add-variant>Thêm biến thể</button>
+                        </div>
+                    </header>
+
+                    <div class="table-responsive">
+                        <table class="table variant-table align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>SKU / thuộc tính</th>
+                                    <th>Giá niêm yết</th>
+                                    <th>Giá hiệu lực</th>
+                                    <th>Tồn kho</th>
+                                    <th>Trạng thái</th>
+                                    <th class="text-end">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (product.Variants.Count == 0)
+                                {
+                                    <tr><td colspan="6" class="text-center text-muted py-4">Sản phẩm chưa có biến thể.</td></tr>
+                                }
+                                else
+                                {
+                                    @foreach (var variant in product.Variants)
+                                    {
+                                        var variantAttributes = string.Join(" · ", new[] { variant.Color, variant.Size }
+                                            .Where(value => !string.IsNullOrWhiteSpace(value)));
+                                        <tr data-variant-row
+                                            data-variant-id="@variant.Id"
+                                            data-product-id="@product.Id"
+                                            data-row-version="@variant.RowVersion"
+                                            data-sku="@variant.SKU"
+                                            data-color="@variant.Color"
+                                            data-size="@variant.Size"
+                                            data-price="@variant.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-current-price="@variant.CurrentPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-stock="@variant.StockQuantity"
+                                            data-active="@variant.IsActive.ToString().ToLowerInvariant()"
+                                            data-image-url="@variant.ImageUrl">
+                                            <td>
+                                                <strong>@variant.SKU</strong>
+                                                <small>@(string.IsNullOrWhiteSpace(variantAttributes) ? "Không có thuộc tính" : variantAttributes)</small>
+                                            </td>
+                                            <td>
+                                                <div class="inline-price-editor">
+                                                    <input type="number" min="0.01" step="0.01" value="@variant.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)" aria-label="Giá niêm yết @variant.SKU" data-list-price />
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-update-price>Lưu</button>
+                                                </div>
+                                            </td>
+                                            <td data-current-price-cell>
+                                                <strong>@variant.CurrentPrice.ToString("N0") ₫</strong>
+                                                @if (variant.CurrentPrice < variant.Price)
+                                                {
+                                                    <small class="sale-note">Đang có chiến dịch</small>
+                                                }
+                                            </td>
+                                            <td>@variant.StockQuantity</td>
+                                            <td>
+                                                <span class="status-badge @(variant.IsActive ? "status-badge--active" : "status-badge--inactive")" data-variant-status>
+                                                    @(variant.IsActive ? "Đang bán" : "Tạm ẩn")
+                                                </span>
+                                            </td>
+                                            <td class="text-end">
+                                                <div class="table-actions">
+                                                    <button type="button" class="btn btn-sm btn-link" data-edit-variant>Sửa</button>
+                                                    <button type="button" class="btn btn-sm btn-link" data-toggle-variant>
+                                                        @(variant.IsActive ? "Ẩn" : "Hiện")
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            }
+        }
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav class="pagination-shell" aria-label="Phân trang sản phẩm">
+            <a asp-action="Index" asp-route-query="@Model.Query" asp-route-page="@(Model.Page - 1)"
+               class="btn btn-sm btn-outline-secondary @(Model.Page <= 1 ? "disabled" : null)">Trước</a>
+            <span>Trang @Model.Page / @Model.TotalPages</span>
+            <a asp-action="Index" asp-route-query="@Model.Query" asp-route-page="@(Model.Page + 1)"
+               class="btn btn-sm btn-outline-secondary @(Model.Page >= Model.TotalPages ? "disabled" : null)">Sau</a>
+        </nav>
+    }
+
+    <dialog class="variant-dialog" data-variant-dialog>
+        <form method="dialog" class="variant-dialog__surface" data-variant-form>
+            <header>
+                <div>
+                    <p class="eyebrow">Variant editor</p>
+                    <h3 data-variant-dialog-title>Thêm biến thể</h3>
+                    <small>SKU được hệ thống cấp tự động và không thể sửa thủ công.</small>
+                </div>
+                <button type="button" class="btn-close" data-close-variant aria-label="Đóng"></button>
+            </header>
+            <input type="hidden" name="VariantId" data-field="VariantId" />
+            <input type="hidden" name="ProductId" data-field="ProductId" />
+            <input type="hidden" name="RowVersion" data-field="RowVersion" />
+            <div class="variant-form-grid">
+                <label>Màu<input class="form-control" name="Color" maxlength="50" data-field="Color" /></label>
+                <label>Kích thước / quy cách<input class="form-control" name="Size" maxlength="50" data-field="Size" /></label>
+                <label>Giá niêm yết<input class="form-control" type="number" min="0.01" step="0.01" name="Price" required data-field="Price" /></label>
+                <label>Tồn kho<input class="form-control" type="number" min="0" name="StockQuantity" required data-field="StockQuantity" /></label>
+                <label>Ảnh biến thể<input class="form-control" type="file" name="VariantImage" accept="image/jpeg,image/png,image/webp" /></label>
+                <label class="form-check variant-form-grid__active">
+                    <input class="form-check-input" type="checkbox" name="IsActive" value="true" data-field="IsActive" checked />
+                    <span>Cho phép bán biến thể</span>
+                </label>
+            </div>
+            <footer>
+                <button type="button" class="btn btn-outline-secondary" data-close-variant>Hủy</button>
+                <button type="submit" class="btn btn-primary">Lưu biến thể</button>
+            </footer>
+        </form>
+    </dialog>
+</section>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/products-index.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/pages/admin/products-index.js" asp-append-version="true"></script>
+}

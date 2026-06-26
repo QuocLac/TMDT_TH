@@ -1,0 +1,110 @@
+@{
+    var currentQuery = Context.Request.Query["query"].ToString();
+    var requestedEventTheme = ViewData["EventTheme"]?.ToString();
+    var eventTheme = string.Equals(requestedEventTheme, "tet", StringComparison.OrdinalIgnoreCase)
+        ? "tet"
+        : "default";
+}
+<!DOCTYPE html>
+<html lang="vi" data-theme="light" data-event-theme="@eventTheme">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>@ViewData["Title"] - FastBuy</title>
+    <script src="~/js/layouts/theme.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/css/storefront.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body class="storefront-shell">
+    <a class="skip-link" href="#main-content">Bỏ qua đến nội dung chính</a>
+
+    <div class="storefront-topbar">
+        <div class="shell-container storefront-topbar__inner">
+            <span>Mua sắm đa ngành hàng trên một nền tảng</span>
+            <a asp-area="Admin" asp-controller="Home" asp-action="Index">Khu vực quản trị</a>
+        </div>
+    </div>
+
+    <header class="storefront-header">
+        <div class="shell-container storefront-header__inner">
+            <a asp-area="" asp-controller="Home" asp-action="Index" class="brand" aria-label="FastBuy - Trang chủ">
+                <span class="brand__mark" aria-hidden="true">FB</span>
+                <span class="brand__copy">
+                    <strong>FastBuy</strong>
+                    <small>Marketplace</small>
+                </span>
+            </a>
+
+            <form asp-area="" asp-controller="Home" asp-action="Index" method="get" class="storefront-search" role="search">
+                <label class="visually-hidden" for="global-search">Tìm kiếm sản phẩm</label>
+                <input id="global-search"
+                       name="query"
+                       type="search"
+                       value="@currentQuery"
+                       placeholder="Tìm sản phẩm, thương hiệu hoặc SKU"
+                       autocomplete="off" />
+                <button type="submit">Tìm kiếm</button>
+            </form>
+
+            <button type="button"
+                    class="theme-toggle"
+                    data-theme-toggle
+                    aria-pressed="false"
+                    aria-label="Chuyển sang giao diện tối">
+                <span class="theme-toggle__icon" data-theme-icon aria-hidden="true">◐</span>
+                <span class="theme-toggle__label">Giao diện</span>
+            </button>
+        </div>
+
+        <nav class="storefront-nav" aria-label="Điều hướng chính">
+            <div class="shell-container storefront-nav__inner">
+                <a asp-area="" asp-controller="Home" asp-action="Index">Trang chủ</a>
+                <a href="/#categories">Danh mục</a>
+                <a href="/#products">Sản phẩm</a>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content" class="storefront-main" tabindex="-1">
+        @if (TempData["SuccessMessage"] is string successMessage)
+        {
+            <div class="shell-container alert-host">
+                <div class="app-alert app-alert--success" role="status">@successMessage</div>
+            </div>
+        }
+        @if (TempData["ErrorMessage"] is string errorMessage)
+        {
+            <div class="shell-container alert-host">
+                <div class="app-alert app-alert--danger" role="alert">@errorMessage</div>
+            </div>
+        }
+
+        @RenderBody()
+    </main>
+
+    <footer class="storefront-footer">
+        <div class="shell-container storefront-footer__grid">
+            <section>
+                <h2>FastBuy</h2>
+                <p>Nền tảng thương mại điện tử được xây dựng để phục vụ nhiều ngành hàng.</p>
+            </section>
+            <nav aria-label="Liên kết mua sắm">
+                <h2>Khám phá</h2>
+                <a asp-area="" asp-controller="Home" asp-action="Index">Trang chủ</a>
+                <a href="/#categories">Danh mục</a>
+                <a href="/#products">Sản phẩm</a>
+            </nav>
+            <section>
+                <h2>Trợ giúp</h2>
+                <p>Các chính sách và kênh hỗ trợ sẽ được công bố khi module tương ứng sẵn sàng.</p>
+            </section>
+        </div>
+        <div class="shell-container storefront-footer__bottom">
+            <span>&copy; @DateTime.UtcNow.Year FastBuy.</span>
+        </div>
+    </footer>
+
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

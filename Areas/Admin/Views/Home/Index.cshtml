@@ -1,0 +1,213 @@
+@model WebApplication2.Areas.Admin.ViewModels.Home.AdminDashboardViewModel
+
+@{
+    ViewData["Title"] = "Tổng quan";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/dashboard.css" asp-append-version="true" />
+}
+
+<div class="admin-dashboard">
+    <section class="dashboard-hero" aria-labelledby="dashboard-heading">
+        <div>
+            <p class="eyebrow">Trung tâm vận hành</p>
+            <h2 id="dashboard-heading">Tổng quan cửa hàng</h2>
+            <p>
+                Theo dõi nhanh danh mục sản phẩm, tồn kho biến thể và các chiến dịch giá
+                đang tác động tới storefront.
+            </p>
+        </div>
+
+        <div class="dashboard-hero__actions" aria-label="Thao tác nhanh">
+            <a asp-area="Admin"
+               asp-controller="Products"
+               asp-action="Create"
+               class="button button--primary">
+                <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                Thêm sản phẩm
+            </a>
+            <a asp-area="Admin"
+               asp-controller="PriceCampaigns"
+               asp-action="Create"
+               class="button button--secondary">
+                <i class="fa-solid fa-tags" aria-hidden="true"></i>
+                Tạo chiến dịch giá
+            </a>
+        </div>
+    </section>
+
+    <section class="dashboard-stats" aria-label="Chỉ số vận hành">
+        <article class="dashboard-stat-card">
+            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-box"></i>
+            </span>
+            <div>
+                <p>Sản phẩm đang hoạt động</p>
+                <strong>@Model.ActiveProductCount</strong>
+            </div>
+        </article>
+
+        <article class="dashboard-stat-card">
+            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-barcode"></i>
+            </span>
+            <div>
+                <p>Biến thể đang bán</p>
+                <strong>@Model.ActiveVariantCount</strong>
+            </div>
+        </article>
+
+        <article class="dashboard-stat-card dashboard-stat-card--warning">
+            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </span>
+            <div>
+                <p>Sắp hết hàng</p>
+                <strong>@Model.LowStockVariantCount</strong>
+            </div>
+        </article>
+
+        <article class="dashboard-stat-card dashboard-stat-card--danger">
+            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-box-open"></i>
+            </span>
+            <div>
+                <p>Đã hết hàng</p>
+                <strong>@Model.OutOfStockVariantCount</strong>
+            </div>
+        </article>
+
+        <article class="dashboard-stat-card dashboard-stat-card--success">
+            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-bolt"></i>
+            </span>
+            <div>
+                <p>Chiến dịch đang chạy</p>
+                <strong>@Model.RunningCampaignCount</strong>
+            </div>
+        </article>
+
+        <article class="dashboard-stat-card">
+            <span class="dashboard-stat-card__icon" aria-hidden="true">
+                <i class="fa-regular fa-calendar"></i>
+            </span>
+            <div>
+                <p>Chiến dịch sắp diễn ra</p>
+                <strong>@Model.UpcomingCampaignCount</strong>
+            </div>
+        </article>
+    </section>
+
+    <div class="dashboard-grid">
+        <section class="dashboard-panel" aria-labelledby="low-stock-heading">
+            <header class="dashboard-panel__header">
+                <div>
+                    <p class="eyebrow">Tồn kho</p>
+                    <h2 id="low-stock-heading">Biến thể cần chú ý</h2>
+                </div>
+                <a asp-area="Admin"
+                   asp-controller="Products"
+                   asp-action="Index"
+                   class="text-link">
+                    Xem sản phẩm
+                </a>
+            </header>
+
+            @if (Model.LowStockItems.Count == 0)
+            {
+                <div class="dashboard-empty-state">
+                    <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                    <div>
+                        <h3>Chưa có cảnh báo tồn kho</h3>
+                        <p>Các biến thể đang hoạt động đều còn trên 5 sản phẩm.</p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="dashboard-list">
+                    @foreach (var item in Model.LowStockItems)
+                    {
+                        <article class="dashboard-list-item">
+                            <div class="dashboard-list-item__main">
+                                <span class="dashboard-list-item__icon" aria-hidden="true">
+                                    <i class="fa-solid fa-box"></i>
+                                </span>
+                                <div>
+                                    <a asp-area="Admin"
+                                       asp-controller="Products"
+                                       asp-action="Edit"
+                                       asp-route-id="@item.ProductId"
+                                       class="dashboard-list-item__title">
+                                        @item.ProductName
+                                    </a>
+                                    <p>SKU: @item.SKU · @item.CurrentPrice.ToString("N0") ₫</p>
+                                </div>
+                            </div>
+
+                            <span class="dashboard-stock-badge @(item.StockQuantity == 0 ? "is-empty" : null)">
+                                @(item.StockQuantity == 0 ? "Hết hàng" : $"Còn {item.StockQuantity}")
+                            </span>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="dashboard-panel" aria-labelledby="campaign-heading">
+            <header class="dashboard-panel__header">
+                <div>
+                    <p class="eyebrow">Giá bán</p>
+                    <h2 id="campaign-heading">Chiến dịch gần nhất</h2>
+                </div>
+                <a asp-area="Admin"
+                   asp-controller="PriceCampaigns"
+                   asp-action="Index"
+                   class="text-link">
+                    Quản lý chiến dịch
+                </a>
+            </header>
+
+            @if (Model.Campaigns.Count == 0)
+            {
+                <div class="dashboard-empty-state">
+                    <i class="fa-solid fa-tags" aria-hidden="true"></i>
+                    <div>
+                        <h3>Chưa có chiến dịch hiệu lực</h3>
+                        <p>Tạo chiến dịch giá để lên lịch điều chỉnh giá cho từng biến thể.</p>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="dashboard-list">
+                    @foreach (var campaign in Model.Campaigns)
+                    {
+                        <article class="dashboard-list-item dashboard-list-item--campaign">
+                            <div>
+                                <a asp-area="Admin"
+                                   asp-controller="PriceCampaigns"
+                                   asp-action="Edit"
+                                   asp-route-id="@campaign.CampaignId"
+                                   class="dashboard-list-item__title">
+                                    @campaign.Name
+                                </a>
+                                <p>
+                                    @campaign.StartDate.ToString("dd/MM/yyyy HH:mm")
+                                    –
+                                    @campaign.EndDate.ToString("dd/MM/yyyy HH:mm")
+                                </p>
+                                <small>@campaign.VariantCount biến thể</small>
+                            </div>
+
+                            <span class="dashboard-campaign-badge @(campaign.IsRunning ? "is-running" : null)">
+                                @(campaign.IsRunning ? "Đang chạy" : "Sắp diễn ra")
+                            </span>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+</div>

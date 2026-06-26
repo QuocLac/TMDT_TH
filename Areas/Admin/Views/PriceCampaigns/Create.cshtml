@@ -1,0 +1,406 @@
+@model WebApplication2.Areas.Admin.ViewModels.PriceCampaigns.PriceCampaignEditorPageViewModel
+@{
+    ViewData["Title"] = Model.CampaignId > 0
+        ? "Chỉnh sửa kế hoạch giá"
+        : "Tạo kế hoạch giá";
+}
+
+<section class="admin-page pricing-editor"
+         data-price-campaign-editor
+         data-campaign-id="@Model.CampaignId">
+    <header class="admin-page-header pricing-page-header">
+        <div>
+            <p class="eyebrow">Pricing operations</p>
+            <h2>@ViewData["Title"]</h2>
+            <p class="admin-page-lead">
+                Chọn sản phẩm, mở bảng biến thể, cấu hình giá vào danh sách chờ và xác nhận sau khi server kiểm tra toàn bộ xung đột.
+            </p>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary">
+            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+            Danh sách kế hoạch
+        </a>
+    </header>
+
+    <input type="hidden" data-campaign-row-version value="" />
+    <input type="hidden" data-client-request-id value="" />
+    <input type="hidden" data-campaign-status value="Draft" />
+
+    <div class="page-feedback"
+         data-page-feedback
+         role="status"
+         aria-live="polite"></div>
+
+    <section class="pricing-panel pricing-plan-panel" aria-labelledby="plan-heading">
+        <header class="pricing-panel__header">
+            <div class="pricing-heading-group">
+                <span class="step-index">01</span>
+                <div>
+                    <h3 id="plan-heading">Thông tin kế hoạch</h3>
+                    <p>Thông tin này được dùng khi preview, lưu nháp và xác nhận cuối.</p>
+                </div>
+            </div>
+            <span class="pricing-state-badge" data-editor-state>Bản nháp mới</span>
+        </header>
+
+        <div class="campaign-form-grid">
+            <div class="form-field campaign-form-grid__name">
+                <label for="campaign-name">Tên kế hoạch</label>
+                <input id="campaign-name"
+                       class="form-control"
+                       maxlength="255"
+                       data-campaign-name
+                       placeholder="Ví dụ: Điều chỉnh giá thị trường tháng 7"
+                       required />
+            </div>
+
+            <div class="form-field">
+                <label for="campaign-mode">Kiểu thời hạn</label>
+                <select id="campaign-mode"
+                        class="form-select"
+                        data-campaign-mode>
+                    <option value="FixedWindow">Có ngày kết thúc</option>
+                    <option value="OpenEnded">Không thời hạn</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="campaign-source">Nguồn thay đổi</label>
+                <select id="campaign-source"
+                        class="form-select"
+                        data-campaign-source>
+                    <option value="Manual">Điều chỉnh thủ công</option>
+                    <option value="Market">Theo thị trường</option>
+                    <option value="Promotion">Chương trình bán hàng</option>
+                    <option value="Recovery">Áp lại giá cũ</option>
+                </select>
+            </div>
+
+            <div class="form-field">
+                <label for="campaign-start">Bắt đầu</label>
+                <input id="campaign-start"
+                       type="datetime-local"
+                       class="form-control"
+                       data-campaign-start
+                       required />
+                <small>Thời gian nhập theo múi giờ trên thiết bị.</small>
+            </div>
+
+            <div class="form-field" data-campaign-end-field>
+                <label for="campaign-end">Kết thúc</label>
+                <input id="campaign-end"
+                       type="datetime-local"
+                       class="form-control"
+                       data-campaign-end
+                       required />
+            </div>
+
+            <div class="form-field">
+                <label for="campaign-conflict-policy">Xử lý xung đột</label>
+                <select id="campaign-conflict-policy"
+                        class="form-select"
+                        data-conflict-policy>
+                    <option value="Reject">Từ chối khi chồng lấn</option>
+                </select>
+                <small>Thay thế giá đang chạy sẽ được triển khai ở phase vòng đời tiếp theo.</small>
+            </div>
+
+            <div class="form-field campaign-form-grid__description">
+                <label for="campaign-reason">Lý do thay đổi giá</label>
+                <textarea id="campaign-reason"
+                          class="form-control"
+                          maxlength="500"
+                          rows="2"
+                          data-campaign-reason
+                          placeholder="Lý do phục vụ kiểm toán và đối soát"
+                          required></textarea>
+            </div>
+
+            <div class="form-field campaign-form-grid__description">
+                <label for="campaign-description">Mô tả nội bộ</label>
+                <textarea id="campaign-description"
+                          class="form-control"
+                          rows="2"
+                          data-campaign-description
+                          placeholder="Ghi chú thêm cho đội vận hành"></textarea>
+            </div>
+        </div>
+    </section>
+
+    <section class="pricing-panel pricing-catalog-panel" aria-labelledby="catalog-heading">
+        <header class="pricing-panel__header pricing-panel__header--stackable">
+            <div class="pricing-heading-group">
+                <span class="step-index">02</span>
+                <div>
+                    <h3 id="catalog-heading">Chọn sản phẩm và biến thể</h3>
+                    <p>Bảng sản phẩm tải theo trang; bảng biến thể chỉ tải khi mở rộng.</p>
+                </div>
+            </div>
+
+            <div class="selection-toolbar" data-selection-toolbar>
+                <span>
+                    Đã chọn
+                    <strong data-selected-count>0</strong>
+                    biến thể
+                </span>
+                <button type="button"
+                        class="btn btn-sm btn-primary"
+                        data-configure-selected
+                        disabled>
+                    <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+                    Cấu hình đã chọn
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        data-clear-selection
+                        disabled>
+                    Bỏ chọn
+                </button>
+            </div>
+        </header>
+
+        <form class="pricing-filter" data-product-filter>
+            <div class="pricing-filter__search">
+                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                <input class="form-control"
+                       data-filter-keyword
+                       placeholder="Tìm theo tên sản phẩm hoặc SKU" />
+            </div>
+            <select class="form-select"
+                    data-filter-category
+                    asp-items="Model.CategoryOptions">
+                <option value="">Tất cả danh mục</option>
+            </select>
+            <select class="form-select"
+                    data-filter-brand
+                    asp-items="Model.BrandOptions">
+                <option value="">Tất cả thương hiệu</option>
+            </select>
+            <button class="btn btn-outline-secondary" type="submit">
+                Lọc dữ liệu
+            </button>
+        </form>
+
+        <div class="pricing-table-shell">
+            <div class="table-responsive">
+                <table class="table pricing-product-table align-middle">
+                    <thead>
+                        <tr>
+                            <th class="pricing-checkbox-column">
+                                <span class="visually-hidden">Chọn</span>
+                            </th>
+                            <th>Sản phẩm</th>
+                            <th>Danh mục / thương hiệu</th>
+                            <th class="text-center">Biến thể</th>
+                            <th>Giá niêm yết</th>
+                            <th>Giá hiện tại</th>
+                            <th>Trạng thái giá</th>
+                            <th class="text-end">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody data-product-table-body>
+                        <tr>
+                            <td colspan="8">
+                                <div class="pricing-loading-state">Đang tải sản phẩm...</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <footer class="pricing-pagination" aria-label="Phân trang sản phẩm">
+            <span data-page-summary>Trang 1</span>
+            <div>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        data-page-previous>
+                    Trước
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        data-page-next>
+                    Sau
+                </button>
+            </div>
+        </footer>
+    </section>
+
+    <section class="pricing-panel pricing-staging-panel" aria-labelledby="staging-heading">
+        <header class="pricing-panel__header pricing-panel__header--stackable">
+            <div class="pricing-heading-group">
+                <span class="step-index">03</span>
+                <div>
+                    <h3 id="staging-heading">Danh sách chờ xác nhận</h3>
+                    <p>Mỗi giá trong danh sách đã được server tính và có thể preview lại trước khi xác nhận.</p>
+                </div>
+            </div>
+
+            <button type="button"
+                    class="btn btn-sm btn-outline-danger"
+                    data-clear-staging
+                    disabled>
+                Xóa danh sách chờ
+            </button>
+        </header>
+
+        <div class="pricing-summary-grid" aria-label="Tóm tắt cấu hình giá">
+            <article>
+                <span>Sản phẩm</span>
+                <strong data-stage-product-count>0</strong>
+            </article>
+            <article>
+                <span>Biến thể</span>
+                <strong data-stage-variant-count>0</strong>
+            </article>
+            <article class="is-increase">
+                <span>Tăng giá</span>
+                <strong data-stage-increase-count>0</strong>
+            </article>
+            <article class="is-decrease">
+                <span>Giảm giá</span>
+                <strong data-stage-decrease-count>0</strong>
+            </article>
+            <article class="is-warning">
+                <span>Xung đột</span>
+                <strong data-stage-conflict-count>0</strong>
+            </article>
+        </div>
+
+        <div class="pricing-staging-list" data-staging-list>
+            <div class="pricing-empty-state">
+                <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+                <strong>Danh sách chờ đang trống</strong>
+                <span>Chọn biến thể và nhấn “Cấu hình đã chọn”.</span>
+            </div>
+        </div>
+    </section>
+
+    <footer class="sticky-editor-actions">
+        <div>
+            <strong data-save-summary>Chưa có cấu hình giá</strong>
+            <small data-save-hint>Bản nháp không tác động đến storefront.</small>
+        </div>
+        <div class="sticky-editor-actions__buttons">
+            <a asp-action="Index" class="btn btn-outline-secondary">Hủy</a>
+            <button type="button"
+                    class="btn btn-outline-primary"
+                    data-save-draft
+                    disabled>
+                Lưu bản nháp
+            </button>
+            <button type="button"
+                    class="btn btn-primary"
+                    data-open-confirm
+                    disabled>
+                Xác nhận kế hoạch
+            </button>
+        </div>
+    </footer>
+
+    <dialog class="pricing-dialog" data-price-config-dialog>
+        <form method="dialog" class="pricing-dialog__surface" data-price-config-form>
+            <header class="pricing-dialog__header">
+                <div>
+                    <p class="eyebrow">Price configuration</p>
+                    <h3>Cấu hình giá</h3>
+                    <span data-config-scope>0 biến thể</span>
+                </div>
+                <button type="button"
+                        class="pricing-dialog__close"
+                        data-close-config
+                        aria-label="Đóng">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </header>
+
+            <div class="pricing-dialog__body">
+                <div class="configuration-grid">
+                    <div class="form-field">
+                        <label for="adjustment-type">Cách tính giá</label>
+                        <select id="adjustment-type"
+                                class="form-select"
+                                data-adjustment-type>
+                            <option value="FixedPrice">Đặt giá cố định</option>
+                            <option value="PercentOff">Giảm theo phần trăm</option>
+                            <option value="AmountOff">Giảm số tiền</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label for="adjustment-value" data-adjustment-label>Giá mới</label>
+                        <input id="adjustment-value"
+                               type="number"
+                               min="0.01"
+                               step="0.01"
+                               class="form-control"
+                               data-adjustment-value />
+                    </div>
+                </div>
+
+                <div class="configuration-preview" data-configuration-preview>
+                    Giá sẽ được tính lại trên server trước khi đưa vào danh sách chờ.
+                </div>
+            </div>
+
+            <footer class="pricing-dialog__footer">
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        data-close-config>
+                    Hủy
+                </button>
+                <button type="submit"
+                        class="btn btn-primary"
+                        data-apply-configuration>
+                    Kiểm tra và thêm vào danh sách chờ
+                </button>
+            </footer>
+        </form>
+    </dialog>
+
+    <dialog class="pricing-dialog pricing-confirm-dialog" data-confirm-dialog>
+        <form method="dialog" class="pricing-dialog__surface" data-confirm-form>
+            <header class="pricing-dialog__header">
+                <div>
+                    <p class="eyebrow">Final confirmation</p>
+                    <h3>Xác nhận tạo biến động giá</h3>
+                    <span>Server sẽ kiểm tra lại lần cuối trong transaction.</span>
+                </div>
+                <button type="button"
+                        class="pricing-dialog__close"
+                        data-close-confirm
+                        aria-label="Đóng">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </header>
+
+            <div class="pricing-dialog__body">
+                <div class="confirmation-summary" data-confirmation-summary></div>
+                <div class="confirmation-warning" data-confirmation-warning hidden></div>
+            </div>
+
+            <footer class="pricing-dialog__footer">
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        data-close-confirm>
+                    Quay lại kiểm tra
+                </button>
+                <button type="submit"
+                        class="btn btn-primary"
+                        data-confirm-campaign>
+                    Xác nhận và tạo kế hoạch
+                </button>
+            </footer>
+        </form>
+    </dialog>
+</section>
+
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/pages/admin/price-campaigns.css"
+          asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/pages/admin/price-campaigns.js"
+            asp-append-version="true"></script>
+}

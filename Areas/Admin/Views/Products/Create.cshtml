@@ -1,0 +1,122 @@
+@model WebApplication2.Areas.Admin.ViewModels.Products.ProductCreateViewModel
+@{
+    ViewData["Title"] = "Tạo sản phẩm";
+}
+
+<section class="admin-page product-editor" data-product-create>
+    <header class="admin-page-header">
+        <div>
+            <p class="eyebrow">Catalog setup</p>
+            <h2>Tạo sản phẩm đa biến thể</h2>
+            <p class="admin-page-lead">Thông tin chung thuộc Product; giá và tồn kho thuộc từng ProductVariant. SKU được hệ thống cấp tự động sau khi lưu.</p>
+        </div>
+        <a asp-action="Index" class="btn btn-outline-secondary">Quay lại</a>
+    </header>
+
+    <form asp-action="Create" method="post" enctype="multipart/form-data" class="product-editor-form" data-product-editor-form>
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+        <section class="editor-card">
+            <div class="editor-card__heading"><span class="step-index">01</span><h3>Thông tin chung</h3></div>
+            <div class="editor-grid">
+                <label class="field field--wide">Tên sản phẩm<input asp-for="Name" class="form-control" data-product-name /><span asp-validation-for="Name"></span></label>
+                <label class="field">Slug<input asp-for="Slug" class="form-control" data-product-slug /><span asp-validation-for="Slug"></span></label>
+                <label class="field">Danh mục<select asp-for="CategoryId" asp-items="Model.CategoryOptions" class="form-select"><option value="">Chọn danh mục</option></select><span asp-validation-for="CategoryId"></span></label>
+                <label class="field">Thương hiệu<select asp-for="BrandId" asp-items="Model.BrandOptions" class="form-select"></select></label>
+                <label class="field field--wide">Mô tả<textarea asp-for="Description" class="form-control" rows="5"></textarea></label>
+                <label class="form-check field--check"><input asp-for="IsActive" class="form-check-input" /><span>Hiển thị sản phẩm sau khi tạo</span></label>
+            </div>
+        </section>
+
+        <section class="editor-card">
+            <div class="editor-card__heading"><span class="step-index">02</span><h3>SEO và nội dung chia sẻ</h3></div>
+            <div class="editor-grid">
+                <label class="field">Meta title<input asp-for="MetaTitle" class="form-control" maxlength="255" /><span asp-validation-for="MetaTitle"></span></label>
+                <label class="field">Meta description<textarea asp-for="MetaDescription" class="form-control" rows="3" maxlength="500"></textarea><span asp-validation-for="MetaDescription"></span></label>
+            </div>
+        </section>
+
+        <section class="editor-card">
+            <div class="editor-card__heading"><span class="step-index">03</span><h3>Hình ảnh</h3></div>
+            <div class="editor-grid">
+                <label class="field">Ảnh đại diện<input asp-for="MainImage" type="file" class="form-control" accept="image/jpeg,image/png,image/webp" required /><span asp-validation-for="MainImage"></span></label>
+                <label class="field">Ảnh thư viện<input asp-for="GalleryImages" type="file" class="form-control" accept="image/jpeg,image/png,image/webp" multiple /></label>
+            </div>
+        </section>
+
+        <section class="editor-card">
+            <div class="editor-card__heading editor-card__heading--actions">
+                <div><span class="step-index">04</span><div><h3>Biến thể bán hàng</h3><small>SKU được tạo tự động, không cần nhập thủ công.</small></div></div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-add-create-variant>Thêm dòng biến thể</button>
+            </div>
+            <div class="variant-create-list" data-create-variant-list>
+                @for (var index = 0; index < Model.Variants.Count; index++)
+                {
+                    <article class="variant-create-row" data-create-variant-row>
+                        <span class="variant-create-row__number">@(index + 1)</span>
+                        <label>Màu<input asp-for="Variants[index].Color" class="form-control" data-variant-property="Color" /></label>
+                        <label>Size / quy cách<input asp-for="Variants[index].Size" class="form-control" data-variant-property="Size" /></label>
+                        <label>Giá<input asp-for="Variants[index].Price" class="form-control" type="number" min="0.01" step="0.01" data-variant-property="Price" /><span asp-validation-for="Variants[index].Price"></span></label>
+                        <label>Tồn kho<input asp-for="Variants[index].StockQuantity" class="form-control" type="number" min="0" data-variant-property="StockQuantity" /></label>
+                        <label>Ảnh<input asp-for="Variants[index].Image" class="form-control" type="file" accept="image/jpeg,image/png,image/webp" data-variant-property="Image" /></label>
+                        <label class="form-check">
+                            <input type="checkbox"
+                                   name="Variants[@index].IsActive"
+                                   value="true"
+                                   class="form-check-input"
+                                   checked="@Model.Variants[index].IsActive"
+                                   data-variant-property="IsActive" />
+                            <input type="hidden" name="Variants[@index].IsActive" value="false" data-variant-hidden="IsActive" />
+                            <span>Đang bán</span>
+                        </label>
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-remove-create-variant>Xóa</button>
+                    </article>
+                }
+            </div>
+        </section>
+
+        @if (Model.PromotionOptions.Count > 0)
+        {
+            <section class="editor-card">
+                <div class="editor-card__heading"><span class="step-index">05</span><h3>Khuyến mãi sản phẩm hiện có</h3></div>
+                <div class="choice-grid">
+                    @foreach (var option in Model.PromotionOptions)
+                    {
+                        <label class="choice-card">
+                            <input type="checkbox" name="SelectedPromotionIds" value="@option.Value" checked="@option.Selected" />
+                            <span>@option.Text</span>
+                        </label>
+                    }
+                </div>
+            </section>
+        }
+
+        <footer class="sticky-editor-actions">
+            <span>Giá bán hiệu lực ban đầu bằng giá niêm yết của từng biến thể.</span>
+            <div><a asp-action="Index" class="btn btn-outline-secondary">Hủy</a><button class="btn btn-primary" type="submit">Tạo sản phẩm</button></div>
+        </footer>
+    </form>
+
+    <template data-create-variant-template>
+        <article class="variant-create-row" data-create-variant-row>
+            <span class="variant-create-row__number"></span>
+            <label>Màu<input class="form-control" data-variant-property="Color" /></label>
+            <label>Size / quy cách<input class="form-control" data-variant-property="Size" /></label>
+            <label>Giá<input class="form-control" type="number" min="0.01" step="0.01" data-variant-property="Price" /></label>
+            <label>Tồn kho<input class="form-control" type="number" min="0" data-variant-property="StockQuantity" /></label>
+            <label>Ảnh<input class="form-control" type="file" accept="image/jpeg,image/png,image/webp" data-variant-property="Image" /></label>
+            <label class="form-check">
+                <input class="form-check-input" type="checkbox" value="true" checked data-variant-property="IsActive" />
+                <input type="hidden" value="false" data-variant-hidden="IsActive" />
+                <span>Đang bán</span>
+            </label>
+            <button type="button" class="btn btn-sm btn-outline-danger" data-remove-create-variant>Xóa</button>
+        </article>
+    </template>
+</section>
+
+@section Styles { <link rel="stylesheet" href="~/css/pages/admin/products-editor.css" asp-append-version="true" /> }
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/pages/admin/products-editor.js" asp-append-version="true"></script>
+}

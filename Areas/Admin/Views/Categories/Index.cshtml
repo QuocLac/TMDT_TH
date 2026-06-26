@@ -1,0 +1,145 @@
+@model WebApplication2.Areas.Admin.ViewModels.Categories.CategoryIndexPageViewModel
+@{
+    ViewData["Title"] = "Quản lý danh mục";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/categories.css" asp-append-version="true" />
+}
+
+<section class="admin-page"
+         data-category-page
+         data-get-url="@Url.Action("GetCategory", "Categories", new { area = "Admin" })"
+         data-save-url="@Url.Action("SaveCategory", "Categories", new { area = "Admin" })"
+         data-delete-url="@Url.Action("Delete", "Categories", new { area = "Admin" })">
+    <header class="admin-page-header">
+        <div>
+            <p class="admin-page-header__eyebrow">Danh mục sản phẩm</p>
+            <h1>Quản lý danh mục</h1>
+            <p>Tổ chức cây danh mục và đường dẫn SEO dùng cho toàn bộ ngành hàng.</p>
+        </div>
+        <button type="button" class="app-button app-button--primary" data-category-open>
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+            Thêm danh mục
+        </button>
+    </header>
+
+    <div class="content-panel">
+        <div class="table-responsive">
+            <table class="admin-table">
+                <caption class="visually-hidden">Danh sách danh mục sản phẩm</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Tên danh mục</th>
+                        <th scope="col">Danh mục cha</th>
+                        <th scope="col">Đường dẫn SEO</th>
+                        <th scope="col" class="text-end">Sản phẩm</th>
+                        <th scope="col" class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Categories.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="5">
+                                <div class="empty-state">
+                                    <i class="fa-regular fa-folder-open" aria-hidden="true"></i>
+                                    <strong>Chưa có danh mục</strong>
+                                    <span>Hãy tạo danh mục gốc đầu tiên cho catalog.</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var category in Model.Categories)
+                        {
+                            <tr>
+                                <td><strong>@category.Name</strong></td>
+                                <td>@(category.ParentName ?? "Danh mục gốc")</td>
+                                <td><code>@category.Slug</code></td>
+                                <td class="text-end">@category.ProductCount</td>
+                                <td class="text-end">
+                                    <div class="table-actions">
+                                        <button type="button"
+                                                class="icon-button"
+                                                data-category-open="@category.Id"
+                                                aria-label="Sửa danh mục @category.Name">
+                                            <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                                        </button>
+                                        <button type="button"
+                                                class="icon-button icon-button--danger"
+                                                data-category-delete="@category.Id"
+                                                data-category-name="@category.Name"
+                                                aria-label="Xóa danh mục @category.Name">
+                                            <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" id="categoryForm">
+            <div class="modal-header">
+                <div>
+                    <p class="modal-eyebrow">Cây danh mục</p>
+                    <h2 class="modal-title fs-5" id="categoryModalLabel">Thêm danh mục</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="CategoryId" value="0" />
+
+                <div class="form-field">
+                    <label for="CategoryName">Tên danh mục <span aria-hidden="true">*</span></label>
+                    <input type="text" id="CategoryName" maxlength="255" autocomplete="off" required />
+                </div>
+
+                <div class="form-field">
+                    <label for="ParentId">Danh mục cha</label>
+                    <select id="ParentId">
+                        <option value="">Không có — đây là danh mục gốc</option>
+                        @foreach (var category in Model.ParentOptions)
+                        {
+                            <option value="@category.Id">@category.Name</option>
+                        }
+                    </select>
+                    <small>Không thể chọn chính danh mục hoặc một danh mục con làm cha.</small>
+                </div>
+
+                <div class="form-field">
+                    <label for="CategorySlug">Đường dẫn SEO <span aria-hidden="true">*</span></label>
+                    <input type="text" id="CategorySlug" maxlength="255" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required />
+                </div>
+
+                <div class="form-field">
+                    <label for="MetaTitle">Meta title</label>
+                    <input type="text" id="MetaTitle" maxlength="255" />
+                </div>
+
+                <div class="form-field">
+                    <label for="MetaDescription">Meta description</label>
+                    <textarea id="MetaDescription" maxlength="500" rows="3"></textarea>
+                </div>
+
+                <div class="app-alert app-alert--danger d-none" role="alert" id="categoryFormError"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="app-button app-button--secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="app-button app-button--primary" id="categorySubmitButton">Lưu danh mục</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/admin/categories.js" asp-append-version="true" defer></script>
+}

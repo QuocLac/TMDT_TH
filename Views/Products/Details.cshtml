@@ -1,0 +1,95 @@
+@model WebApplication2.ViewModels.Storefront.Products.ProductDetailsViewModel
+@{
+    ViewData["Title"] = string.IsNullOrWhiteSpace(Model.MetaTitle) ? Model.Name : Model.MetaTitle;
+    ViewData["MetaDescription"] = Model.MetaDescription;
+    var mainImage = Model.Images.FirstOrDefault(image => image.IsMain) ?? Model.Images.First();
+}
+
+<div class="shell-container product-details-page">
+    <nav class="breadcrumb" aria-label="Breadcrumb">
+        <a asp-controller="Home" asp-action="Index">Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <a asp-controller="Home" asp-action="Index" asp-route-categoryId="@Model.CategoryId">@Model.CategoryName</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">@Model.Name</span>
+    </nav>
+
+    <article class="product-details">
+        <section class="product-gallery" aria-label="Hình ảnh sản phẩm">
+            <div class="product-gallery__main">
+                <img id="product-main-image" src="@mainImage.Url" alt="@Model.Name" />
+            </div>
+            @if (Model.Images.Count > 1)
+            {
+                <div class="product-gallery__thumbs">
+                    @foreach (var image in Model.Images)
+                    {
+                        <button type="button" class="product-gallery__thumb" data-product-image="@image.Url" aria-label="Xem ảnh khác của @Model.Name">
+                            <img src="@image.Url" alt="" loading="lazy" />
+                        </button>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="product-summary">
+            <p class="product-summary__eyebrow">@Model.CategoryName</p>
+            <h1>@Model.Name</h1>
+            @if (!string.IsNullOrWhiteSpace(Model.BrandName))
+            {
+                <p>Thương hiệu: <strong>@Model.BrandName</strong></p>
+            }
+
+            @if (Model.Variants.Count == 0)
+            {
+                <div class="empty-state">
+                    <h2>Sản phẩm tạm hết lựa chọn bán</h2>
+                    <p>Vui lòng quay lại sau hoặc xem sản phẩm khác trong cùng danh mục.</p>
+                </div>
+            }
+            else
+            {
+                <div class="variant-list" aria-label="Các biến thể đang bán">
+                    @foreach (var variant in Model.Variants)
+                    {
+                        var attributes = string.Join(" · ", new[] { variant.Color, variant.Size }.Where(value => !string.IsNullOrWhiteSpace(value)));
+                        <article class="variant-card @(variant.StockQuantity <= 0 ? "variant-card--sold-out" : null)">
+                            <div>
+                                <strong>@variant.Sku</strong>
+                                <p>
+                                    <span>@(string.IsNullOrWhiteSpace(attributes) ? "Phiên bản tiêu chuẩn" : attributes)</span>
+                                </p>
+                            </div>
+                            <div class="price-display">
+                                @if (variant.IsOnSale)
+                                {
+                                    <del>@variant.OriginalPrice.ToString("N0") ₫</del>
+                                }
+                                <strong>@variant.EffectivePrice.ToString("N0") ₫</strong>
+                            </div>
+                            <span class="stock-state">
+                                @(variant.StockQuantity > 0 ? $"Còn {variant.StockQuantity} sản phẩm" : "Tạm hết hàng")
+                            </span>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </article>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Description))
+    {
+        <section class="product-description surface-card">
+            <h2>Thông tin sản phẩm</h2>
+            <div class="product-description__content">@Model.Description</div>
+        </section>
+    }
+</div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/product-details.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/pages/storefront/product-details.js" asp-append-version="true"></script>
+}
