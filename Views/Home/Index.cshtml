@@ -1,0 +1,165 @@
+@model WebApplication2.ViewModels.Storefront.Home.HomePageViewModel
+@{
+    ViewData["Title"] = string.IsNullOrWhiteSpace(Model.Query)
+        ? "Trang chủ"
+        : $"Tìm kiếm: {Model.Query}";
+}
+
+<section class="home-hero" aria-labelledby="home-hero-title">
+    <div class="shell-container home-hero__grid">
+        <div class="home-hero__content">
+            <p class="eyebrow">FastBuy Marketplace</p>
+            @if (!string.IsNullOrWhiteSpace(Model.Query))
+            {
+                <h2 id="home-hero-title">Kết quả cho “@Model.Query”</h2>
+                <p>Khám phá các sản phẩm phù hợp với từ khóa bạn đang tìm kiếm.</p>
+            }
+            else
+            {
+                <h2 id="home-hero-title">Mua sắm thuận tiện cho mọi nhu cầu</h2>
+                <p>Khám phá sản phẩm từ nhiều ngành hàng trong một trải nghiệm rõ ràng, nhanh và dễ sử dụng.</p>
+            }
+            <div class="home-hero__actions">
+                <a class="button button--primary" href="#products">Xem sản phẩm</a>
+                <a class="button button--secondary" href="#categories">Khám phá danh mục</a>
+            </div>
+        </div>
+
+        <aside class="home-hero__catalog" aria-label="Danh mục nổi bật">
+            <span class="home-hero__catalog-label">Duyệt nhanh theo danh mục</span>
+            @if (Model.Categories != null && Model.Categories.Any())
+            {
+                <ul>
+                    @foreach (var category in Model.Categories.Take(4))
+                    {
+                        <li>
+                            <a asp-controller="Home"
+                               asp-action="Index"
+                               asp-route-categoryId="@category.Id">
+                                <span>@category.Name</span>
+                                <span aria-hidden="true">→</span>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="home-hero__catalog-empty">Danh mục sẽ xuất hiện khi dữ liệu sẵn sàng.</p>
+            }
+        </aside>
+    </div>
+</section>
+
+<section id="categories" class="home-section shell-container" aria-labelledby="category-heading">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Danh mục</p>
+            <h2 id="category-heading">Khám phá theo nhu cầu</h2>
+        </div>
+        @if (Model.CategoryId.HasValue)
+        {
+            <a asp-controller="Home" asp-action="Index" asp-route-query="@Model.Query" class="text-link">Xóa bộ lọc</a>
+        }
+    </div>
+
+    @if (Model.Categories != null && Model.Categories.Any())
+    {
+        <div class="category-grid">
+            @foreach (var category in Model.Categories)
+            {
+                var isSelected = Model.CategoryId == category.Id;
+                <a asp-controller="Home"
+                   asp-action="Index"
+                   asp-route-query="@Model.Query"
+                   asp-route-categoryId="@category.Id"
+                   class="category-card @(isSelected ? "is-selected" : null)"
+                   aria-current="@(isSelected ? "page" : null)">
+                    <span class="category-card__mark" aria-hidden="true">@category.Name[..1].ToUpperInvariant()</span>
+                    <span>@category.Name</span>
+                </a>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <h3>Chưa có danh mục</h3>
+            <p>Danh mục sản phẩm sẽ được hiển thị tại đây khi có dữ liệu.</p>
+        </div>
+    }
+</section>
+
+@if (Model.FlashSaleProducts != null && Model.FlashSaleProducts.Any())
+{
+    <section class="home-section home-section--campaign shell-container" aria-labelledby="campaign-heading">
+        <div class="section-heading section-heading--campaign">
+            <div>
+                <p class="eyebrow">Giá đang áp dụng</p>
+                <h2 id="campaign-heading">Ưu đãi hiện tại</h2>
+            </div>
+            @if (Model.FlashSaleEndsAt.HasValue)
+            {
+                var flashSaleEnd = Model.FlashSaleEndsAt.Value.ToUniversalTime();
+                <time class="countdown"
+                      datetime="@flashSaleEnd.ToString("O")"
+                      data-countdown
+                      data-countdown-end="@flashSaleEnd.ToString("O")"
+                      aria-label="Thời gian còn lại của ưu đãi">
+                    <span class="countdown__label">Kết thúc sau</span>
+                    <span class="countdown__value" data-countdown-days>00</span>
+                    <span class="countdown__unit">ngày</span>
+                    <span class="countdown__value" data-countdown-hours>00</span>
+                    <span aria-hidden="true">:</span>
+                    <span class="countdown__value" data-countdown-minutes>00</span>
+                    <span aria-hidden="true">:</span>
+                    <span class="countdown__value" data-countdown-seconds>00</span>
+                </time>
+            }
+        </div>
+
+        <div class="product-grid">
+            @foreach (var product in Model.FlashSaleProducts)
+            {
+                <partial name="Components/_ProductCard" model="product" />
+            }
+        </div>
+    </section>
+}
+
+<section id="products" class="home-section shell-container" aria-labelledby="product-heading">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">Sản phẩm</p>
+            <h2 id="product-heading">
+                @(string.IsNullOrWhiteSpace(Model.Query) ? "Khám phá sản phẩm" : "Kết quả tìm kiếm")
+            </h2>
+        </div>
+    </div>
+
+    @if (Model.SuggestedProducts != null && Model.SuggestedProducts.Any())
+    {
+        <div class="product-grid">
+            @foreach (var product in Model.SuggestedProducts)
+            {
+                <partial name="Components/_ProductCard" model="product" />
+            }
+        </div>
+    }
+    else
+    {
+        <div class="empty-state">
+            <h3>Không tìm thấy sản phẩm phù hợp</h3>
+            <p>Hãy thử một từ khóa khác hoặc xóa bộ lọc danh mục.</p>
+            <a asp-controller="Home" asp-action="Index" class="button button--secondary">Xem tất cả sản phẩm</a>
+        </div>
+    }
+</section>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/home.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/pages/storefront/home.js" asp-append-version="true"></script>
+}

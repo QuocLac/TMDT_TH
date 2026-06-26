@@ -1,0 +1,101 @@
+@model WebApplication2.ViewModels.Storefront.Products.ProductDetailsViewModel
+@{
+    ViewData["Title"] = Model.MetaTitle ?? Model.Name;
+    ViewData["MetaDescription"] = Model.MetaDescription;
+    var mainImage = Model.Images.FirstOrDefault(image => image.IsMain) ?? Model.Images.First();
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/product-details.css" asp-append-version="true" />
+}
+
+<div class="store-container product-details-page">
+    <nav class="breadcrumb" aria-label="Điều hướng phân cấp">
+        <a asp-controller="Home" asp-action="Index">Trang chủ</a>
+        <span aria-hidden="true">/</span>
+        <a asp-controller="Home" asp-action="Index" asp-route-categoryId="@Model.Id">@Model.CategoryName</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">@Model.Name</span>
+    </nav>
+
+    <article class="product-details">
+        <section class="product-gallery" aria-label="Hình ảnh sản phẩm">
+            <div class="product-gallery__main">
+                <img src="@mainImage.Url" alt="@Model.Name" id="product-main-image" />
+            </div>
+            @if (Model.Images.Count > 1)
+            {
+                <div class="product-gallery__thumbs" role="list">
+                    @foreach (var image in Model.Images)
+                    {
+                        <button type="button"
+                                class="product-gallery__thumb"
+                                data-product-image="@image.Url"
+                                aria-label="Xem ảnh của @Model.Name">
+                            <img src="@image.Url" alt="" loading="lazy" />
+                        </button>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="product-summary">
+            <p class="product-summary__eyebrow">@Model.CategoryName</p>
+            <h1>@Model.Name</h1>
+            @if (!string.IsNullOrWhiteSpace(Model.BrandName))
+            {
+                <p class="product-summary__brand">Thương hiệu: <strong>@Model.BrandName</strong></p>
+            }
+
+            @if (Model.Variants.Count == 0)
+            {
+                <div class="app-alert app-alert--warning" role="status">
+                    Sản phẩm hiện chưa có biến thể đang bán.
+                </div>
+            }
+            else
+            {
+                <div class="variant-list" aria-label="Các lựa chọn sản phẩm">
+                    @foreach (var variant in Model.Variants)
+                    {
+                        <article class="variant-card @(variant.StockQuantity <= 0 ? "variant-card--sold-out" : string.Empty)">
+                            <div>
+                                <strong>@variant.Sku</strong>
+                                <p>
+                                    @if (!string.IsNullOrWhiteSpace(variant.Color))
+                                    {
+                                        <span>Màu: @variant.Color</span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(variant.Size))
+                                    {
+                                        <span>Quy cách: @variant.Size</span>
+                                    }
+                                </p>
+                            </div>
+                            <div class="price-display">
+                                @if (variant.IsOnSale)
+                                {
+                                    <del>@variant.OriginalPrice.ToString("N0") đ</del>
+                                }
+                                <strong>@variant.EffectivePrice.ToString("N0") đ</strong>
+                            </div>
+                            <span class="stock-state">@(variant.StockQuantity > 0 ? $"Còn {variant.StockQuantity}" : "Tạm hết hàng")</span>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </article>
+
+    @if (!string.IsNullOrWhiteSpace(Model.Description))
+    {
+        <section class="product-description content-panel">
+            <h2>Thông tin sản phẩm</h2>
+            <p>@Model.Description</p>
+        </section>
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/storefront/product-details.js" asp-append-version="true" defer></script>
+}
