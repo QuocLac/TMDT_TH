@@ -1,0 +1,184 @@
+﻿@model WebApplication2.Areas.Admin.ViewModels.ProductCreateViewModel
+@using WebApplication2.Models
+@using WebApplication2.Models.Enums
+@{
+    ViewData["Title"] = "Thêm mới Sản phẩm";
+    var activePromotions = ViewBag.ActivePromotions as List<Promotion>;
+}
+
+<form asp-action="Create" method="post" enctype="multipart/form-data">
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger shadow-sm border-0 mb-4"></div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-file-lines me-2"></i>Thông tin cơ bản</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label asp-for="Name" class="form-label text-dark fw-bold">Tên sản phẩm <span class="text-danger">*</span></label>
+                        <input asp-for="Name" class="form-control border-secondary" onkeyup="generateSlug()" />
+                        <span asp-validation-for="Name" class="text-danger small d-block mt-1"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Slug" class="form-label text-dark fw-bold">Đường dẫn SEO <span class="text-danger">*</span></label>
+                        <input asp-for="Slug" class="form-control bg-light border-secondary" readonly />
+                        <span asp-validation-for="Slug" class="text-danger small d-block mt-1"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="Description" class="form-label text-dark fw-bold">Mô tả chi tiết</label>
+                        <textarea asp-for="Description" class="form-control border-secondary" rows="4"></textarea>
+                        <span asp-validation-for="Description" class="text-danger small d-block mt-1"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-magnifying-glass me-2"></i>Tối ưu SEO (Tùy chọn)</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label asp-for="MetaTitle" class="form-label text-dark fw-bold">Thẻ tiêu đề (Meta Title)</label>
+                        <input asp-for="MetaTitle" class="form-control border-secondary" placeholder="Tiêu đề hiển thị trên kết quả tìm kiếm Google (Tối đa 60 ký tự)" maxlength="255" />
+                        <span asp-validation-for="MetaTitle" class="text-danger small d-block mt-1"></span>
+                        <small class="text-muted">Nếu để trống, hệ thống sẽ tự lấy Tên sản phẩm làm thẻ tiêu đề.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="MetaDescription" class="form-label text-dark fw-bold">Thẻ mô tả (Meta Description)</label>
+                        <textarea asp-for="MetaDescription" class="form-control border-secondary" rows="3" placeholder="Mô tả ngắn gọn thu hút khách hàng click (150 - 160 ký tự)"></textarea>
+                        <span asp-validation-for="MetaDescription" class="text-danger small d-block mt-1"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-image me-2"></i>Quản lý Hình ảnh</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label asp-for="MainImage" class="form-label text-dark fw-bold">Ảnh đại diện <span class="text-danger">*</span></label>
+                        <input asp-for="MainImage" type="file" class="form-control border-secondary" accept="image/*" />
+                        <span asp-validation-for="MainImage" class="text-danger small d-block mt-1"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label asp-for="GalleryImages" class="form-label text-dark fw-bold">Bộ sưu tập (Nhiều ảnh)</label>
+                        <input asp-for="GalleryImages" type="file" class="form-control border-secondary" accept="image/*" multiple />
+                        <span asp-validation-for="GalleryImages" class="text-danger small d-block mt-1"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-cube me-2"></i>Phiên bản mặc định (Khởi tạo)</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="SKU" class="form-label text-dark fw-bold">Mã SKU <span class="text-danger">*</span></label>
+                            <input asp-for="SKU" class="form-control border-secondary" />
+                            <span asp-validation-for="SKU" class="text-danger small d-block mt-1"></span>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="Price" class="form-label text-dark fw-bold">Giá bán <span class="text-danger">*</span></label>
+                            <input asp-for="Price" type="number" class="form-control border-secondary" />
+                            <span asp-validation-for="Price" class="text-danger small d-block mt-1"></span>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label asp-for="StockQuantity" class="form-label text-dark fw-bold">Tồn kho <span class="text-danger">*</span></label>
+                            <input asp-for="StockQuantity" type="number" class="form-control border-secondary" />
+                            <span asp-validation-for="StockQuantity" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Color" class="form-label text-dark">Màu sắc</label>
+                            <input asp-for="Color" class="form-control border-secondary" />
+                            <span asp-validation-for="Color" class="text-danger small d-block mt-1"></span>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="Size" class="form-label text-dark">Kích thước</label>
+                            <input asp-for="Size" class="form-control border-secondary" />
+                            <span asp-validation-for="Size" class="text-danger small d-block mt-1"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label asp-for="VariantImage" class="form-label text-dark fw-bold"><i class="fa-solid fa-image me-1"></i>Ảnh minh họa riêng (Tùy chọn)</label>
+                        <input asp-for="VariantImage" type="file" class="form-control border-secondary" accept="image/*" />
+                        <span asp-validation-for="VariantImage" class="text-danger small d-block mt-1"></span>
+                        <small class="text-muted d-block">Hình ảnh này sẽ hiển thị khi khách hàng chọn đúng màu/size này.</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 mb-4 border-start border-4" style="border-color: var(--primary-moss) !important;">
+                <div class="card-header bg-white py-3">
+                    <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-folder me-2"></i>Phân loại & Trạng thái</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label asp-for="CategoryId" class="form-label text-dark fw-bold">Danh mục <span class="text-danger">*</span></label>
+                        <select asp-for="CategoryId" class="form-select border-secondary" asp-items="ViewBag.CategoryId">
+                            <option value="">-- Chọn danh mục --</option>
+                        </select>
+                        <span asp-validation-for="CategoryId" class="text-danger small d-block mt-1"></span>
+                    </div>
+                    <div class="form-check form-switch mt-3">
+                        <input class="form-check-input" type="checkbox" asp-for="IsActive" checked>
+                        <label class="form-check-label text-dark fw-bold" asp-for="IsActive">Hiển thị sản phẩm</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-tag me-2"></i>Áp dụng Khuyến mãi</h6>
+                </div>
+                <div class="card-body">
+                    @if (activePromotions != null && activePromotions.Any())
+                    {
+                        foreach (var promo in activePromotions)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input border-secondary" type="checkbox" name="SelectedPromotionIds" value="@promo.Id" id="promo_@promo.Id">
+                                <label class="form-check-label text-dark" for="promo_@promo.Id">
+                                    @promo.Name (Giảm @promo.DiscountValue @(promo.Unit == DiscountUnit.Percentage ? "%" : "đ"))
+                                </label>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <small class="text-muted">Không có chương trình nào.</small>
+                    }
+                </div>
+            </div>
+
+            <div class="d-grid gap-2 sticky-top" style="top: 20px;">
+                <button type="submit" class="btn text-white" style="background-color: var(--primary-moss);">
+                    Lưu Sản phẩm
+                </button>
+                <a asp-action="Index" class="btn btn-light border text-dark">Hủy</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        // Tự động tạo Slug chuẩn SEO
+        function generateSlug() {
+            let title = document.getElementById('Name').value;
+            let slug = title.toLowerCase().replace(/á|à|ả|ạ|ã|ă|ắ|ằ|ẳ|ẵ|ặ|â|ấ|ầ|ẩ|ẫ|ậ/gi, 'a').replace(/é|è|ẻ|ẽ|ẹ|ê|ế|ề|ể|ễ|ệ/gi, 'e').replace(/i|í|ì|ỉ|ĩ|ị/gi, 'i').replace(/ó|ò|ỏ|õ|ọ|ô|ố|ồ|ổ|ỗ|ộ|ơ|ớ|ờ|ở|ỡ|ợ/gi, 'o').replace(/ú|ù|ủ|ũ|ụ|ư|ứ|ừ|ử|ữ|ự/gi, 'u').replace(/ý|ỳ|ỷ|ỹ|ỵ/gi, 'y').replace(/đ/gi, 'd').replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+            document.getElementById('Slug').value = slug;
+        }
+    </script>
+}

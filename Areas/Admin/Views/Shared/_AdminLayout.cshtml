@@ -1,0 +1,160 @@
+﻿@* Areas/Admin/Views/Shared/_AdminLayout.cshtml *@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - FastBuy Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" />
+
+    <style>
+        :root {
+            /* Tông màu Moss Green chuyên nghiệp cho Enterprise */
+            --primary-moss: #4A5D23;
+            --dark-moss: #354219;
+            --light-moss: #6a8236;
+            --bg-light: #f4f6f9;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Sidebar Styling */
+        #sidebar {
+            min-width: 250px;
+            max-width: 250px;
+            min-height: 100vh;
+            background-color: var(--primary-moss);
+            color: #fff;
+            transition: all 0.3s;
+            position: fixed;
+            z-index: 1000;
+        }
+
+        #sidebar .sidebar-header {
+            padding: 20px;
+            background: var(--dark-moss);
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.5rem;
+            letter-spacing: 1px;
+        }
+
+        #sidebar ul.components {
+            padding: 20px 0;
+        }
+
+        #sidebar ul li a {
+            padding: 15px 20px;
+            font-size: 1.1rem;
+            display: block;
+            color: rgba(255, 255, 255, 0.85);
+            text-decoration: none;
+            transition: 0.2s;
+        }
+
+        #sidebar ul li a:hover, #sidebar ul li.active > a {
+            color: #fff;
+            background: var(--light-moss);
+            border-left: 4px solid #fff;
+        }
+
+        #sidebar ul li a i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Main Content Styling */
+        #content {
+            width: calc(100% - 250px);
+            margin-left: 250px;
+            min-height: 100vh;
+            transition: all 0.3s;
+        }
+
+        /* Header (Top Navbar) */
+        .top-navbar {
+            background: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .main-wrapper {
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="d-flex">
+        <nav id="sidebar">
+            <div class="sidebar-header">
+                <i class="fa-solid fa-cart-bolt"></i> FASTBUY
+            </div>
+
+            <ul class="list-unstyled components">
+                <li>
+                    <a href="/Admin/Home">Tổng quan</a>
+                </li>
+                <li>
+                    <a href="/Admin/Categories">Quản lý Danh mục</a>
+                </li>
+                <li>
+                    <a href="/Admin/Products">Sản phẩm và Biến thể</a>
+                </li>
+                <li>
+                    <a href="/Admin/Promotions">Quản lý Khuyến mãi</a>
+                </li>
+                <li>
+                    <a href="/Admin/Orders">Đơn hàng</a>
+                </li>
+            </ul>
+        </nav>
+
+        <div id="content">
+            <header class="top-navbar">
+                <div>
+                    <h4 class="m-0 text-dark">@ViewData["Title"]</h4>
+                </div>
+                <div class="d-flex align-items-center">
+                    <a href="/" target="_blank" class="btn btn-outline-secondary btn-sm me-3">
+                        <i class="fa-solid fa-globe"></i> Xem Website
+                    </a>
+                    <div class="position-relative me-3">
+                        <i class="fa-regular fa-bell fs-5 text-muted"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
+                            3
+                        </span>
+                    </div>
+                    <div class="dropdown">
+                        <a href="#" class="d-flex align-items-center text-dark text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
+                            <img src="https://ui-avatars.com/api/?name=Admin&background=4A5D23&color=fff" alt="Admin" width="32" height="32" class="rounded-circle me-2">
+                            <strong>Quản trị viên</strong>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li><a class="dropdown-item" href="#"><i class="fa-solid fa-user me-2"></i> Hồ sơ</a></li>
+                            <li><a class="dropdown-item" href="#"><i class="fa-solid fa-gear me-2"></i> Cài đặt sàn</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="#"><i class="fa-solid fa-right-from-bracket me-2"></i> Đăng xuất</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </header>
+
+            <main class="main-wrapper">
+                @RenderBody()
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

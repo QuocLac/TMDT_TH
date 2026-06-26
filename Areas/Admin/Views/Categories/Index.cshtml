@@ -1,0 +1,206 @@
+﻿@using WebApplication2.Models
+@model IEnumerable<Category>
+@{
+    ViewData["Title"] = "Quản lý Danh mục";
+    var parentCategories = ViewBag.ParentCategories as IEnumerable<Category>;
+}
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+        <h5 class="mb-0 text-dark fw-bold"><i class="fa-solid fa-layer-group text-dark me-2"></i>Danh sách Danh mục</h5>
+        <button type="button" class="btn btn-sm text-white" style="background-color: var(--primary-moss);" onclick="openCategoryModal()">
+            <i class="fa-solid fa-plus me-1"></i> Thêm mới
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light text-dark">
+                <tr>
+                    <th width="30%">Tên danh mục</th>
+                    <th width="20%">Danh mục cha</th>
+                    <th width="30%">Đường dẫn SEO (Slug)</th>
+                    <th width="20%" class="text-center">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model != null && Model.Any())
+                {
+                    foreach (var item in Model)
+                    {
+                        <tr>
+                            <td class="fw-semibold text-dark">@item.Name</td>
+                            <td>
+                                @if (item.Parent != null)
+                                {
+                                    <span class="text-muted"><i class="fa-solid fa-turn-up fa-rotate-90 me-1"></i> @item.Parent.Name</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-dark border">Danh mục gốc</span>
+                                }
+                            </td>
+                            <td><code class="text-secondary bg-light px-2 py-1 rounded">@item.Slug</code></td>
+                            <td class="text-center">
+                                <button onclick="openCategoryModal(@item.Id)" class="btn btn-sm btn-light border text-dark me-1" title="Sửa danh mục">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button class="btn btn-sm btn-light border text-dark" title="Xóa danh mục">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="4" class="text-center py-4 text-muted">Chưa có danh mục nào trên hệ thống.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="categoryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h6 class="modal-title text-dark fw-bold" id="categoryModalLabel"><i class="fa-solid fa-folder-tree me-2"></i>Thêm/Sửa Danh Mục</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="frmCategory">
+                    <input type="hidden" id="CategoryId" value="0" />
+
+                    <div class="mb-3">
+                        <label class="form-label text-dark fw-bold">Tên danh mục <span class="text-danger">*</span></label>
+                        <input type="text" id="CategoryName" class="form-control border-secondary" required onkeyup="generateSlug()" placeholder="VD: Điện thoại di động" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-dark fw-bold">Thuộc danh mục cha</label>
+                        <select id="ParentId" class="form-select border-secondary">
+                            <option value="">-- Làm danh mục gốc (Không có cha) --</option>
+                            @if (parentCategories != null)
+                            {
+                                foreach (var cat in parentCategories)
+                                {
+                                    <option value="@cat.Id">@cat.Name</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-dark fw-bold">Đường dẫn SEO (Slug) <span class="text-danger">*</span></label>
+                        <input type="text" id="CategorySlug" class="form-control border-secondary bg-light" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-dark fw-bold">Meta Title (SEO)</label>
+                        <input type="text" id="MetaTitle" class="form-control border-secondary" placeholder="Tiêu đề hiển thị trên Google" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-dark fw-bold">Meta Description (SEO)</label>
+                        <textarea id="MetaDescription" class="form-control border-secondary" rows="3" placeholder="Mô tả ngắn gọn về danh mục..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-light border text-dark" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn text-white" style="background-color: var(--primary-moss);" onclick="saveCategory()">Lưu dữ liệu</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const myModal = new bootstrap.Modal(document.getElementById('categoryModal'));
+
+        // 1. Tự động tạo Slug chuẩn SEO
+        function generateSlug() {
+            let title = document.getElementById('CategoryName').value;
+            let slug = title.toLowerCase();
+            slug = slug.replace(/á|à|ả|ạ|ã|ă|ắ|ằ|ẳ|ẵ|ặ|â|ấ|ầ|ẩ|ẫ|ậ/gi, 'a');
+            slug = slug.replace(/é|è|ẻ|ẽ|ẹ|ê|ế|ề|ể|ễ|ệ/gi, 'e');
+            slug = slug.replace(/i|í|ì|ỉ|ĩ|ị/gi, 'i');
+            slug = slug.replace(/ó|ò|ỏ|õ|ọ|ô|ố|ồ|ổ|ỗ|ộ|ơ|ớ|ờ|ở|ỡ|ợ/gi, 'o');
+            slug = slug.replace(/ú|ù|ủ|ũ|ụ|ư|ứ|ừ|ử|ữ|ự/gi, 'u');
+            slug = slug.replace(/ý|ỳ|ỷ|ỹ|ỵ/gi, 'y');
+            slug = slug.replace(/đ/gi, 'd');
+            slug = slug.replace(/\s+/g, '-');
+            slug = slug.replace(/[^a-z0-9\-]/g, '');
+            document.getElementById('CategorySlug').value = slug;
+        }
+
+        // 2. Mở Modal & Đổ dữ liệu
+        function openCategoryModal(id = 0) {
+            document.getElementById('frmCategory').reset();
+            document.getElementById('CategoryId').value = 0;
+            document.getElementById('categoryModalLabel').innerHTML = id === 0 ? '<i class="fa-solid fa-plus me-2"></i>Thêm Danh Mục Mới' : '<i class="fa-solid fa-pen me-2"></i>Cập Nhật Danh Mục';
+
+            if (id > 0) {
+                fetch(`/Admin/Categories/GetCategory/${id}`)
+                    .then(response => response.json())
+                    .then(res => {
+                        if (res.success) {
+                            document.getElementById('CategoryId').value = res.data.id;
+                            document.getElementById('CategoryName').value = res.data.name;
+                            document.getElementById('ParentId').value = res.data.parentId || '';
+                            document.getElementById('CategorySlug').value = res.data.slug;
+                            document.getElementById('MetaTitle').value = res.data.metaTitle || '';
+                            document.getElementById('MetaDescription').value = res.data.metaDescription || '';
+                            myModal.show();
+                        } else {
+                            alert(res.message);
+                        }
+                    })
+                    .catch(error => console.error('Error fetching data:', error));
+            } else {
+                myModal.show();
+            }
+        }
+
+        // 3. Gửi dữ liệu (Create/Update)
+        function saveCategory() {
+            const id = document.getElementById('CategoryId').value;
+            const data = {
+                Id: parseInt(id),
+                Name: document.getElementById('CategoryName').value,
+                ParentId: document.getElementById('ParentId').value ? parseInt(document.getElementById('ParentId').value) : null,
+                Slug: document.getElementById('CategorySlug').value,
+                MetaTitle: document.getElementById('MetaTitle').value,
+                MetaDescription: document.getElementById('MetaDescription').value
+            };
+
+            if (!data.Name || !data.Slug) {
+                alert("Vui lòng nhập Tên danh mục và Đường dẫn SEO!");
+                return;
+            }
+
+            fetch('/Admin/Categories/SaveCategory', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(res => {
+                if (res.success) {
+                    myModal.hide();
+                    window.location.reload();
+                } else {
+                    alert(res.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Đã xảy ra lỗi khi kết nối tới máy chủ.");
+            });
+        }
+    </script>
+}
