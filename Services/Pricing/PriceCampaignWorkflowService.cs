@@ -28,30 +28,33 @@ public sealed class PriceCampaignWorkflowService : IPriceCampaignWorkflowService
         PriceCampaignDraftCommand command,
         CancellationToken cancellationToken)
     {
-        var preview = await _effectivePriceService.PreviewCampaignAsync(
-            command.CampaignId,
-            command.Mode,
-            command.StartDateUtc,
-            command.EndDateUtc,
-            command.ConflictPolicy,
-            command.Items,
-            cancellationToken);
-
-        if (!preview.IsValid)
-        {
-            return PriceCampaignWorkflowResult.Failure(
-                preview.ErrorMessage ?? "Dữ liệu cấu hình giá không hợp lệ.",
-                preview.ErrorCode ?? "PREVIEW_FAILED",
-                preview,
-                command.CampaignId);
-        }
-
         await using var transaction = await _context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
 
+        PricePlanPreviewResult? preview = null;
+
         try
         {
+            preview = await _effectivePriceService.PreviewCampaignAsync(
+                command.CampaignId,
+                command.Mode,
+                command.StartDateUtc,
+                command.EndDateUtc,
+                command.ConflictPolicy,
+                command.Items,
+                cancellationToken);
+
+            if (!preview.IsValid)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return PriceCampaignWorkflowResult.Failure(
+                    preview.ErrorMessage ?? "Dữ liệu cấu hình giá không hợp lệ.",
+                    preview.ErrorCode ?? "PREVIEW_FAILED",
+                    preview,
+                    command.CampaignId);
+            }
+
             PriceCampaign campaign;
             var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
