@@ -12,6 +12,9 @@ public sealed class EffectivePriceService : IEffectivePriceService
     private const int ReasonMaxLength = 500;
     private const int CorrelationIdMaxLength = 64;
 
+    private static readonly TimeSpan SupersedeNowClockTolerance =
+        TimeSpan.FromMinutes(5);
+
     private static readonly PriceCampaignStatus[] BlockingStatuses =
     [
         PriceCampaignStatus.Confirmed,
@@ -93,6 +96,22 @@ public sealed class EffectivePriceService : IEffectivePriceService
         IReadOnlyCollection<PricePlanPreviewInput> items,
         CancellationToken cancellationToken)
     {
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        if (!Enum.IsDefined(typeof(PriceCampaignMode), mode))
+        {
+            return PricePlanPreviewResult.Failure(
+                "Chế độ thời gian kế hoạch không hợp lệ.",
+                "INVALID_CAMPAIGN_MODE");
+        }
+
+        if (!Enum.IsDefined(typeof(PriceConflictPolicy), conflictPolicy))
+        {
+            return PricePlanPreviewResult.Failure(
+                "Chính sách xử lý xung đột không hợp lệ.",
+                "INVALID_CONFLICT_POLICY");
+        }
+
         if (mode == PriceCampaignMode.FixedWindow
             && (!endDateUtc.HasValue || endDateUtc.Value <= startDateUtc))
         {
@@ -106,6 +125,38 @@ public sealed class EffectivePriceService : IEffectivePriceService
             return PricePlanPreviewResult.Failure(
                 "Kế hoạch không thời hạn không được có thời gian kết thúc.",
                 "OPEN_ENDED_HAS_END_DATE");
+        }
+
+        if (endDateUtc.HasValue && endDateUtc.Value <= nowUtc)
+        {
+            return PricePlanPreviewResult.Failure(
+                "Thời gian kết thúc phải ở tương lai.",
+                "CAMPAIGN_EXPIRED");
+        }
+
+        if (conflictPolicy == PriceConflictPolicy.ReplaceFromStart
+            && startDateUtc < nowUtc.Subtract(SupersedeNowClockTolerance))
+        {
+            return PricePlanPreviewResult.Failure(
+                "Chính sách thay từ lúc bắt đầu không thể áp dụng cho thời điểm đã qua. Hãy chọn thời gian hiện tại/tương lai hoặc dùng chính sách thay thế ngay.",
+                "REPLACE_FROM_START_REQUIRES_CURRENT_OR_FUTURE_START");
+        }
+
+        if (conflictPolicy == PriceConflictPolicy.SupersedeNow
+            && startDateUtc > nowUtc.Add(SupersedeNowClockTolerance))
+        {
+            return PricePlanPreviewResult.Failure(
+                "Chính sách thay thế ngay yêu cầu thời gian bắt đầu là hiện tại. Hãy cập nhật thời gian bắt đầu rồi preview lại.",
+                "SUPERSEDE_NOW_REQUIRES_IMMEDIATE_START");
+        }
+
+        if (conflictPolicy == PriceConflictPolicy.SupersedeNow
+            && endDateUtc.HasValue
+            && endDateUtc.Value <= nowUtc)
+        {
+            return PricePlanPreviewResult.Failure(
+                "Kế hoạch thay thế ngay phải có thời gian kết thúc sau hiện tại.",
+                "CAMPAIGN_EXPIRED");
         }
 
         if (items.Count == 0)
@@ -183,6 +234,9 @@ public sealed class EffectivePriceService : IEffectivePriceService
                 "VARIANT_INACTIVE");
         }
 
+        var rangeStartUtc = conflictPolicy == PriceConflictPolicy.SupersedeNow
+            ? nowUtc
+            : startDateUtc;
         var rangeEndUtc = endDateUtc ?? DateTime.MaxValue;
 
         var conflictRows = await _context.PriceCampaignItems
@@ -193,7 +247,7 @@ public sealed class EffectivePriceService : IEffectivePriceService
                 && BlockingStatuses.Contains(item.Campaign.Status)
                 && item.Campaign.StartDate < rangeEndUtc
                 && (!item.Campaign.EndDate.HasValue
-                    || item.Campaign.EndDate.Value > startDateUtc))
+                    || item.Campaign.EndDate.Value > rangeStartUtc))
             .Select(item => new
             {
                 item.VariantId,
@@ -209,18 +263,53 @@ public sealed class EffectivePriceService : IEffectivePriceService
             .ThenBy(item => item.CampaignId)
             .ToListAsync(cancellationToken);
 
+        var conflictCampaignIds = conflictRows
+            .Select(item => item.CampaignId)
+            .Distinct()
+            .ToArray();
+
+        var totalVariantsByCampaignId = conflictCampaignIds.Length == 0
+            ? new Dictionary<int, int>()
+            : await _context.PriceCampaignItems
+                .AsNoTracking()
+                .Where(item => conflictCampaignIds.Contains(item.CampaignId))
+                .GroupBy(item => item.CampaignId)
+                .Select(group => new
+                {
+                    CampaignId = group.Key,
+                    Count = group.Count()
+                })
+                .ToDictionaryAsync(
+                    item => item.CampaignId,
+                    item => item.Count,
+                    cancellationToken);
+
+        var coveredVariantsByCampaignId = conflictRows
+            .GroupBy(item => item.CampaignId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.VariantId).Distinct().Count());
+
         var conflictsByVariantId = conflictRows
             .GroupBy(item => item.VariantId)
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyList<PricePlanConflictResult>)group
-                    .Select(item => new PricePlanConflictResult(
-                        item.CampaignId,
-                        item.Code,
-                        item.Name,
-                        item.Status,
-                        item.StartDate,
-                        item.EndDate))
+                    .Select(item =>
+                    {
+                        var totalVariantCount = totalVariantsByCampaignId[item.CampaignId];
+                        var coveredVariantCount = coveredVariantsByCampaignId[item.CampaignId];
+                        return new PricePlanConflictResult(
+                            item.CampaignId,
+                            item.Code,
+                            item.Name,
+                            item.Status,
+                            item.StartDate,
+                            item.EndDate,
+                            totalVariantCount,
+                            coveredVariantCount,
+                            totalVariantCount == coveredVariantCount);
+                    })
                     .ToList());
 
         var previewItems = new List<PricePlanPreviewItemResult>(items.Count);
@@ -279,29 +368,50 @@ public sealed class EffectivePriceService : IEffectivePriceService
 
         var staleCount = previewItems.Count(item => item.IsStale);
         var conflictCount = previewItems.Count(item => item.Conflicts.Count > 0);
-        var policyAvailable = conflictPolicy == PriceConflictPolicy.Reject;
+        var conflictCampaignCount = conflictCampaignIds.Length;
+        var partialConflictCampaignCount = conflictCampaignIds.Count(campaignIdValue =>
+            totalVariantsByCampaignId[campaignIdValue]
+            != coveredVariantsByCampaignId[campaignIdValue]);
+
         var isValid = staleCount == 0;
         var canConfirm = isValid
-            && policyAvailable
-            && (conflictPolicy != PriceConflictPolicy.Reject || conflictCount == 0);
+            && (conflictPolicy switch
+            {
+                PriceConflictPolicy.Reject => conflictCampaignCount == 0,
+                PriceConflictPolicy.ReplaceFromStart => partialConflictCampaignCount == 0,
+                PriceConflictPolicy.SupersedeNow => true,
+                _ => false
+            });
 
-        string? errorMessage = null;
+        string? message = null;
         string? errorCode = null;
 
         if (staleCount > 0)
         {
-            errorMessage = $"Có {staleCount} biến thể đã thay đổi sau khi được tải. Vui lòng tải lại dữ liệu.";
+            message = $"Có {staleCount} biến thể đã thay đổi sau khi được tải. Vui lòng tải lại dữ liệu.";
             errorCode = "STALE_VARIANT";
         }
-        else if (!policyAvailable)
+        else if (partialConflictCampaignCount > 0
+            && conflictPolicy == PriceConflictPolicy.ReplaceFromStart)
         {
-            errorMessage = "Chính sách thay thế giá chưa được mở trong phase này. Hiện tại chỉ hỗ trợ từ chối xung đột.";
-            errorCode = "CONFLICT_POLICY_NOT_AVAILABLE";
+            message = $"Có {partialConflictCampaignCount} kế hoạch chồng lấn chứa thêm biến thể ngoài phạm vi đang chọn. Chính sách thay từ thời điểm bắt đầu yêu cầu chọn đủ toàn bộ biến thể của từng kế hoạch.";
+            errorCode = "PARTIAL_CAMPAIGN_REPLACEMENT";
         }
-        else if (conflictCount > 0)
+        else if (conflictPolicy == PriceConflictPolicy.Reject
+            && conflictCampaignCount > 0)
         {
-            errorMessage = $"Có {conflictCount} biến thể bị chồng lấn với kế hoạch giá khác.";
+            message = $"Có {conflictCount} biến thể bị chồng lấn với {conflictCampaignCount} kế hoạch giá khác.";
             errorCode = "PRICE_WINDOW_CONFLICT";
+        }
+        else if (conflictCampaignCount > 0
+            && conflictPolicy == PriceConflictPolicy.ReplaceFromStart)
+        {
+            message = $"Khi xác nhận, {conflictCampaignCount} kế hoạch chồng lấn sẽ được cắt hoặc thay thế từ thời điểm bắt đầu mới.";
+        }
+        else if (conflictCampaignCount > 0
+            && conflictPolicy == PriceConflictPolicy.SupersedeNow)
+        {
+            message = $"Khi xác nhận, {conflictCampaignCount} kế hoạch chồng lấn sẽ bị thay thế ngay; các kế hoạch còn biến thể ngoài phạm vi sẽ được giữ lại cho những biến thể đó.";
         }
 
         var summary = new PricePlanPreviewSummary(
@@ -311,6 +421,8 @@ public sealed class EffectivePriceService : IEffectivePriceService
             previewItems.Count(item => item.DeltaAmount < 0),
             previewItems.Count(item => item.DeltaAmount == 0),
             conflictCount,
+            conflictCampaignCount,
+            partialConflictCampaignCount,
             staleCount,
             previewItems.Sum(item => item.CurrentPrice),
             previewItems.Sum(item => item.NewPrice));
@@ -318,7 +430,7 @@ public sealed class EffectivePriceService : IEffectivePriceService
         return new PricePlanPreviewResult(
             isValid,
             canConfirm,
-            errorMessage,
+            message,
             errorCode,
             previewItems
                 .OrderBy(item => item.ProductName)
@@ -354,6 +466,26 @@ public sealed class EffectivePriceService : IEffectivePriceService
             changedBy,
             reason,
             correlationId,
+            null,
+            nowUtc,
+            cancellationToken);
+    }
+
+    public Task<EffectivePriceRecalculationResult> RecalculateVariantsAsync(
+        IReadOnlyCollection<int> variantIds,
+        string changedBy,
+        string reason,
+        string correlationId,
+        PriceHistoryWriteContext historyContext,
+        CancellationToken cancellationToken)
+    {
+        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        return RecalculateVariantsAtAsync(
+            variantIds,
+            changedBy,
+            reason,
+            correlationId,
+            historyContext,
             nowUtc,
             cancellationToken);
     }
@@ -396,6 +528,7 @@ public sealed class EffectivePriceService : IEffectivePriceService
             changedBy,
             reason,
             correlationId,
+            null,
             nowUtc,
             cancellationToken);
     }
@@ -405,6 +538,7 @@ public sealed class EffectivePriceService : IEffectivePriceService
         string changedBy,
         string reason,
         string correlationId,
+        PriceHistoryWriteContext? historyContext,
         DateTime nowUtc,
         CancellationToken cancellationToken)
     {
@@ -444,7 +578,6 @@ public sealed class EffectivePriceService : IEffectivePriceService
             .ThenByDescending(candidate => candidate.CampaignId)
             .ToListAsync(cancellationToken);
 
-        // Overlap is rejected on write. This deterministic fallback protects legacy data.
         var winnerByVariantId = campaignCandidates
             .GroupBy(candidate => candidate.VariantId)
             .ToDictionary(group => group.Key, group => group.First());
@@ -488,8 +621,13 @@ public sealed class EffectivePriceService : IEffectivePriceService
                 continue;
             }
 
-            var eventType = ResolveHistoryEventType(variant, winner);
-            var sourceType = winner?.SourceType ?? PriceChangeSourceType.System;
+            var eventType = historyContext?.EventTypeOverride
+                ?? ResolveHistoryEventType(variant, winner);
+            var historySourceType = historyContext?.SourceTypeOverride
+                ?? winner?.SourceType
+                ?? PriceChangeSourceType.System;
+            var historySourceId = historyContext?.SourceIdOverride
+                ?? desiredSourceId;
             var priceSource = winner is null
                 ? "Khôi phục giá niêm yết"
                 : $"Áp dụng kế hoạch {winner.CampaignName} (#{winner.CampaignId})";
@@ -500,8 +638,8 @@ public sealed class EffectivePriceService : IEffectivePriceService
                 OldPrice = variant.CurrentPrice,
                 NewPrice = effectivePrice,
                 EventType = eventType,
-                SourceType = sourceType,
-                SourceId = desiredSourceId,
+                SourceType = historySourceType,
+                SourceId = historySourceId,
                 CorrelationId = normalizedCorrelationId,
                 Reason = normalizedReason,
                 EffectiveFrom = desiredEffectiveFrom,
@@ -552,7 +690,6 @@ public sealed class EffectivePriceService : IEffectivePriceService
         return PriceHistoryEventType.Applied;
     }
 
-
     private static decimal CalculateTargetPrice(
         decimal listPrice,
         PriceAdjustmentType adjustmentType,
@@ -598,14 +735,6 @@ public sealed class EffectivePriceService : IEffectivePriceService
         return roundedPrice;
     }
 
-    private sealed class InvalidPriceAdjustmentException : Exception
-    {
-        public InvalidPriceAdjustmentException(string message)
-            : base(message)
-        {
-        }
-    }
-
     private static string TruncateRequired(
         string? value,
         int maxLength,
@@ -618,6 +747,14 @@ public sealed class EffectivePriceService : IEffectivePriceService
         return normalized.Length <= maxLength
             ? normalized
             : normalized[..maxLength];
+    }
+
+    private sealed class InvalidPriceAdjustmentException : Exception
+    {
+        public InvalidPriceAdjustmentException(string message)
+            : base(message)
+        {
+        }
     }
 
     private sealed record EffectiveCampaignCandidate(

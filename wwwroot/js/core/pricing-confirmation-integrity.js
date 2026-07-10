@@ -9,8 +9,8 @@
     let reviewedFingerprint = null;
     let savedFingerprint = null;
 
-    function isPricingEditor() {
-        return Boolean(document.querySelector("[data-price-campaign-editor]"));
+    function getEditor() {
+        return document.querySelector("[data-price-campaign-editor]");
     }
 
     function getConfirmationDialog() {
@@ -32,24 +32,50 @@
         return Number.isFinite(number) ? number : null;
     }
 
-    function createFingerprint(items) {
-        if (!Array.isArray(items)) {
-            return null;
-        }
+    function normalizeText(value) {
+        return String(value ?? "").trim();
+    }
 
-        const normalizedItems = items
+    function readEditorMetadata() {
+        const root = getEditor();
+        if (!root) return null;
+
+        const value = (selector) => root.querySelector(selector)?.value ?? "";
+        return {
+            name: normalizeText(value("[data-campaign-name]")),
+            description: normalizeText(value("[data-campaign-description]")),
+            reason: normalizeText(value("[data-campaign-reason]")),
+            sourceType: normalizeText(value("[data-campaign-source]"))
+        };
+    }
+
+    function normalizeItems(items) {
+        if (!Array.isArray(items)) return [];
+
+        return items
             .map((item) => ({
                 variantId: Number(item.variantId),
-                rowVersion: String(item.rowVersion ?? ""),
+                rowVersion: String(item.rowVersion ?? item.variantRowVersion ?? ""),
                 listPrice: normalizeNumber(item.listPrice),
                 currentPrice: normalizeNumber(item.currentPrice),
                 newPrice: normalizeNumber(item.newPrice),
-                adjustmentType: String(item.adjustmentType ?? ""),
+                adjustmentType: normalizeText(item.adjustmentType),
                 adjustmentValue: normalizeNumber(item.adjustmentValue)
             }))
             .sort((left, right) => left.variantId - right.variantId);
+    }
 
-        return JSON.stringify(normalizedItems);
+    function createFingerprint(requestBody, responseItems) {
+        const body = requestBody ?? {};
+        return JSON.stringify({
+            campaignId: Number(body.campaignId ?? body.id ?? 0),
+            mode: normalizeText(body.mode),
+            startDate: normalizeText(body.startDate),
+            endDate: normalizeText(body.endDate),
+            conflictPolicy: normalizeText(body.conflictPolicy),
+            metadata: readEditorMetadata(),
+            items: normalizeItems(responseItems)
+        });
     }
 
     function requireReviewBeforeConfirmation() {
@@ -68,14 +94,14 @@
             canConfirm: false,
             errorCode: "DRAFT_REVIEW_REQUIRED",
             message:
-                "Giá hoặc dữ liệu biến thể đã thay đổi sau bước xem trước. "
+                "Thông tin kế hoạch, chính sách hoặc giá biến thể đã thay đổi sau bước xem trước. "
                 + "Bản nháp mới nhất đã được lưu nhưng chưa được xác nhận. "
                 + "Hãy kiểm tra lại danh sách chờ và mở xác nhận một lần nữa."
         };
     }
 
     async function postJson(url, body, signal) {
-        if (isPricingEditor()
+        if (getEditor()
             && isConfirmationOpen()
             && isPricingAction(url, "ConfirmDraft")
             && reviewedFingerprint
@@ -86,25 +112,17 @@
 
         const result = await originalHttp.postJson(url, body, signal);
 
-        if (!isPricingEditor()) {
+        if (!getEditor()) {
             return result;
         }
 
         if (isPricingAction(url, "PreviewPlan") && result?.success) {
-            const fingerprint = createFingerprint(result.data?.items);
-            if (fingerprint) {
-                reviewedFingerprint = fingerprint;
-            }
-
+            reviewedFingerprint = createFingerprint(body, result.data?.items);
             return result;
         }
 
         if (isPricingAction(url, "SaveDraft") && result?.success) {
-            const fingerprint = createFingerprint(result.data?.items);
-            if (fingerprint) {
-                savedFingerprint = fingerprint;
-            }
-
+            savedFingerprint = createFingerprint(body, result.data?.items);
             return result;
         }
 

@@ -42,6 +42,14 @@ public interface IEffectivePriceService
         string correlationId,
         CancellationToken cancellationToken);
 
+    Task<EffectivePriceRecalculationResult> RecalculateVariantsAsync(
+        IReadOnlyCollection<int> variantIds,
+        string changedBy,
+        string reason,
+        string correlationId,
+        PriceHistoryWriteContext historyContext,
+        CancellationToken cancellationToken);
+
     Task<EffectivePriceRecalculationResult> RecalculateAffectedVariantsAsync(
         string changedBy,
         string reason,
@@ -68,7 +76,10 @@ public sealed record PricePlanConflictResult(
     string CampaignName,
     PriceCampaignStatus Status,
     DateTime StartDateUtc,
-    DateTime? EndDateUtc);
+    DateTime? EndDateUtc,
+    int CampaignVariantCount,
+    int CoveredVariantCount,
+    bool IsFullyCovered);
 
 public sealed record PricePlanPreviewItemResult(
     int ProductId,
@@ -94,6 +105,8 @@ public sealed record PricePlanPreviewSummary(
     int DecreaseCount,
     int UnchangedCount,
     int ConflictCount,
+    int ConflictCampaignCount,
+    int PartialConflictCampaignCount,
     int StaleCount,
     decimal CurrentTotal,
     decimal NewTotal);
@@ -116,7 +129,18 @@ public sealed record PricePlanPreviewResult(
             errorMessage,
             errorCode,
             [],
-            new PricePlanPreviewSummary(0, 0, 0, 0, 0, 0, 0, 0, 0));
+            new PricePlanPreviewSummary(
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0));
     }
 }
 
@@ -137,6 +161,11 @@ public sealed record CampaignPricingValidationResult(
         return new(false, errorMessage, errorCode, conflictVariantIds);
     }
 }
+
+public sealed record PriceHistoryWriteContext(
+    PriceHistoryEventType? EventTypeOverride = null,
+    PriceChangeSourceType? SourceTypeOverride = null,
+    int? SourceIdOverride = null);
 
 public sealed record EffectivePriceRecalculationResult(
     int EvaluatedCount,

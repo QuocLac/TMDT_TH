@@ -25,13 +25,25 @@ public sealed class PriceCampaignListItemViewModel
 
     public DateTime? EndDateUtc { get; init; }
 
+    public DateTime CreatedAtUtc { get; init; }
+
+    public DateTime? ConfirmedAtUtc { get; init; }
+
+    public DateTime? CancelledAtUtc { get; init; }
+
     public PriceCampaignMode Mode { get; init; }
 
     public PriceCampaignStatus Status { get; init; }
 
     public PriceChangeSourceType SourceType { get; init; }
 
+    public PriceConflictPolicy ConflictPolicy { get; init; }
+
     public int VariantCount { get; init; }
+
+    public int? SupersededByCampaignId { get; init; }
+
+    public string CreatedBy { get; init; } = string.Empty;
 
     public string RowVersion { get; init; } = string.Empty;
 }

@@ -92,8 +92,50 @@
             : message;
     }
 
+    function translateCampaignStatus(status) {
+        return {
+            Draft: "Bản nháp",
+            Confirmed: "Đã xác nhận",
+            Scheduled: "Đã lên lịch",
+            Active: "Đang hiệu lực",
+            Completed: "Đã kết thúc",
+            Cancelled: "Đã hủy",
+            Superseded: "Đã thay thế"
+        }[status] ?? status;
+    }
+
+    function translateConflictPolicy(policy) {
+        return {
+            Reject: "Từ chối chồng lấn",
+            ReplaceFromStart: "Thay thế từ lúc bắt đầu",
+            SupersedeNow: "Thay thế ngay"
+        }[policy] ?? policy;
+    }
+
     function initializeIndex(root) {
         const feedback = root.querySelector("[data-page-feedback]");
+        const lifecycleDialog = root.querySelector("[data-lifecycle-dialog]");
+        const lifecycleForm = root.querySelector("[data-lifecycle-form]");
+        const lifecycleTitle = root.querySelector("[data-lifecycle-title]");
+        const lifecycleDescription = root.querySelector("[data-lifecycle-description]");
+        const lifecycleSummary = root.querySelector("[data-lifecycle-summary]");
+        const lifecycleWarning = root.querySelector("[data-lifecycle-warning]");
+        const lifecycleReason = root.querySelector("[data-lifecycle-reason]");
+        const lifecycleConfirm = root.querySelector("[data-lifecycle-confirm]");
+        const timelineDialog = root.querySelector("[data-timeline-dialog]");
+        const timelineTitle = root.querySelector("[data-timeline-title]");
+        const timelineSubtitle = root.querySelector("[data-timeline-subtitle]");
+        const timelineBody = root.querySelector("[data-timeline-body]");
+
+        const lifecycleState = {
+            operation: null,
+            campaignId: 0,
+            rowVersion: "",
+            code: "",
+            name: "",
+            status: "",
+            clientRequestId: ""
+        };
 
         root.querySelectorAll("[data-local-datetime]")
             .forEach((element) => {
@@ -103,42 +145,261 @@
                 }
             });
 
-        root.addEventListener("click", async (event) => {
-            const target = event.target instanceof Element
-                ? event.target
-                : null;
-            const button = target?.closest("[data-apply-campaign]");
-            if (!button) return;
+        function openLifecycle(row, operation) {
+            lifecycleState.operation = operation;
+            lifecycleState.campaignId = Number(row.dataset.campaignId);
+            lifecycleState.rowVersion = row.dataset.rowVersion ?? "";
+            lifecycleState.code = row.dataset.campaignCode ?? "";
+            lifecycleState.name = row.dataset.campaignName ?? "";
+            lifecycleState.status = row.dataset.campaignStatus ?? "";
+            lifecycleState.clientRequestId = operation === "recover"
+                ? createRequestId()
+                : "";
+            lifecycleReason.value = "";
+            lifecycleConfirm.disabled = false;
+            lifecycleSummary.replaceChildren();
+            lifecycleSummary.append(
+                createText("strong", "", `${lifecycleState.code} · ${lifecycleState.name}`),
+                createText("span", "", `Trạng thái hiện tại: ${translateCampaignStatus(lifecycleState.status)}`));
 
-            const row = button.closest("[data-campaign-row]");
-            if (!row) return;
+            const isApply = operation === "apply";
+            const isCancel = operation === "cancel";
+            lifecycleReason.closest(".form-field").hidden = isApply;
+            lifecycleReason.required = !isApply;
+            lifecycleConfirm.className = isCancel
+                ? "btn btn-danger"
+                : "btn btn-primary";
 
-            if (!window.confirm("Kích hoạt kế hoạch giá này ngay bây giờ?")) {
+            if (isApply) {
+                lifecycleTitle.textContent = "Kích hoạt kế hoạch ngay";
+                lifecycleDescription.textContent = "Thời điểm bắt đầu sẽ được chuyển về hiện tại và server kiểm tra lại toàn bộ xung đột.";
+                lifecycleWarning.textContent = "Giá storefront có thể thay đổi ngay sau khi transaction hoàn tất.";
+                lifecycleConfirm.textContent = "Kích hoạt ngay";
+            } else if (isCancel) {
+                lifecycleTitle.textContent = "Dừng / hủy kế hoạch";
+                lifecycleDescription.textContent = "Kế hoạch sẽ chuyển sang trạng thái đã hủy và giá hiệu lực được tính lại.";
+                lifecycleWarning.textContent = "Biến thể sẽ quay về kế hoạch còn hiệu lực tiếp theo hoặc giá niêm yết.";
+                lifecycleConfirm.textContent = "Xác nhận hủy";
+                lifecycleReason.placeholder = "Ví dụ: Sai dữ liệu giá, dừng theo quyết định vận hành...";
+            } else {
+                lifecycleTitle.textContent = "Phục hồi giá trước kế hoạch";
+                lifecycleDescription.textContent = "Hệ thống tạo một kế hoạch Recovery mới, áp dụng giá hiệu lực trước đó và thay thế giá đang chạy ngay.";
+                lifecycleWarning.textContent = "Các biến thể trong phạm vi phục hồi sẽ được thay thế ngay; biến thể ngoài phạm vi được giữ bằng kế hoạch tiếp tục tự động.";
+                lifecycleConfirm.textContent = "Tạo và áp dụng phục hồi";
+                lifecycleReason.placeholder = "Ví dụ: Hoàn tác kế hoạch giá do sai cấu hình...";
+            }
+
+            lifecycleDialog.showModal();
+            if (!isApply) lifecycleReason.focus();
+        }
+
+        async function submitLifecycle() {
+            const reason = lifecycleReason.value.trim();
+            if (lifecycleState.operation !== "apply" && !reason) {
+                lifecycleReason.setCustomValidity("Vui lòng nhập lý do thao tác.");
+                lifecycleReason.reportValidity();
+                lifecycleReason.setCustomValidity("");
                 return;
             }
 
-            button.disabled = true;
-            setFeedback(feedback, "Đang kích hoạt kế hoạch...");
+            const endpoint = lifecycleState.operation === "apply"
+                ? "/Admin/PriceCampaigns/ApplyNow"
+                : lifecycleState.operation === "cancel"
+                    ? "/Admin/PriceCampaigns/CancelCampaign"
+                    : "/Admin/PriceCampaigns/RecoverCampaign";
+            const payload = {
+                id: lifecycleState.campaignId,
+                rowVersion: lifecycleState.rowVersion
+            };
+
+            if (lifecycleState.operation !== "apply") {
+                payload.reason = reason;
+            }
+            if (lifecycleState.operation === "recover") {
+                payload.clientRequestId = lifecycleState.clientRequestId;
+            }
+
+            lifecycleConfirm.disabled = true;
+            setFeedback(feedback, "Đang xử lý thao tác vòng đời...");
 
             try {
-                const result = await http.postJson(
-                    "/Admin/PriceCampaigns/ApplyNow",
-                    {
-                        id: Number(row.dataset.campaignId),
-                        rowVersion: row.dataset.rowVersion
-                    });
-
+                const result = await http.postJson(endpoint, payload);
                 if (!result.success) {
                     throw new Error(formatServerError(
                         result,
-                        "Không thể kích hoạt kế hoạch."));
+                        "Không thể thực hiện thao tác vòng đời."));
                 }
 
+                lifecycleDialog.close();
                 setFeedback(feedback, result.message, "success");
-                window.setTimeout(() => window.location.reload(), 450);
+                window.setTimeout(() => window.location.reload(), 650);
             } catch (error) {
                 setFeedback(feedback, error.message, "error");
-                button.disabled = false;
+                lifecycleConfirm.disabled = false;
+            }
+        }
+
+        function appendDefinition(container, label, value) {
+            const item = document.createElement("div");
+            item.append(
+                createText("span", "", label),
+                createText("strong", "", value ?? "—"));
+            container.append(item);
+        }
+
+        function renderTimeline(data) {
+            timelineBody.replaceChildren();
+            const campaign = data.campaign;
+            timelineTitle.textContent = campaign.name;
+            timelineSubtitle.textContent = `${campaign.code} · ${translateCampaignStatus(campaign.status)}`;
+
+            const overview = document.createElement("section");
+            overview.className = "timeline-overview";
+            appendDefinition(overview, "Nguồn giá", campaign.sourceType);
+            appendDefinition(overview, "Chính sách", translateConflictPolicy(campaign.conflictPolicy));
+            appendDefinition(overview, "Bắt đầu", formatLocalDate(campaign.startDateUtc));
+            appendDefinition(overview, "Kết thúc", formatLocalDate(campaign.endDateUtc));
+            appendDefinition(overview, "Người tạo", campaign.createdBy);
+            appendDefinition(overview, "Lý do", campaign.reason);
+            timelineBody.append(overview);
+
+            if (data.supersededBy || data.supersededCampaigns?.length) {
+                const relations = document.createElement("section");
+                relations.className = "timeline-relations";
+                relations.append(createText("h4", "", "Quan hệ thay thế"));
+                if (data.supersededBy) {
+                    relations.append(createText(
+                        "p",
+                        "",
+                        `Bị thay thế bởi ${data.supersededBy.code} · ${data.supersededBy.name}`));
+                }
+                (data.supersededCampaigns ?? []).forEach((item) => {
+                    relations.append(createText(
+                        "p",
+                        "",
+                        `Đã thay thế ${item.code} · ${item.name}`));
+                });
+                timelineBody.append(relations);
+            }
+
+            const variantSection = document.createElement("section");
+            variantSection.className = "timeline-variants";
+            variantSection.append(createText("h4", "", `Biến thể (${data.variants?.length ?? 0})`));
+            const tableShell = document.createElement("div");
+            tableShell.className = "table-responsive";
+            const table = document.createElement("table");
+            table.className = "table table-sm align-middle";
+            const thead = document.createElement("thead");
+            const headRow = document.createElement("tr");
+            ["SKU", "Sản phẩm", "Giá trước", "Giá kế hoạch", "Giá hiện tại"].forEach((label) => {
+                headRow.append(createText("th", "", label));
+            });
+            thead.append(headRow);
+            const tbody = document.createElement("tbody");
+            (data.variants ?? []).forEach((variant) => {
+                const row = document.createElement("tr");
+                row.append(
+                    createText("td", "", variant.sku),
+                    createText("td", "", `${variant.productName}${variant.attributes ? ` · ${variant.attributes}` : ""}`),
+                    createText("td", "", currency.format(variant.previousPrice)),
+                    createText("td", "", currency.format(variant.campaignPrice)),
+                    createText("td", "", currency.format(variant.currentPrice)));
+                tbody.append(row);
+            });
+            table.append(thead, tbody);
+            tableShell.append(table);
+            variantSection.append(tableShell);
+            timelineBody.append(variantSection);
+
+            const eventSection = document.createElement("section");
+            eventSection.className = "audit-timeline";
+            eventSection.append(createText("h4", "", "Dòng thời gian kiểm toán"));
+            const eventList = document.createElement("div");
+            eventList.className = "audit-timeline__list";
+            (data.events ?? []).forEach((entry) => {
+                const card = document.createElement("article");
+                card.className = `audit-event audit-event--${String(entry.kind ?? "event").toLowerCase()}`;
+                const header = document.createElement("header");
+                header.append(
+                    createText("strong", "", entry.title),
+                    createText("time", "", formatLocalDate(entry.occurredAtUtc)));
+                card.append(header, createText("p", "", entry.description));
+                if (entry.sku) {
+                    card.append(createText(
+                        "small",
+                        "",
+                        `${entry.sku}: ${currency.format(entry.oldPrice)} → ${currency.format(entry.newPrice)}`));
+                }
+                if (entry.changedBy || entry.correlationId) {
+                    card.append(createText(
+                        "small",
+                        "",
+                        [entry.changedBy, entry.correlationId ? `Mã ${entry.correlationId}` : null]
+                            .filter(Boolean)
+                            .join(" · ")));
+                }
+                eventList.append(card);
+            });
+            eventSection.append(eventList);
+            timelineBody.append(eventSection);
+        }
+
+        async function openTimeline(row) {
+            timelineTitle.textContent = "Chi tiết kế hoạch";
+            timelineSubtitle.textContent = `${row.dataset.campaignCode ?? ""} · Đang tải`;
+            timelineBody.replaceChildren(createText(
+                "div",
+                "pricing-loading-state",
+                "Đang tải lịch sử kế hoạch..."));
+            timelineDialog.showModal();
+
+            try {
+                const result = await http.getJson(
+                    `/Admin/PriceCampaigns/GetTimeline/${Number(row.dataset.campaignId)}`);
+                if (!result.success) {
+                    throw new Error(result.message ?? "Không thể tải lịch sử kế hoạch.");
+                }
+                renderTimeline(result.data);
+            } catch (error) {
+                timelineBody.replaceChildren(createText(
+                    "div",
+                    "page-feedback is-error",
+                    error.message));
+            }
+        }
+
+        lifecycleForm?.addEventListener("submit", (event) => {
+            event.preventDefault();
+            submitLifecycle();
+        });
+        root.querySelectorAll("[data-close-lifecycle]").forEach((button) => {
+            button.addEventListener("click", () => lifecycleDialog.close());
+        });
+        root.querySelectorAll("[data-close-timeline]").forEach((button) => {
+            button.addEventListener("click", () => timelineDialog.close());
+        });
+
+        root.addEventListener("click", (event) => {
+            const target = event.target instanceof Element
+                ? event.target
+                : null;
+            const row = target?.closest("[data-campaign-row]");
+            if (!row) return;
+
+            if (target.closest("[data-view-timeline]")) {
+                openTimeline(row);
+                return;
+            }
+            if (target.closest("[data-apply-campaign]")) {
+                openLifecycle(row, "apply");
+                return;
+            }
+            if (target.closest("[data-cancel-campaign]")) {
+                openLifecycle(row, "cancel");
+                return;
+            }
+            if (target.closest("[data-recover-campaign]")) {
+                openLifecycle(row, "recover");
             }
         });
     }
@@ -156,6 +417,10 @@
         const statusInput = root.querySelector("[data-campaign-status]");
         const editorState = root.querySelector("[data-editor-state]");
         const modeInput = root.querySelector("[data-campaign-mode]");
+        const conflictPolicyInput = root.querySelector("[data-conflict-policy]");
+        const conflictPolicyHelp = root.querySelector("[data-conflict-policy-help]");
+        const conflictPolicyNotice = root.querySelector("[data-conflict-policy-notice]");
+        const startInput = root.querySelector("[data-campaign-start]");
         const endField = root.querySelector("[data-campaign-end-field]");
         const endInput = root.querySelector("[data-campaign-end]");
         const selectedCount = root.querySelector("[data-selected-count]");
@@ -196,7 +461,12 @@
 
         function readPlanTimes() {
             const mode = modeInput.value;
-            const startValue = root.querySelector("[data-campaign-start]").value;
+            if (conflictPolicyInput.value === "SupersedeNow") {
+                const now = new Date();
+                now.setSeconds(0, 0);
+                startInput.value = toLocalInput(now.toISOString());
+            }
+            const startValue = startInput.value;
             const endValue = endInput.value;
 
             if (!startValue) {
@@ -256,6 +526,41 @@
                     variantRowVersion: item.rowVersion
                 }))
             };
+        }
+
+        function updateConflictPolicyState(setImmediateStart = false) {
+            const policy = conflictPolicyInput.value;
+            conflictPolicyNotice.dataset.policy = policy;
+
+            const noticeText = conflictPolicyNotice.querySelector("span");
+
+            if (policy === "ReplaceFromStart") {
+                conflictPolicyHelp.textContent =
+                    "Kế hoạch chồng lấn sẽ được cắt hoặc thay thế từ thời điểm bắt đầu mới.";
+                if (noticeText) {
+                    noticeText.textContent =
+                        "Phải chọn đủ toàn bộ biến thể của từng kế hoạch chồng lấn để giữ lịch giá nhất quán trước thời điểm thay thế.";
+                }
+            } else if (policy === "SupersedeNow") {
+                conflictPolicyHelp.textContent =
+                    "Kế hoạch chồng lấn sẽ dừng ngay khi xác nhận. Thời gian bắt đầu được đặt về hiện tại.";
+                if (noticeText) {
+                    noticeText.textContent =
+                        "Các biến thể trong phạm vi mới bị thay thế ngay; biến thể còn lại được tách tự động sang một kế hoạch tiếp tục để không mất giá đang chạy.";
+                }
+                if (setImmediateStart) {
+                    const now = new Date();
+                    now.setSeconds(0, 0);
+                    startInput.value = toLocalInput(now.toISOString());
+                }
+            } else {
+                conflictPolicyHelp.textContent =
+                    "Kế hoạch sẽ bị chặn nếu có khoảng giá chồng lấn.";
+                if (noticeText) {
+                    noticeText.textContent =
+                        "Không có kế hoạch nào bị thay đổi; hãy điều chỉnh thời gian hoặc chọn chính sách thay thế khi phát hiện xung đột.";
+                }
+            }
         }
 
         function updateModeState() {
@@ -790,12 +1095,26 @@
 
             const conflict = document.createElement("div");
             if (item.conflicts.length) {
+                const policy = conflictPolicyInput.value;
+                const hasPartialCoverage = item.conflicts.some(
+                    (entry) => entry.isFullyCovered === false);
+                const isReplacePolicy = policy !== "Reject";
+                const blocksReplacement = hasPartialCoverage
+                    && policy === "ReplaceFromStart";
                 conflict.append(createText(
                     "span",
-                    "pricing-mini-badge is-danger",
-                    `${item.conflicts.length} xung đột`));
+                    blocksReplacement || !isReplacePolicy
+                        ? "pricing-mini-badge is-danger"
+                        : "pricing-mini-badge is-warning",
+                    blocksReplacement
+                        ? "Thiếu phạm vi thay thế"
+                        : policy === "SupersedeNow" && hasPartialCoverage
+                            ? "Sẽ tách kế hoạch cũ"
+                            : isReplacePolicy
+                                ? `${item.conflicts.length} kế hoạch sẽ thay`
+                                : `${item.conflicts.length} xung đột`));
                 conflict.title = item.conflicts
-                    .map((entry) => `${entry.code}: ${entry.name}`)
+                    .map((entry) => `${entry.code}: ${entry.name} (${entry.coveredVariantCount ?? 0}/${entry.campaignVariantCount ?? 0} biến thể)`)
                     .join("\n");
             } else {
                 conflict.append(createText(
@@ -837,15 +1156,12 @@
 
         function updateActionAvailability() {
             const hasStaging = state.staging.size > 0;
-            const immutable = ["Active", "Completed", "Cancelled", "Superseded"]
-                .includes(state.campaignStatus);
+            const immutable = state.campaignStatus !== "Draft";
             saveDraftButton.disabled = !hasStaging || immutable;
             openConfirmButton.disabled = !hasStaging || immutable;
-            saveDraftButton.hidden = state.campaignId > 0
-                && state.campaignStatus !== "Draft";
-            openConfirmButton.textContent = state.campaignStatus === "Draft"
-                ? "Xác nhận kế hoạch"
-                : "Lưu thay đổi kế hoạch";
+            saveDraftButton.hidden = immutable;
+            openConfirmButton.hidden = immutable;
+            openConfirmButton.textContent = "Xác nhận kế hoạch";
         }
 
         function openConfiguration(variantIds, label) {
@@ -992,21 +1308,6 @@
             }
         }
 
-        async function saveConfirmedPlanDirectly() {
-            const payload = readPlanForm();
-            const result = await http.postJson(
-                "/Admin/PriceCampaigns/SaveCampaign",
-                payload);
-
-            if (!result.success) {
-                throw new Error(formatServerError(
-                    result,
-                    "Không thể lưu thay đổi kế hoạch."));
-            }
-
-            return result;
-        }
-
         function renderConfirmation(result) {
             confirmationSummary.replaceChildren();
             const summary = result.data?.summary ?? state.latestPreviewSummary;
@@ -1018,7 +1319,10 @@
                 ["Tăng giá", summary.increaseCount],
                 ["Giảm giá", summary.decreaseCount],
                 ["Không đổi", summary.unchangedCount],
-                ["Xung đột", summary.conflictCount],
+                ["Chính sách", translateConflictPolicy(conflictPolicyInput.value)],
+                ["Biến thể xung đột", summary.conflictCount],
+                ["Kế hoạch bị tác động", summary.conflictCampaignCount ?? 0],
+                ["Kế hoạch tách một phần", summary.partialConflictCampaignCount ?? 0],
                 ["Tổng giá hiện tại", currency.format(summary.currentTotal)],
                 ["Tổng giá mới", currency.format(summary.newTotal)]
             ];
@@ -1030,10 +1334,11 @@
                 confirmationSummary.append(item);
             });
 
-            confirmationWarning.hidden = Boolean(result.canConfirm);
-            confirmationWarning.textContent = result.canConfirm
-                ? ""
-                : result.message ?? "Kế hoạch còn xung đột và chưa thể xác nhận.";
+            confirmationWarning.hidden = !result.message && Boolean(result.canConfirm);
+            confirmationWarning.textContent = result.message
+                ?? (result.canConfirm
+                    ? ""
+                    : "Kế hoạch còn xung đột và chưa thể xác nhận.");
             confirmButton.disabled = !result.canConfirm;
         }
 
@@ -1053,7 +1358,7 @@
             root.querySelector("[data-campaign-description]").value = data.description ?? "";
             root.querySelector("[data-campaign-reason]").value = data.reason ?? "";
             root.querySelector("[data-campaign-source]").value = data.sourceType ?? "Manual";
-            root.querySelector("[data-conflict-policy]").value = data.conflictPolicy ?? "Reject";
+            conflictPolicyInput.value = data.conflictPolicy ?? "Reject";
             modeInput.value = data.mode ?? "FixedWindow";
             root.querySelector("[data-campaign-start]").value = toLocalInput(data.startDateUtc);
             endInput.value = toLocalInput(data.endDateUtc);
@@ -1062,7 +1367,7 @@
                 ?? clientRequestIdInput.value;
             state.campaignStatus = data.status ?? "Draft";
             statusInput.value = state.campaignStatus;
-            editorState.textContent = `${data.code} · ${translateStatus(state.campaignStatus)}`;
+            editorState.textContent = `${data.code} · ${translateCampaignStatus(state.campaignStatus)}`;
 
             (data.items ?? []).forEach((item) => {
                 const currentPrice = Number(item.currentPrice);
@@ -1092,6 +1397,7 @@
             });
 
             updateModeState();
+            updateConflictPolicyState();
             renderAllSelectionViews();
             setFeedback(feedback, "");
         }
@@ -1137,6 +1443,11 @@
         });
 
         modeInput.addEventListener("change", updateModeState);
+        conflictPolicyInput.addEventListener("change", () => {
+            updateConflictPolicyState(true);
+            state.canConfirmPreview = false;
+            renderAllSelectionViews();
+        });
         adjustmentTypeInput.addEventListener("change", updateAdjustmentLabel);
 
         root.querySelectorAll("[data-close-config]").forEach((button) => {
@@ -1226,18 +1537,17 @@
             setFeedback(feedback, "Đang xác nhận kế hoạch trong transaction...");
 
             try {
-                let result;
-                if (state.campaignStatus === "Draft") {
-                    await saveDraft(true);
-                    result = await http.postJson(
-                        "/Admin/PriceCampaigns/ConfirmDraft",
-                        {
-                            id: state.campaignId,
-                            rowVersion: rowVersionInput.value
-                        });
-                } else {
-                    result = await saveConfirmedPlanDirectly();
+                if (state.campaignStatus !== "Draft") {
+                    throw new Error("Chỉ bản nháp mới có thể xác nhận từ màn hình này.");
                 }
+
+                await saveDraft(true);
+                const result = await http.postJson(
+                    "/Admin/PriceCampaigns/ConfirmDraft",
+                    {
+                        id: state.campaignId,
+                        rowVersion: rowVersionInput.value
+                    });
 
                 if (!result.success) {
                     throw new Error(formatServerError(
@@ -1258,6 +1568,7 @@
 
         initializeDefaultPlanDates(root);
         updateModeState();
+        updateConflictPolicyState();
         updateAdjustmentLabel();
         renderSelectionToolbar();
         renderStaging();

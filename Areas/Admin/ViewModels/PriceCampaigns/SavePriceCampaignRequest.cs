@@ -112,3 +112,35 @@ public sealed class ConfirmPriceCampaignDraftRequest
     [StringLength(200)]
     public string RowVersion { get; set; } = string.Empty;
 }
+
+public sealed class CancelPriceCampaignRequest
+{
+    [Range(1, int.MaxValue, ErrorMessage = "ID kế hoạch không hợp lệ.")]
+    public int Id { get; set; }
+
+    [Required(ErrorMessage = "Thiếu phiên bản kế hoạch.")]
+    [StringLength(200)]
+    public string RowVersion { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Vui lòng nhập lý do hủy kế hoạch.")]
+    [StringLength(500, ErrorMessage = "Lý do không được vượt quá 500 ký tự.")]
+    public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class RecoverPriceCampaignRequest
+{
+    [Range(1, int.MaxValue, ErrorMessage = "ID kế hoạch nguồn không hợp lệ.")]
+    public int Id { get; set; }
+
+    [Required(ErrorMessage = "Thiếu phiên bản kế hoạch nguồn.")]
+    [StringLength(200)]
+    public string RowVersion { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Vui lòng nhập lý do phục hồi giá.")]
+    [StringLength(500, ErrorMessage = "Lý do không được vượt quá 500 ký tự.")]
+    public string Reason { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Thiếu khóa yêu cầu phục hồi.")]
+    [StringLength(64)]
+    public string ClientRequestId { get; set; } = string.Empty;
+}

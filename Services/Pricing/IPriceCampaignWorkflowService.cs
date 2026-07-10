@@ -11,6 +11,18 @@ public interface IPriceCampaignWorkflowService
     Task<PriceCampaignWorkflowResult> ConfirmDraftAsync(
         ConfirmPriceCampaignCommand command,
         CancellationToken cancellationToken);
+
+    Task<PriceCampaignWorkflowResult> ActivateNowAsync(
+        ActivatePriceCampaignCommand command,
+        CancellationToken cancellationToken);
+
+    Task<PriceCampaignWorkflowResult> CancelAsync(
+        CancelPriceCampaignCommand command,
+        CancellationToken cancellationToken);
+
+    Task<PriceCampaignWorkflowResult> RecoverAsync(
+        RecoverPriceCampaignCommand command,
+        CancellationToken cancellationToken);
 }
 
 public sealed record PriceCampaignDraftCommand(
@@ -32,6 +44,27 @@ public sealed record PriceCampaignDraftCommand(
 public sealed record ConfirmPriceCampaignCommand(
     int CampaignId,
     byte[] ExpectedCampaignRowVersion,
+    string Actor,
+    string CorrelationId);
+
+public sealed record ActivatePriceCampaignCommand(
+    int CampaignId,
+    byte[] ExpectedCampaignRowVersion,
+    string Actor,
+    string CorrelationId);
+
+public sealed record CancelPriceCampaignCommand(
+    int CampaignId,
+    byte[] ExpectedCampaignRowVersion,
+    string Reason,
+    string Actor,
+    string CorrelationId);
+
+public sealed record RecoverPriceCampaignCommand(
+    int SourceCampaignId,
+    byte[] ExpectedSourceCampaignRowVersion,
+    string Reason,
+    string ClientRequestId,
     string Actor,
     string CorrelationId);
 

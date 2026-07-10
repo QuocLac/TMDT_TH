@@ -101,8 +101,20 @@
                         class="form-select"
                         data-conflict-policy>
                     <option value="Reject">Từ chối khi chồng lấn</option>
+                    <option value="ReplaceFromStart">Thay thế từ thời điểm bắt đầu</option>
+                    <option value="SupersedeNow">Thay thế giá đang chạy ngay</option>
                 </select>
-                <small>Thay thế giá đang chạy sẽ được triển khai ở phase vòng đời tiếp theo.</small>
+                <small data-conflict-policy-help>
+                    Kế hoạch sẽ bị chặn nếu có khoảng giá chồng lấn.
+                </small>
+            </div>
+
+            <div class="conflict-policy-notice campaign-form-grid__description"
+                 data-conflict-policy-notice>
+                <strong>Quy tắc an toàn</strong>
+                <span>
+                    “Thay từ lúc bắt đầu” yêu cầu bao phủ toàn bộ kế hoạch cũ; “Thay thế ngay” có thể tự tách các biến thể không bị ảnh hưởng sang kế hoạch tiếp tục.
+                </span>
             </div>
 
             <div class="form-field campaign-form-grid__description">
@@ -362,8 +374,8 @@
             <header class="pricing-dialog__header">
                 <div>
                     <p class="eyebrow">Final confirmation</p>
-                    <h3>Xác nhận tạo biến động giá</h3>
-                    <span>Server sẽ kiểm tra lại lần cuối trong transaction.</span>
+                    <h3>Xác nhận biến động giá</h3>
+                    <span>Server sẽ kiểm tra snapshot, RowVersion và chính sách xử lý chồng lấn lần cuối trong transaction.</span>
                 </div>
                 <button type="button"
                         class="pricing-dialog__close"

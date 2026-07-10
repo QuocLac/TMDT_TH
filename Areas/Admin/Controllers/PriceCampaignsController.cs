@@ -60,10 +60,16 @@ public sealed class PriceCampaignsController : Controller
                 Description = campaign.Description,
                 StartDateUtc = campaign.StartDate,
                 EndDateUtc = campaign.EndDate,
+                CreatedAtUtc = campaign.CreatedAt,
+                ConfirmedAtUtc = campaign.ConfirmedAt,
+                CancelledAtUtc = campaign.CancelledAt,
                 Mode = campaign.Mode,
                 Status = campaign.Status,
                 SourceType = campaign.SourceType,
+                ConflictPolicy = campaign.ConflictPolicy,
                 VariantCount = campaign.CampaignItems.Count,
+                SupersededByCampaignId = campaign.SupersededByCampaignId,
+                CreatedBy = campaign.CreatedBy,
                 RowVersion = Convert.ToBase64String(campaign.RowVersion)
             })
             .ToListAsync(cancellationToken);
@@ -178,6 +184,221 @@ public sealed class PriceCampaignsController : Controller
                             item.Variant.RowVersion)
                     })
                     .ToList()
+            }
+        });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetTimeline(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        if (id <= 0)
+        {
+            return Json(new
+            {
+                success = false,
+                message = "ID kế hoạch không hợp lệ."
+            });
+        }
+
+        var campaign = await _context.PriceCampaigns
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(item => item.SupersededByCampaign)
+            .Include(item => item.SupersededCampaigns)
+            .Include(item => item.CampaignItems)
+                .ThenInclude(item => item.Variant)
+                    .ThenInclude(variant => variant.Product)
+            .FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+
+        if (campaign is null)
+        {
+            return Json(new
+            {
+                success = false,
+                message = "Không tìm thấy kế hoạch giá."
+            });
+        }
+
+        var historyRows = await _context.PriceHistories
+            .AsNoTracking()
+            .Where(item => item.SourceId == id)
+            .Include(item => item.ProductVariant)
+                .ThenInclude(variant => variant.Product)
+            .OrderByDescending(item => item.CreatedAt)
+            .ThenByDescending(item => item.Id)
+            .ToListAsync(cancellationToken);
+
+        var events = new List<CampaignTimelineEvent>();
+        events.Add(new CampaignTimelineEvent(
+            campaign.CreatedAt,
+            "Created",
+            "Tạo kế hoạch",
+            $"{campaign.CreatedBy} đã tạo kế hoạch {campaign.Code}.",
+            null,
+            null,
+            null,
+            campaign.CreatedBy,
+            null));
+
+        if (campaign.ConfirmedAt.HasValue)
+        {
+            events.Add(new CampaignTimelineEvent(
+                campaign.ConfirmedAt.Value,
+                "Confirmed",
+                "Xác nhận kế hoạch",
+                $"Kế hoạch được xác nhận với chính sách {campaign.ConflictPolicy}.",
+                null,
+                null,
+                null,
+                campaign.ConfirmedBy,
+                null));
+
+            events.Add(new CampaignTimelineEvent(
+                campaign.StartDate,
+                "EffectiveStart",
+                "Bắt đầu hiệu lực",
+                "Mốc thời gian kế hoạch bắt đầu tham gia tính giá hiệu lực.",
+                null,
+                null,
+                null,
+                null,
+                null));
+        }
+
+        if (campaign.Status == PriceCampaignStatus.Completed
+            && campaign.EndDate.HasValue)
+        {
+            events.Add(new CampaignTimelineEvent(
+                campaign.EndDate.Value,
+                "Completed",
+                "Kết thúc hiệu lực",
+                "Kế hoạch kết thúc theo thời gian đã cấu hình.",
+                null,
+                null,
+                null,
+                null,
+                null));
+        }
+
+        if (campaign.CancelledAt.HasValue)
+        {
+            events.Add(new CampaignTimelineEvent(
+                campaign.CancelledAt.Value,
+                "Cancelled",
+                "Hủy kế hoạch",
+                "Kế hoạch bị dừng và giá hiệu lực được tính lại.",
+                null,
+                null,
+                null,
+                campaign.CancelledBy,
+                null));
+        }
+
+        if (campaign.SupersededByCampaign is not null)
+        {
+            events.Add(new CampaignTimelineEvent(
+                campaign.UpdatedAt ?? campaign.SupersededByCampaign.CreatedAt,
+                "Superseded",
+                "Bị thay thế",
+                $"Được thay thế bởi {campaign.SupersededByCampaign.Code} - {campaign.SupersededByCampaign.Name}.",
+                null,
+                null,
+                null,
+                null,
+                null));
+        }
+
+        events.AddRange(historyRows.Select(history =>
+            new CampaignTimelineEvent(
+                history.CreatedAt,
+                history.EventType.ToString(),
+                TranslateHistoryEvent(history.EventType),
+                history.Note,
+                history.OldPrice,
+                history.NewPrice,
+                history.ProductVariant.SKU,
+                history.ChangedBy,
+                history.CorrelationId)));
+
+        return Json(new
+        {
+            success = true,
+            data = new
+            {
+                campaign = new
+                {
+                    id = campaign.Id,
+                    code = campaign.Code,
+                    name = campaign.Name,
+                    description = campaign.Description,
+                    reason = campaign.Reason,
+                    mode = campaign.Mode.ToString(),
+                    status = campaign.Status.ToString(),
+                    sourceType = campaign.SourceType.ToString(),
+                    conflictPolicy = campaign.ConflictPolicy.ToString(),
+                    startDateUtc = ToUtcIso(campaign.StartDate),
+                    endDateUtc = ToUtcIso(campaign.EndDate),
+                    createdAtUtc = ToUtcIso(campaign.CreatedAt),
+                    confirmedAtUtc = ToUtcIso(campaign.ConfirmedAt),
+                    cancelledAtUtc = ToUtcIso(campaign.CancelledAt),
+                    createdBy = campaign.CreatedBy,
+                    confirmedBy = campaign.ConfirmedBy,
+                    cancelledBy = campaign.CancelledBy,
+                    rowVersion = Convert.ToBase64String(campaign.RowVersion)
+                },
+                supersededBy = campaign.SupersededByCampaign is null
+                    ? null
+                    : new
+                    {
+                        id = campaign.SupersededByCampaign.Id,
+                        code = campaign.SupersededByCampaign.Code,
+                        name = campaign.SupersededByCampaign.Name,
+                        status = campaign.SupersededByCampaign.Status.ToString()
+                    },
+                supersededCampaigns = campaign.SupersededCampaigns
+                    .OrderBy(item => item.Id)
+                    .Select(item => new
+                    {
+                        id = item.Id,
+                        code = item.Code,
+                        name = item.Name,
+                        status = item.Status.ToString()
+                    }),
+                variants = campaign.CampaignItems
+                    .OrderBy(item => item.Variant.Product.Name)
+                    .ThenBy(item => item.Variant.SKU)
+                    .Select(item => new
+                    {
+                        productName = item.Variant.Product.Name,
+                        sku = item.Variant.SKU,
+                        attributes = string.Join(
+                            " - ",
+                            new[] { item.Variant.Color, item.Variant.Size }
+                                .Where(value => !string.IsNullOrWhiteSpace(value))),
+                        listPrice = item.ListPriceSnapshot,
+                        previousPrice = item.PreviousEffectivePriceSnapshot,
+                        campaignPrice = item.NewPrice,
+                        currentPrice = item.Variant.CurrentPrice,
+                        adjustmentType = item.AdjustmentType.ToString(),
+                        adjustmentValue = item.AdjustmentValue
+                    }),
+                events = events
+                    .OrderByDescending(item => item.OccurredAtUtc)
+                    .ThenByDescending(item => item.Title)
+                    .Select(item => new
+                    {
+                        occurredAtUtc = ToUtcIso(item.OccurredAtUtc),
+                        kind = item.Kind,
+                        title = item.Title,
+                        description = item.Description,
+                        oldPrice = item.OldPrice,
+                        newPrice = item.NewPrice,
+                        sku = item.Sku,
+                        changedBy = item.ChangedBy,
+                        correlationId = item.CorrelationId
+                    })
             }
         });
     }
@@ -644,400 +865,103 @@ public sealed class PriceCampaignsController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> SaveCampaign(
-        [FromBody] SavePriceCampaignRequest? request,
+    public async Task<IActionResult> CancelCampaign(
+        [FromBody] CancelPriceCampaignRequest? request,
         CancellationToken cancellationToken)
     {
         var correlationId = CreateCorrelationId();
         Response.Headers["X-Correlation-ID"] = correlationId;
 
-        var requestError = ValidateRequest(request);
-        if (requestError is not null)
+        if (request is null
+            || request.Id <= 0
+            || string.IsNullOrWhiteSpace(request.Reason))
         {
             return Failure(
-                requestError,
+                "Vui lòng nhập đầy đủ lý do hủy kế hoạch.",
                 correlationId,
                 "INVALID_REQUEST");
         }
 
-        if (!TryNormalizeToUtc(
-                request!.StartDate,
-                out var startDateUtc))
+        if (!TryDecodeRowVersion(
+                request.RowVersion,
+                true,
+                out var expectedRowVersion,
+                out var rowVersionError))
         {
             return Failure(
-                "Thời gian bắt đầu không hợp lệ.",
+                rowVersionError ?? ConcurrencyMessage,
                 correlationId,
-                "INVALID_START_TIME");
+                "INVALID_ROW_VERSION");
         }
 
-        DateTime? endDateUtc = null;
-        if (request.Mode == PriceCampaignMode.FixedWindow)
-        {
-            if (!TryNormalizeToUtc(
-                    request.EndDate,
-                    out endDateUtc))
-            {
-                return Failure(
-                    "Thời gian kết thúc không hợp lệ.",
-                    correlationId,
-                    "INVALID_END_TIME");
-            }
-        }
-
-        var clientRequestId =
-            NormalizeClientRequestId(request.ClientRequestId)
-            ?? Guid.NewGuid().ToString("N");
-
-        if (!TryCreatePreviewInputs(
-                request.Items,
-                out var authoritativeInputs,
-                out var authoritativeInputError))
-        {
-            return Failure(
-                authoritativeInputError ?? "Dữ liệu biến thể không hợp lệ.",
-                correlationId,
-                "INVALID_ITEMS");
-        }
-
-        var authoritativePreview =
-            await _effectivePriceService.PreviewCampaignAsync(
+        var result = await _workflowService.CancelAsync(
+            new CancelPriceCampaignCommand(
                 request.Id,
-                request.Mode,
-                startDateUtc,
-                endDateUtc,
-                request.ConflictPolicy,
-                authoritativeInputs,
-                cancellationToken);
+                expectedRowVersion!,
+                request.Reason,
+                GetActor(),
+                correlationId),
+            cancellationToken);
 
-        if (!authoritativePreview.IsValid
-            || !authoritativePreview.CanConfirm)
+        return CreateWorkflowResponse(result, correlationId);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> RecoverCampaign(
+        [FromBody] RecoverPriceCampaignRequest? request,
+        CancellationToken cancellationToken)
+    {
+        var correlationId = CreateCorrelationId();
+        Response.Headers["X-Correlation-ID"] = correlationId;
+
+        var clientRequestId = NormalizeClientRequestId(request?.ClientRequestId);
+        if (request is null
+            || request.Id <= 0
+            || string.IsNullOrWhiteSpace(request.Reason)
+            || string.IsNullOrWhiteSpace(clientRequestId))
         {
             return Failure(
-                authoritativePreview.ErrorMessage
-                    ?? "Kế hoạch giá chưa đủ điều kiện để lưu.",
+                "Vui lòng nhập đầy đủ lý do và khóa yêu cầu phục hồi.",
                 correlationId,
-                authoritativePreview.ErrorCode
-                    ?? "PRICING_VALIDATION_FAILED");
+                "INVALID_REQUEST");
         }
 
-        var authoritativeByVariantId = authoritativePreview.Items
-            .ToDictionary(item => item.VariantId);
-
-        foreach (var requestItem in request.Items)
+        if (!TryDecodeRowVersion(
+                request.RowVersion,
+                true,
+                out var expectedRowVersion,
+                out var rowVersionError))
         {
-            requestItem.NewPrice =
-                authoritativeByVariantId[requestItem.VariantId].NewPrice;
-        }
-
-        var requestedItems = request.Items
-            .Select(item => new CampaignPriceInput(
-                item.VariantId,
-                item.NewPrice))
-            .ToArray();
-
-        var actor = GetActor();
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-
-        if (request.Id == 0)
-        {
-            var previousResult =
-                await FindIdempotentResultAsync(
-                    clientRequestId,
-                    cancellationToken);
-
-            if (previousResult is not null)
-            {
-                return Success(
-                    previousResult,
-                    correlationId,
-                    "Yêu cầu này đã được xử lý trước đó.");
-            }
-        }
-
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync(
-                IsolationLevel.Serializable,
-                cancellationToken);
-
-        try
-        {
-            PriceCampaign campaign;
-            int[] oldVariantIds;
-
-            if (request.Id == 0)
-            {
-                var duplicateRequest =
-                    await _context.PriceCampaigns
-                        .FirstOrDefaultAsync(
-                            item =>
-                                item.ClientRequestId
-                                == clientRequestId,
-                            cancellationToken);
-
-                if (duplicateRequest is not null)
-                {
-                    await transaction.CommitAsync(cancellationToken);
-                    return Success(
-                        duplicateRequest,
-                        correlationId,
-                        "Yêu cầu này đã được xử lý trước đó.");
-                }
-
-                campaign = new PriceCampaign
-                {
-                    Code = CreateCampaignCode(nowUtc),
-                    Name = request.Name.Trim(),
-                    Description =
-                        CleanNullable(request.Description),
-                    Mode = request.Mode,
-                    Status =
-                        PriceCampaignLifecycle
-                            .ResolveConfirmedStatus(
-                                startDateUtc,
-                                endDateUtc,
-                                nowUtc),
-                    StartDate = startDateUtc,
-                    EndDate = endDateUtc,
-                    Reason = request.Reason.Trim(),
-                    SourceType = request.SourceType,
-                    ConflictPolicy =
-                        request.ConflictPolicy,
-                    ClientRequestId = clientRequestId,
-                    ConfirmedAt = nowUtc,
-                    ConfirmedBy = actor,
-                    CreatedBy = actor,
-                    CampaignItems = []
-                };
-                campaign.IsActive =
-                    PriceCampaignLifecycle
-                        .IsCompatibilityActive(
-                            campaign.Status);
-                oldVariantIds = [];
-            }
-            else
-            {
-                campaign = await _context.PriceCampaigns
-                    .Include(item => item.CampaignItems)
-                    .FirstOrDefaultAsync(
-                        item => item.Id == request.Id,
-                        cancellationToken);
-
-                if (campaign is null)
-                {
-                    return Failure(
-                        "Không tìm thấy kế hoạch giá.",
-                        correlationId,
-                        "CAMPAIGN_NOT_FOUND");
-                }
-
-                if (PriceCampaignLifecycle.IsTerminal(
-                        campaign.Status))
-                {
-                    return Failure(
-                        "Kế hoạch đã kết thúc hoặc bị hủy nên không thể chỉnh sửa.",
-                        correlationId,
-                        "TERMINAL_CAMPAIGN");
-                }
-
-                if (campaign.Status
-                    == PriceCampaignStatus.Active)
-                {
-                    return Failure(
-                        "Kế hoạch đang có hiệu lực. Hãy dùng thao tác thay thế giá ở phase tiếp theo thay vì sửa lịch sử.",
-                        correlationId,
-                        "ACTIVE_CAMPAIGN_IMMUTABLE");
-                }
-
-                if (!TryApplyExpectedRowVersion(
-                        campaign,
-                        request.RowVersion,
-                        out var rowVersionError))
-                {
-                    return Failure(
-                        rowVersionError
-                            ?? ConcurrencyMessage,
-                        correlationId,
-                        "INVALID_ROW_VERSION");
-                }
-
-                oldVariantIds = campaign.CampaignItems
-                    .Select(item => item.VariantId)
-                    .ToArray();
-            }
-
-            var validation =
-                await _effectivePriceService
-                    .ValidateCampaignAsync(
-                        request.Id,
-                        request.Mode,
-                        startDateUtc,
-                        endDateUtc,
-                        request.ConflictPolicy,
-                        requestedItems,
-                        cancellationToken);
-
-            if (!validation.IsValid)
-            {
-                return Failure(
-                    validation.ErrorMessage
-                        ?? "Dữ liệu giá không hợp lệ.",
-                    correlationId,
-                    validation.ErrorCode
-                        ?? "PRICING_VALIDATION_FAILED");
-            }
-
-            var variantIds = requestedItems
-                .Select(item => item.VariantId)
-                .Distinct()
-                .ToArray();
-
-            var variantsById =
-                await _context.ProductVariants
-                    .Where(variant =>
-                        variantIds.Contains(variant.Id))
-                    .ToDictionaryAsync(
-                        variant => variant.Id,
-                        cancellationToken);
-
-            if (request.Id == 0)
-            {
-                foreach (var requestItem in request.Items)
-                {
-                    var variant =
-                        variantsById[requestItem.VariantId];
-                    campaign.CampaignItems.Add(
-                        CreateCampaignItem(
-                            variant,
-                            requestItem));
-                }
-
-                _context.PriceCampaigns.Add(campaign);
-            }
-            else
-            {
-                campaign.Name = request.Name.Trim();
-                campaign.Description =
-                    CleanNullable(request.Description);
-                campaign.Mode = request.Mode;
-                campaign.StartDate = startDateUtc;
-                campaign.EndDate = endDateUtc;
-                campaign.Reason =
-                    request.Reason.Trim();
-                campaign.SourceType =
-                    request.SourceType;
-                campaign.ConflictPolicy =
-                    request.ConflictPolicy;
-                campaign.Status =
-                    PriceCampaignLifecycle
-                        .ResolveConfirmedStatus(
-                            startDateUtc,
-                            endDateUtc,
-                            nowUtc);
-                campaign.IsActive =
-                    PriceCampaignLifecycle
-                        .IsCompatibilityActive(
-                            campaign.Status);
-                campaign.UpdatedAt = nowUtc;
-
-                UpdateCampaignItems(
-                    campaign,
-                    request.Items,
-                    variantsById);
-            }
-
-            await _context.SaveChangesAsync(
-                cancellationToken);
-
-            var affectedVariantIds = oldVariantIds
-                .Concat(variantIds)
-                .Distinct()
-                .ToArray();
-
-            await _effectivePriceService
-                .RecalculateVariantsAsync(
-                    affectedVariantIds,
-                    actor,
-                    request.Id == 0
-                        ? "Xác nhận kế hoạch giá"
-                        : "Cập nhật kế hoạch giá đã lên lịch",
-                    correlationId,
-                    cancellationToken);
-
-            await transaction.CommitAsync(
-                cancellationToken);
-
-            _logger.LogInformation(
-                "Pricing save succeeded. CorrelationId={CorrelationId}, CampaignId={CampaignId}, ClientRequestId={ClientRequestId}, Status={Status}, VariantCount={VariantCount}.",
-                correlationId,
-                campaign.Id,
-                clientRequestId,
-                campaign.Status,
-                campaign.CampaignItems.Count);
-
-            return Success(
-                campaign,
-                correlationId,
-                "Đã lưu và xác nhận kế hoạch giá.");
-        }
-        catch (DbUpdateConcurrencyException exception)
-        {
-            await transaction.RollbackAsync(
-                CancellationToken.None);
-
-            _logger.LogWarning(
-                exception,
-                "Pricing save concurrency conflict. CorrelationId={CorrelationId}, CampaignId={CampaignId}.",
-                correlationId,
-                request.Id);
-
             return Failure(
-                ConcurrencyMessage,
+                rowVersionError ?? ConcurrencyMessage,
                 correlationId,
-                "CONCURRENCY_CONFLICT");
+                "INVALID_ROW_VERSION");
         }
-        catch (DbUpdateException exception)
-        {
-            await transaction.RollbackAsync(
-                CancellationToken.None);
 
-            var error = MapDatabaseError(exception);
-
-            _logger.LogError(
-                exception,
-                "Pricing database error. CorrelationId={CorrelationId}, CampaignId={CampaignId}, ClientRequestId={ClientRequestId}, ErrorCode={ErrorCode}.",
-                correlationId,
+        var result = await _workflowService.RecoverAsync(
+            new RecoverPriceCampaignCommand(
                 request.Id,
-                clientRequestId,
-                error.Code);
+                expectedRowVersion!,
+                request.Reason,
+                clientRequestId!,
+                GetActor(),
+                correlationId),
+            cancellationToken);
 
-            return Failure(
-                error.Message,
-                correlationId,
-                error.Code);
-        }
-        catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            await transaction.RollbackAsync(
-                CancellationToken.None);
+        return CreateWorkflowResponse(result, correlationId);
+    }
 
-            _logger.LogError(
-                exception,
-                "Unexpected pricing save failure. CorrelationId={CorrelationId}, CampaignId={CampaignId}, ClientRequestId={ClientRequestId}.",
-                correlationId,
-                request.Id,
-                clientRequestId);
-
-            return Failure(
-                "Không thể lưu kế hoạch giá. Mã tra cứu: "
-                + correlationId,
-                correlationId,
-                "UNEXPECTED_ERROR");
-        }
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public Task<IActionResult> SaveCampaign(
+        [FromBody] SavePriceCampaignRequest? request,
+        CancellationToken cancellationToken)
+    {
+        // Compatibility endpoint: all writes now pass through the draft workflow.
+        // Confirmed, scheduled and active campaigns are immutable and must be
+        // replaced through the lifecycle policies instead of being edited in place.
+        return SaveDraft(request, cancellationToken);
     }
 
     [HttpPost]
@@ -1047,190 +971,37 @@ public sealed class PriceCampaignsController : Controller
         CancellationToken cancellationToken)
     {
         var correlationId = CreateCorrelationId();
-        Response.Headers["X-Correlation-ID"] =
-            correlationId;
+        Response.Headers["X-Correlation-ID"] = correlationId;
 
-        if (request is null
-            || request.Id <= 0
-            || string.IsNullOrWhiteSpace(
-                request.RowVersion))
+        if (request is null || request.Id <= 0)
         {
             return Failure(
-                "Dữ liệu kế hoạch giá không hợp lệ.",
+                "ID kế hoạch không hợp lệ.",
                 correlationId,
                 "INVALID_REQUEST");
         }
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync(
-                IsolationLevel.Serializable,
-                cancellationToken);
-
-        try
+        if (!TryDecodeRowVersion(
+                request.RowVersion,
+                true,
+                out var expectedRowVersion,
+                out var rowVersionError))
         {
-            var campaign =
-                await _context.PriceCampaigns
-                    .Include(item => item.CampaignItems)
-                    .FirstOrDefaultAsync(
-                        item => item.Id == request.Id,
-                        cancellationToken);
-
-            if (campaign is null)
-            {
-                return Failure(
-                    "Không tìm thấy kế hoạch giá.",
-                    correlationId,
-                    "CAMPAIGN_NOT_FOUND");
-            }
-
-            if (PriceCampaignLifecycle.IsTerminal(
-                    campaign.Status))
-            {
-                return Failure(
-                    "Kế hoạch đã kết thúc hoặc bị hủy.",
-                    correlationId,
-                    "TERMINAL_CAMPAIGN");
-            }
-
-            if (!TryApplyExpectedRowVersion(
-                    campaign,
-                    request.RowVersion,
-                    out var rowVersionError))
-            {
-                return Failure(
-                    rowVersionError
-                        ?? ConcurrencyMessage,
-                    correlationId,
-                    "INVALID_ROW_VERSION");
-            }
-
-            var nowUtc =
-                _timeProvider.GetUtcNow().UtcDateTime;
-
-            if (campaign.EndDate.HasValue
-                && campaign.EndDate.Value <= nowUtc)
-            {
-                return Failure(
-                    "Kế hoạch đã hết hạn. Hãy tạo kế hoạch thay thế.",
-                    correlationId,
-                    "CAMPAIGN_EXPIRED");
-            }
-
-            var requestedItems =
-                campaign.CampaignItems
-                    .Select(item =>
-                        new CampaignPriceInput(
-                            item.VariantId,
-                            item.NewPrice))
-                    .ToArray();
-
-            var validation =
-                await _effectivePriceService
-                    .ValidateCampaignAsync(
-                        campaign.Id,
-                        campaign.Mode,
-                        nowUtc,
-                        campaign.EndDate,
-                        campaign.ConflictPolicy,
-                        requestedItems,
-                        cancellationToken);
-
-            if (!validation.IsValid)
-            {
-                return Failure(
-                    validation.ErrorMessage
-                        ?? "Không thể kích hoạt kế hoạch.",
-                    correlationId,
-                    validation.ErrorCode
-                        ?? "PRICING_VALIDATION_FAILED");
-            }
-
-            campaign.StartDate = nowUtc;
-            campaign.Status =
-                PriceCampaignStatus.Active;
-            campaign.IsActive = true;
-            campaign.ConfirmedAt ??= nowUtc;
-            campaign.ConfirmedBy ??= GetActor();
-            campaign.UpdatedAt = nowUtc;
-
-            await _context.SaveChangesAsync(
-                cancellationToken);
-
-            await _effectivePriceService
-                .RecalculateVariantsAsync(
-                    requestedItems
-                        .Select(item => item.VariantId)
-                        .ToArray(),
-                    GetActor(),
-                    "Kích hoạt kế hoạch giá ngay",
-                    correlationId,
-                    cancellationToken);
-
-            await transaction.CommitAsync(
-                cancellationToken);
-
-            return Success(
-                campaign,
-                correlationId,
-                "Đã kích hoạt kế hoạch giá.");
-        }
-        catch (DbUpdateConcurrencyException exception)
-        {
-            await transaction.RollbackAsync(
-                CancellationToken.None);
-
-            _logger.LogWarning(
-                exception,
-                "Pricing activation concurrency conflict. CorrelationId={CorrelationId}, CampaignId={CampaignId}.",
-                correlationId,
-                request.Id);
-
             return Failure(
-                ConcurrencyMessage,
+                rowVersionError ?? ConcurrencyMessage,
                 correlationId,
-                "CONCURRENCY_CONFLICT");
+                "INVALID_ROW_VERSION");
         }
-        catch (DbUpdateException exception)
-        {
-            await transaction.RollbackAsync(
-                CancellationToken.None);
 
-            var error = MapDatabaseError(exception);
-
-            _logger.LogError(
-                exception,
-                "Pricing activation database error. CorrelationId={CorrelationId}, CampaignId={CampaignId}, ErrorCode={ErrorCode}.",
-                correlationId,
+        var result = await _workflowService.ActivateNowAsync(
+            new ActivatePriceCampaignCommand(
                 request.Id,
-                error.Code);
+                expectedRowVersion!,
+                GetActor(),
+                correlationId),
+            cancellationToken);
 
-            return Failure(
-                error.Message,
-                correlationId,
-                error.Code);
-        }
-        catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            await transaction.RollbackAsync(
-                CancellationToken.None);
-
-            _logger.LogError(
-                exception,
-                "Unexpected pricing activation failure. CorrelationId={CorrelationId}, CampaignId={CampaignId}.",
-                correlationId,
-                request.Id);
-
-            return Failure(
-                "Không thể kích hoạt kế hoạch giá. Mã tra cứu: "
-                + correlationId,
-                correlationId,
-                "UNEXPECTED_ERROR");
-        }
+        return CreateWorkflowResponse(result, correlationId);
     }
 
     private static object CreatePreviewPayload(
@@ -1246,6 +1017,8 @@ public sealed class PriceCampaignsController : Controller
                 decreaseCount = preview.Summary.DecreaseCount,
                 unchangedCount = preview.Summary.UnchangedCount,
                 conflictCount = preview.Summary.ConflictCount,
+                conflictCampaignCount = preview.Summary.ConflictCampaignCount,
+                partialConflictCampaignCount = preview.Summary.PartialConflictCampaignCount,
                 staleCount = preview.Summary.StaleCount,
                 currentTotal = preview.Summary.CurrentTotal,
                 newTotal = preview.Summary.NewTotal
@@ -1273,7 +1046,10 @@ public sealed class PriceCampaignsController : Controller
                     name = conflict.CampaignName,
                     status = conflict.Status.ToString(),
                     startDateUtc = ToUtcIso(conflict.StartDateUtc),
-                    endDateUtc = ToUtcIso(conflict.EndDateUtc)
+                    endDateUtc = ToUtcIso(conflict.EndDateUtc),
+                    campaignVariantCount = conflict.CampaignVariantCount,
+                    coveredVariantCount = conflict.CoveredVariantCount,
+                    isFullyCovered = conflict.IsFullyCovered
                 })
             })
         };
@@ -1863,6 +1639,31 @@ public sealed class PriceCampaignsController : Controller
             ? null
             : value.Trim();
     }
+
+    private static string TranslateHistoryEvent(
+        PriceHistoryEventType eventType)
+    {
+        return eventType switch
+        {
+            PriceHistoryEventType.Applied => "Áp dụng giá",
+            PriceHistoryEventType.Restored => "Khôi phục giá",
+            PriceHistoryEventType.Replaced => "Thay thế giá",
+            PriceHistoryEventType.Cancelled => "Hủy và tính lại giá",
+            PriceHistoryEventType.ListPriceChanged => "Đổi giá niêm yết",
+            _ => "Biến động giá"
+        };
+    }
+
+    private sealed record CampaignTimelineEvent(
+        DateTime OccurredAtUtc,
+        string Kind,
+        string Title,
+        string Description,
+        decimal? OldPrice,
+        decimal? NewPrice,
+        string? Sku,
+        string? ChangedBy,
+        string? CorrelationId);
 
     private sealed record DatabaseError(
         string Message,
