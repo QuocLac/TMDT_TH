@@ -68,11 +68,31 @@ public sealed class PriceCampaignWorkflowService : IPriceCampaignWorkflowService
 
                 if (existingByRequest is not null)
                 {
+                    var idempotencyReview = ReviewIdempotentDraft(
+                        existingByRequest,
+                        command);
+
+                    if (!idempotencyReview.IsMatch)
+                    {
+                        await transaction.RollbackAsync(CancellationToken.None);
+
+                        _logger.LogWarning(
+                            "Pricing idempotency key was reused with a different payload. ExistingCampaignId={CampaignId}, CorrelationId={CorrelationId}, Mismatch={Mismatch}.",
+                            existingByRequest.Id,
+                            command.CorrelationId,
+                            idempotencyReview.Mismatch);
+
+                        return PriceCampaignWorkflowResult.Failure(
+                            "Khóa yêu cầu này đã được sử dụng cho một bản nháp có nội dung khác. Vui lòng tải lại trang để tạo khóa yêu cầu mới.",
+                            "IDEMPOTENCY_KEY_REUSED",
+                            campaignId: existingByRequest.Id);
+                    }
+
                     await transaction.CommitAsync(cancellationToken);
                     return Success(
                         existingByRequest,
                         "Bản nháp này đã được lưu trước đó.",
-                        preview);
+                        null);
                 }
 
                 campaign = new PriceCampaign
@@ -383,6 +403,68 @@ public sealed class PriceCampaignWorkflowService : IPriceCampaignWorkflowService
         }
     }
 
+    private static IdempotencyReview ReviewIdempotentDraft(
+        PriceCampaign campaign,
+        PriceCampaignDraftCommand command)
+    {
+        if (!string.Equals(
+                campaign.Name,
+                command.Name.Trim(),
+                StringComparison.Ordinal)
+            || !string.Equals(
+                CleanNullable(campaign.Description),
+                CleanNullable(command.Description),
+                StringComparison.Ordinal)
+            || campaign.Mode != command.Mode
+            || campaign.StartDate != command.StartDateUtc
+            || campaign.EndDate != command.EndDateUtc
+            || !string.Equals(
+                campaign.Reason,
+                command.Reason.Trim(),
+                StringComparison.Ordinal)
+            || campaign.SourceType != command.SourceType
+            || campaign.ConflictPolicy != command.ConflictPolicy)
+        {
+            return new IdempotencyReview(
+                false,
+                "CAMPAIGN_METADATA");
+        }
+
+        if (campaign.CampaignItems.Count != command.Items.Count)
+        {
+            return new IdempotencyReview(
+                false,
+                "ITEM_COUNT");
+        }
+
+        var requestedByVariantId = command.Items.ToDictionary(
+            item => item.VariantId);
+
+        foreach (var campaignItem in campaign.CampaignItems)
+        {
+            if (!requestedByVariantId.TryGetValue(
+                    campaignItem.VariantId,
+                    out var requestedItem))
+            {
+                return new IdempotencyReview(
+                    false,
+                    $"MISSING_VARIANT:{campaignItem.VariantId}");
+            }
+
+            if (campaignItem.AdjustmentType
+                    != requestedItem.AdjustmentType
+                || campaignItem.AdjustmentValue
+                    != requestedItem.AdjustmentValue)
+            {
+                return new IdempotencyReview(
+                    false,
+                    $"ITEM_CONFIGURATION:{campaignItem.VariantId}");
+            }
+        }
+
+        return IdempotencyReview.Match;
+    }
+
     private static DraftSnapshotReview ReviewDraftSnapshots(
         IReadOnlyCollection<PriceCampaignItem> draftItems,
         IReadOnlyList<PricePlanPreviewItemResult> previewItems)
@@ -521,6 +603,14 @@ public sealed class PriceCampaignWorkflowService : IPriceCampaignWorkflowService
             .ToString("N")[..10]
             .ToUpperInvariant();
         return $"PC-{nowUtc:yyyyMMdd}-{suffix}";
+    }
+
+    private readonly record struct IdempotencyReview(
+        bool IsMatch,
+        string? Mismatch)
+    {
+        public static IdempotencyReview Match { get; }
+            = new(true, null);
     }
 
     private readonly record struct DraftSnapshotReview(
