@@ -108,7 +108,7 @@ namespace WebApplication2.Migrations
                     table.CheckConstraint("CK_PriceCampaign_Duration", "([Mode] = 'OpenEnded' AND [EndDate] IS NULL) OR ([Mode] = 'FixedWindow' AND [EndDate] IS NOT NULL AND [EndDate] > [StartDate])");
                     table.CheckConstraint("CK_PriceCampaign_Mode", "[Mode] IN ('FixedWindow','OpenEnded')");
                     table.CheckConstraint("CK_PriceCampaign_SourceType", "[SourceType] IN ('Manual','Market','Promotion','Recovery','Legacy','System')");
-                    table.CheckConstraint("CK_PriceCampaign_Status", "[Status] IN ('Draft','Confirmed','Scheduled','Active','Completed','Cancelled','Superseded')");
+                    table.CheckConstraint("CK_PriceCampaign_Status", "[Status] IS NOT NULL AND [Status] IN ('Draft','Confirmed','Scheduled','Active','Completed','Cancelled','Superseded')");
                     table.ForeignKey(
                         name: "FK_PriceCampaigns_PriceCampaigns_SupersededByCampaignId",
                         column: x => x.SupersededByCampaignId,

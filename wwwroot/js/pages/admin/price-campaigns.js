@@ -97,8 +97,13 @@
 
     function formatServerError(result, fallback) {
         const message = result?.message ?? fallback;
-        return result?.correlationId
-            ? `${message} (Mã tra cứu: ${result.correlationId})`
+        const diagnostics = [
+            result?.errorCode ? `Mã lỗi: ${result.errorCode}` : null,
+            result?.correlationId ? `Mã tra cứu: ${result.correlationId}` : null
+        ].filter(Boolean);
+
+        return diagnostics.length
+            ? `${message} (${diagnostics.join(" · ")})`
             : message;
     }
 

@@ -1,4 +1,5 @@
 using System.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using WebApplication2.Models;
 using WebApplication2.Models.Enums;
@@ -405,14 +406,21 @@ public sealed class PriceCampaignWorkflowService : IPriceCampaignWorkflowService
         catch (DbUpdateException exception)
         {
             await transaction.RollbackAsync(CancellationToken.None);
+
+            var databaseFailure = MapConfirmationDatabaseFailure(exception);
+            var sqlException = FindSqlException(exception);
+
             _logger.LogError(
                 exception,
-                "Pricing confirmation database failure. CampaignId={CampaignId}, CorrelationId={CorrelationId}.",
+                "Pricing confirmation database failure. CampaignId={CampaignId}, CorrelationId={CorrelationId}, SqlNumber={SqlNumber}, ErrorCode={ErrorCode}.",
                 command.CampaignId,
-                command.CorrelationId);
+                command.CorrelationId,
+                sqlException?.Number,
+                databaseFailure.ErrorCode);
+
             return PriceCampaignWorkflowResult.Failure(
-                "Không thể xác nhận kế hoạch giá.",
-                "DATABASE_WRITE_FAILED",
+                databaseFailure.Message,
+                databaseFailure.ErrorCode,
                 campaignId: command.CampaignId);
         }
         catch (OperationCanceledException)
@@ -1364,6 +1372,114 @@ public sealed class PriceCampaignWorkflowService : IPriceCampaignWorkflowService
             preview);
     }
 
+
+    private static DatabaseWriteFailure MapConfirmationDatabaseFailure(
+        DbUpdateException exception)
+    {
+        var sqlException = FindSqlException(exception);
+
+        if (sqlException is null)
+        {
+            return new DatabaseWriteFailure(
+                "Không thể ghi trạng thái xác nhận vào cơ sở dữ liệu.",
+                "DATABASE_WRITE_FAILED");
+        }
+
+        var sqlMessage = sqlException.Message;
+
+        if (sqlException.Number == 547)
+        {
+            if (sqlMessage.Contains(
+                    "CK_PriceCampaign_Status",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return new DatabaseWriteFailure(
+                    "Ràng buộc trạng thái kế hoạch trong cơ sở dữ liệu chưa đồng bộ với Pricing V2. "
+                    + "Kế hoạch bắt đầu trong tương lai cần trạng thái Scheduled. "
+                    + "Hãy chạy migration RepairPricingLifecycleStatusConstraint rồi xác nhận lại.",
+                    "PRICING_STATUS_CONSTRAINT_OUTDATED");
+            }
+
+            if (sqlMessage.Contains(
+                    "CK_PriceCampaign_Duration",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return new DatabaseWriteFailure(
+                    "Khoảng thời gian kế hoạch không thỏa ràng buộc của cơ sở dữ liệu. "
+                    + "Kế hoạch có ngày kết thúc phải kết thúc sau khi bắt đầu; "
+                    + "kế hoạch không thời hạn phải để trống ngày kết thúc.",
+                    "PRICING_DURATION_CONSTRAINT");
+            }
+
+            if (sqlMessage.Contains(
+                    "CK_PriceCampaign_SourceType",
+                    StringComparison.OrdinalIgnoreCase)
+                || sqlMessage.Contains(
+                    "CK_PriceCampaign_ConflictPolicy",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return new DatabaseWriteFailure(
+                    "Nguồn thay đổi hoặc chính sách xử lý xung đột chưa được database hiện tại hỗ trợ.",
+                    "PRICING_ENUM_CONSTRAINT_OUTDATED");
+            }
+
+            if (sqlMessage.Contains(
+                    "CK_PriceCampaignItem",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return new DatabaseWriteFailure(
+                    "Một biến thể có snapshot giá hoặc cấu hình điều chỉnh không hợp lệ.",
+                    "PRICING_ITEM_CONSTRAINT");
+            }
+
+            if (sqlMessage.Contains(
+                    "CK_PriceHistory",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return new DatabaseWriteFailure(
+                    "Không thể ghi lịch sử giá vì ràng buộc PriceHistory trong database chưa đồng bộ.",
+                    "PRICE_HISTORY_CONSTRAINT_OUTDATED");
+            }
+
+            return new DatabaseWriteFailure(
+                "Dữ liệu xác nhận vi phạm một ràng buộc của cơ sở dữ liệu.",
+                "DATABASE_CONSTRAINT_VIOLATION");
+        }
+
+        if (sqlException.Number is 2601 or 2627)
+        {
+            return new DatabaseWriteFailure(
+                "Dữ liệu xác nhận bị trùng khóa hoặc trùng mã kế hoạch.",
+                "UNIQUE_CONSTRAINT");
+        }
+
+        if (sqlException.Number == 1205)
+        {
+            return new DatabaseWriteFailure(
+                "Một thao tác giá khác đang khóa dữ liệu. Vui lòng thử xác nhận lại.",
+                "DATABASE_DEADLOCK");
+        }
+
+        return new DatabaseWriteFailure(
+            $"Không thể xác nhận kế hoạch giá do lỗi cơ sở dữ liệu SQL {sqlException.Number}.",
+            "DATABASE_WRITE_FAILED");
+    }
+
+    private static SqlException? FindSqlException(Exception exception)
+    {
+        for (Exception? current = exception;
+             current is not null;
+             current = current.InnerException)
+        {
+            if (current is SqlException sqlException)
+            {
+                return sqlException;
+            }
+        }
+
+        return null;
+    }
+
     private static decimal ResolveRecoveryPrice(PriceCampaignItem item)
     {
         if (item.PreviousEffectivePriceSnapshot > 0)
@@ -1441,6 +1557,10 @@ public sealed class PriceCampaignWorkflowService : IPriceCampaignWorkflowService
             .ToUpperInvariant();
         return $"{prefix}-{nowUtc:yyyyMMdd}-{suffix}";
     }
+
+    private sealed record DatabaseWriteFailure(
+        string Message,
+        string ErrorCode);
 
     private sealed record ConflictResolutionResult(
         IReadOnlyCollection<int> AffectedVariantIds);

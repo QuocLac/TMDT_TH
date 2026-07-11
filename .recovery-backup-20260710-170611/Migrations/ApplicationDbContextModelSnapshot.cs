@@ -370,7 +370,7 @@ namespace WebApplication2.Migrations
 
                             t.HasCheckConstraint("CK_PriceCampaign_SourceType", "[SourceType] IN ('Manual','Market','Promotion','Recovery','Legacy','System')");
 
-                            t.HasCheckConstraint("CK_PriceCampaign_Status", "[Status] IN ('Draft','Confirmed','Scheduled','Active','Completed','Cancelled','Superseded')");
+                            t.HasCheckConstraint("CK_PriceCampaign_Status", "[Status] IS NOT NULL AND [Status] IN ('Draft','Confirmed','Scheduled','Active','Completed','Cancelled','Superseded')");
                         });
                 });
 

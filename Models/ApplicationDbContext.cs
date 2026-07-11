@@ -144,8 +144,12 @@ public sealed class ApplicationDbContext : DbContext
                 table.HasCheckConstraint(
                     "CK_PriceCampaign_Mode",
                     "[Mode] IN ('FixedWindow','OpenEnded')");
+                // Keep the explicit NOT NULL guard in the SQL definition so EF
+                // generates a constraint refresh for databases created from an
+                // earlier pricing lifecycle that did not allow Scheduled.
                 table.HasCheckConstraint(
                     "CK_PriceCampaign_Status",
+                    "[Status] IS NOT NULL AND " +
                     "[Status] IN ('Draft','Confirmed','Scheduled','Active','Completed','Cancelled','Superseded')");
                 table.HasCheckConstraint(
                     "CK_PriceCampaign_SourceType",
