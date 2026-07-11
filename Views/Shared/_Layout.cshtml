@@ -19,9 +19,8 @@
     <meta name="request-verification-token" content="@antiforgeryTokens.RequestToken" />
     <title>@ViewData["Title"] - FastBuy</title>
     <script src="~/js/layouts/theme.js" asp-append-version="true"></script>
+    @* Storefront, product card và cart UI dùng chung một bundle để tránh tải thiếu CSS component. *@
     <link rel="stylesheet" href="~/css/storefront.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/css/components/product-card.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/css/components/cart-ui.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
 </head>
 <body class="storefront-shell">
