@@ -319,7 +319,7 @@ public sealed class PriceCampaignWorkflowService : IPriceCampaignWorkflowService
             }
 
             var snapshotReview = ReviewDraftSnapshots(
-                campaign.CampaignItems,
+                (IReadOnlyCollection<PriceCampaignItem>)campaign.CampaignItems,
                 preview.Items);
 
             if (!snapshotReview.IsCurrent)
@@ -513,7 +513,7 @@ public sealed class PriceCampaignWorkflowService : IPriceCampaignWorkflowService
             }
 
             var snapshotReview = ReviewDraftSnapshots(
-                campaign.CampaignItems,
+                (IReadOnlyCollection<PriceCampaignItem>)campaign.CampaignItems,
                 preview.Items);
             if (!snapshotReview.IsCurrent)
             {
