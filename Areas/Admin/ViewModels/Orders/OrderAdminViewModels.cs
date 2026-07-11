@@ -404,6 +404,7 @@ public static class OrderAdminDisplay
         ShipmentStatus.Draft => "Bản nháp",
         ShipmentStatus.PendingCreation => "Chờ tạo vận đơn",
         ShipmentStatus.Created => "Đã tạo vận đơn",
+        ShipmentStatus.CancelRequested => "Đang chờ GHN xác nhận hủy",
         ShipmentStatus.Picking => "Đang lấy hàng",
         ShipmentStatus.InTransit => "Đang vận chuyển",
         ShipmentStatus.Delivered => "Đã giao",

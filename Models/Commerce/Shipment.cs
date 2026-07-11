@@ -11,10 +11,26 @@ public sealed class Shipment : BaseEntity
     public int OrderId { get; set; }
     public Order Order { get; set; } = null!;
 
+    public ShipmentDirection Direction { get; set; } = ShipmentDirection.Outbound;
+
+    public long? ParentShipmentId { get; set; }
+    public Shipment? ParentShipment { get; set; }
+    public ICollection<Shipment> ChildShipments { get; set; } = [];
+
     [Required, MaxLength(50)]
     public string Provider { get; set; } = string.Empty;
 
     public ShipmentStatus Status { get; set; } = ShipmentStatus.Draft;
+
+    [MaxLength(100)]
+    public string? ProviderStatus { get; set; }
+
+    public DateTime? ProviderUpdatedAt { get; set; }
+    public DateTime? LastSyncedAt { get; set; }
+    public DateTime? CarrierHandoffAt { get; set; }
+    public DateTime? DeliveredAt { get; set; }
+    public DateTime? CancelRequestedAt { get; set; }
+    public DateTime? CancelledAt { get; set; }
 
     [MaxLength(50)]
     public string? ServiceCode { get; set; }

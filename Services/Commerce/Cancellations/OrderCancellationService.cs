@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using WebApplication2.Models;
 using WebApplication2.Models.Enums;
 using WebApplication2.Services.Commerce.Inventory;
+using WebApplication2.Services.Commerce.Flows;
 
 namespace WebApplication2.Services.Commerce.Cancellations;
 
@@ -87,7 +88,7 @@ public sealed class OrderCancellationService : IOrderCancellationService
                 group => group.Key,
                 group => group.Sum(item => item.RequestedQuantity));
 
-        var ineligibility = GetIneligibilityMessage(order);
+        var ineligibility = GetRequestIneligibilityMessage(order);
         var itemSummaries = order.Items
             .OrderBy(item => item.Id)
             .Select(item =>
@@ -120,6 +121,14 @@ public sealed class OrderCancellationService : IOrderCancellationService
         CancellationToken cancellationToken)
     {
         var normalized = NormalizeCreateCommand(command);
+        var tracker = new CommerceFlowTracker(
+            "OrderCancellationRequest",
+            nameof(Order),
+            normalized.OrderId.ToString(CultureInfo.InvariantCulture),
+            "RequestCancellation",
+            correlationId: normalized.IdempotencyKey,
+            idempotencyKey: normalized.IdempotencyKey);
+        tracker.MoveTo(CommerceFlowStage.Deduplicate);
 
         var existing = await _context.Set<OrderCancellationRequest>()
             .AsNoTracking()
@@ -130,17 +139,32 @@ public sealed class OrderCancellationService : IOrderCancellationService
 
         if (existing is not null)
         {
-            ValidateIdempotentRequest(existing, normalized);
+            try
+            {
+                ValidateIdempotentRequest(existing, normalized);
+            }
+            catch (OrderCancellationException exception)
+            {
+                throw new OrderCancellationException(
+                    exception.ErrorCode,
+                    exception.DetailMessage,
+                    tracker.Snapshot(),
+                    exception);
+            }
+
+            tracker.MoveTo(CommerceFlowStage.Complete);
             return await GetSummaryAsync(normalized.OrderId, cancellationToken);
         }
 
         IDbContextTransaction? transaction = null;
         try
         {
+            tracker.MoveTo(CommerceFlowStage.BeginTransaction);
             transaction = await _context.Database.BeginTransactionAsync(
                 IsolationLevel.Serializable,
                 cancellationToken);
 
+            tracker.MoveTo(CommerceFlowStage.Deduplicate);
             existing = await _context.Set<OrderCancellationRequest>()
                 .AsNoTracking()
                 .Include(item => item.Items)
@@ -151,10 +175,13 @@ public sealed class OrderCancellationService : IOrderCancellationService
             if (existing is not null)
             {
                 ValidateIdempotentRequest(existing, normalized);
+                tracker.MoveTo(CommerceFlowStage.Commit);
                 await transaction.CommitAsync(cancellationToken);
+                tracker.MoveTo(CommerceFlowStage.Complete);
                 return await GetSummaryAsync(normalized.OrderId, cancellationToken);
             }
 
+            tracker.MoveTo(CommerceFlowStage.LoadAggregate);
             var order = await _context.Orders
                 .Include(item => item.Items)
                 .Include(item => item.Shipments)
@@ -164,12 +191,15 @@ public sealed class OrderCancellationService : IOrderCancellationService
                 ?? throw new OrderCancellationException(
                     $"Không tìm thấy đơn hàng {normalized.OrderId}.");
 
+            tracker.MoveTo(CommerceFlowStage.ValidateConcurrency);
             EnsureRowVersion(
                 order.RowVersion,
                 normalized.OrderRowVersion,
                 "Đơn hàng đã được cập nhật. Vui lòng tải lại trước khi tạo yêu cầu hủy.");
 
-            var ineligibility = GetIneligibilityMessage(order);
+            tracker.MoveTo(CommerceFlowStage.ValidateBusinessRules, order.OrderStatus.ToString())
+                .AddMetadata("FulfillmentStatus", order.FulfillmentStatus);
+            var ineligibility = GetRequestIneligibilityMessage(order);
             if (ineligibility is not null)
             {
                 throw new OrderCancellationException(ineligibility);
@@ -234,6 +264,7 @@ public sealed class OrderCancellationService : IOrderCancellationService
                 }
             }
 
+            tracker.MoveTo(CommerceFlowStage.ApplyStateTransition);
             var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
             var request = new OrderCancellationRequest
             {
@@ -260,6 +291,7 @@ public sealed class OrderCancellationService : IOrderCancellationService
             }
 
             _context.Set<OrderCancellationRequest>().Add(request);
+            tracker.MoveTo(CommerceFlowStage.WriteTimeline);
             _context.OrderStatusHistories.Add(new OrderStatusHistory
             {
                 OrderId = order.Id,
@@ -275,31 +307,53 @@ public sealed class OrderCancellationService : IOrderCancellationService
                 CorrelationId = ToCorrelationId(normalized.IdempotencyKey)
             });
 
+            tracker.MoveTo(CommerceFlowStage.SaveChanges);
             await _context.SaveChangesAsync(cancellationToken);
+            tracker.MoveTo(CommerceFlowStage.Commit);
             await transaction.CommitAsync(cancellationToken);
+            tracker.MoveTo(CommerceFlowStage.Complete);
 
             _context.ChangeTracker.Clear();
             return await GetSummaryAsync(order.Id, cancellationToken);
         }
         catch (DbUpdateConcurrencyException exception)
         {
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-            }
-
+            await RollbackAsync(transaction, tracker, cancellationToken);
             throw new OrderCancellationConcurrencyException(
                 "Đơn hàng vừa được cập nhật bởi thao tác khác. Vui lòng tải lại.",
+                tracker.Snapshot(),
                 exception);
         }
-        catch
+        catch (OrderCancellationConcurrencyException exception)
         {
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-            }
-
+            await RollbackAsync(transaction, tracker, cancellationToken);
+            throw new OrderCancellationConcurrencyException(
+                exception.DetailMessage,
+                tracker.MoveTo(CommerceFlowStage.ValidateConcurrency).Snapshot(),
+                exception);
+        }
+        catch (OrderCancellationException exception)
+        {
+            await RollbackAsync(transaction, tracker, cancellationToken);
+            throw new OrderCancellationException(
+                exception.ErrorCode,
+                exception.DetailMessage,
+                tracker.Snapshot(),
+                exception);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await RollbackAsync(transaction, tracker, CancellationToken.None);
             throw;
+        }
+        catch (Exception exception)
+        {
+            await RollbackAsync(transaction, tracker, cancellationToken);
+            throw new OrderCancellationException(
+                "CANCELLATION_REQUEST_TRANSACTION_FAILED",
+                "Không thể hoàn tất transaction tạo yêu cầu hủy.",
+                tracker.Snapshot(),
+                exception);
         }
         finally
         {
@@ -315,14 +369,24 @@ public sealed class OrderCancellationService : IOrderCancellationService
         CancellationToken cancellationToken)
     {
         var normalized = NormalizeReviewCommand(command);
+        var tracker = new CommerceFlowTracker(
+            "OrderCancellationReview",
+            nameof(OrderCancellationRequest),
+            normalized.CancellationRequestId.ToString(CultureInfo.InvariantCulture),
+            normalized.Approve ? "ApproveCancellation" : "RejectCancellation",
+            correlationId: $"cancel-review:{normalized.CancellationRequestId}",
+            idempotencyKey: $"cancel-review:{normalized.CancellationRequestId}")
+            .AddMetadata("OrderId", normalized.OrderId);
 
         IDbContextTransaction? transaction = null;
         try
         {
+            tracker.MoveTo(CommerceFlowStage.BeginTransaction);
             transaction = await _context.Database.BeginTransactionAsync(
                 IsolationLevel.Serializable,
                 cancellationToken);
 
+            tracker.MoveTo(CommerceFlowStage.LoadAggregate);
             var request = await _context.Set<OrderCancellationRequest>()
                 .Include(item => item.Items)
                     .ThenInclude(item => item.OrderItem)
@@ -341,7 +405,9 @@ public sealed class OrderCancellationService : IOrderCancellationService
             {
                 if (request.Status == targetStatus)
                 {
+                    tracker.MoveTo(CommerceFlowStage.Commit);
                     await transaction.CommitAsync(cancellationToken);
+                    tracker.MoveTo(CommerceFlowStage.Complete);
                     _context.ChangeTracker.Clear();
                     return await GetSummaryAsync(normalized.OrderId, cancellationToken);
                 }
@@ -350,11 +416,13 @@ public sealed class OrderCancellationService : IOrderCancellationService
                     $"Yêu cầu đã ở trạng thái {request.Status} và không thể duyệt lại.");
             }
 
+            tracker.MoveTo(CommerceFlowStage.ValidateConcurrency, request.Status.ToString());
             EnsureRowVersion(
                 request.RowVersion,
                 normalized.CancellationRowVersion,
                 "Yêu cầu hủy vừa được cập nhật. Vui lòng tải lại.");
 
+            tracker.MoveTo(CommerceFlowStage.LoadAggregate, request.Status.ToString());
             var order = await _context.Orders
                 .Include(item => item.Items)
                 .Include(item => item.PaymentTransactions)
@@ -363,6 +431,7 @@ public sealed class OrderCancellationService : IOrderCancellationService
                 ?? throw new OrderCancellationException(
                     $"Không tìm thấy đơn hàng {normalized.OrderId}.");
 
+            tracker.MoveTo(CommerceFlowStage.ValidateConcurrency, order.OrderStatus.ToString());
             EnsureRowVersion(
                 order.RowVersion,
                 normalized.OrderRowVersion,
@@ -375,16 +444,21 @@ public sealed class OrderCancellationService : IOrderCancellationService
                 .Property(item => item.RowVersion)
                 .OriginalValue = normalized.CancellationRowVersion;
 
+            tracker.MoveTo(CommerceFlowStage.ValidateBusinessRules, order.OrderStatus.ToString())
+                .AddMetadata("CancellationStatus", request.Status)
+                .AddMetadata("FulfillmentStatus", order.FulfillmentStatus);
             var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
             if (!normalized.Approve)
             {
+                tracker.MoveTo(CommerceFlowStage.ApplyStateTransition, request.Status.ToString());
                 request.Status = OrderCancellationStatus.Rejected;
                 request.ReviewedAt = nowUtc;
                 request.ReviewedBy = normalized.ReviewedBy;
                 request.ReviewNote = normalized.ReviewNote;
                 request.UpdatedAt = nowUtc;
 
+                tracker.MoveTo(CommerceFlowStage.WriteTimeline);
                 _context.OrderStatusHistories.Add(new OrderStatusHistory
                 {
                     OrderId = order.Id,
@@ -400,17 +474,23 @@ public sealed class OrderCancellationService : IOrderCancellationService
                     CorrelationId = ToCorrelationId(request.IdempotencyKey)
                 });
 
+                tracker.MoveTo(CommerceFlowStage.SaveChanges);
                 await _context.SaveChangesAsync(cancellationToken);
+                tracker.MoveTo(CommerceFlowStage.Commit);
                 await transaction.CommitAsync(cancellationToken);
+                tracker.MoveTo(CommerceFlowStage.Complete);
                 _context.ChangeTracker.Clear();
                 return await GetSummaryAsync(order.Id, cancellationToken);
             }
 
-            var ineligibility = GetIneligibilityMessage(order);
+            tracker.MoveTo(CommerceFlowStage.ValidateBusinessRules, order.OrderStatus.ToString());
+            var ineligibility = GetApprovalIneligibilityMessage(order);
             if (ineligibility is not null)
             {
                 throw new OrderCancellationException(ineligibility);
             }
+
+            await ValidateShipmentCreateOutboxAsync(order, tracker, cancellationToken);
 
             var requestedItemIds = request.Items
                 .Select(item => item.OrderItemId)
@@ -457,6 +537,7 @@ public sealed class OrderCancellationService : IOrderCancellationService
                     item.RequestedQuantity))
                 .ToArray();
 
+            tracker.MoveTo(CommerceFlowStage.WriteInventoryLedger);
             await _inventoryService.CompensateCancellationAsync(
                 order.Id,
                 inventoryLines,
@@ -511,6 +592,7 @@ public sealed class OrderCancellationService : IOrderCancellationService
 
             DistributeRefund(request.Items, cancellationBases, refundTotal);
 
+            tracker.MoveTo(CommerceFlowStage.ApplyStateTransition, request.Status.ToString());
             request.Status = OrderCancellationStatus.Approved;
             request.ReviewedAt = nowUtc;
             request.ReviewedBy = normalized.ReviewedBy;
@@ -540,6 +622,7 @@ public sealed class OrderCancellationService : IOrderCancellationService
                     - order.DiscountTotal));
             order.UpdatedAt = nowUtc;
 
+            tracker.MoveTo(CommerceFlowStage.UpdateRelatedAggregate);
             await ApplyShipmentCancellationAsync(
                 order,
                 request,
@@ -570,6 +653,7 @@ public sealed class OrderCancellationService : IOrderCancellationService
 
             if (order.PaymentStatus == PaymentStatus.Paid && refundTotal > 0m)
             {
+                tracker.MoveTo(CommerceFlowStage.WriteOutbox);
                 await AddRefundOutboxAsync(
                     order,
                     request,
@@ -594,6 +678,7 @@ public sealed class OrderCancellationService : IOrderCancellationService
                 });
             }
 
+            tracker.MoveTo(CommerceFlowStage.WriteTimeline);
             _context.OrderStatusHistories.Add(new OrderStatusHistory
             {
                 OrderId = order.Id,
@@ -618,36 +703,79 @@ public sealed class OrderCancellationService : IOrderCancellationService
                 CorrelationId = ToCorrelationId(request.IdempotencyKey)
             });
 
+            tracker.MoveTo(CommerceFlowStage.SaveChanges);
             await _context.SaveChangesAsync(cancellationToken);
+            tracker.MoveTo(CommerceFlowStage.Commit);
             await transaction.CommitAsync(cancellationToken);
+            tracker.MoveTo(CommerceFlowStage.Complete);
 
             _context.ChangeTracker.Clear();
             return await GetSummaryAsync(order.Id, cancellationToken);
         }
         catch (DbUpdateConcurrencyException exception)
         {
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-            }
+            await RollbackAsync(transaction, tracker, cancellationToken);
 
             _logger.LogWarning(
                 exception,
-                "Cancellation review for request {CancellationRequestId} lost a concurrency race.",
-                command.CancellationRequestId);
+                "Cancellation review for request {CancellationRequestId} lost a concurrency race at {Stage}. CorrelationId={CorrelationId}",
+                command.CancellationRequestId,
+                tracker.Stage,
+                tracker.CorrelationId);
 
             throw new OrderCancellationConcurrencyException(
                 "Đơn hàng hoặc yêu cầu hủy vừa được cập nhật. Vui lòng tải lại.",
+                tracker.Snapshot(),
                 exception);
         }
-        catch
+        catch (OrderCancellationConcurrencyException exception)
         {
-            if (transaction is not null)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-            }
-
+            await RollbackAsync(transaction, tracker, cancellationToken);
+            throw new OrderCancellationConcurrencyException(
+                exception.DetailMessage,
+                tracker.MoveTo(CommerceFlowStage.ValidateConcurrency).Snapshot(),
+                exception);
+        }
+        catch (OrderCancellationException exception)
+        {
+            await RollbackAsync(transaction, tracker, cancellationToken);
+            throw new OrderCancellationException(
+                exception.ErrorCode,
+                exception.DetailMessage,
+                tracker.Snapshot(),
+                exception);
+        }
+        catch (InventoryConflictException exception)
+        {
+            await RollbackAsync(transaction, tracker, cancellationToken);
+            throw new OrderCancellationException(
+                "INVENTORY_COMPENSATION_CONFLICT",
+                exception.Message,
+                tracker.MoveTo(CommerceFlowStage.WriteInventoryLedger).Snapshot(),
+                exception);
+        }
+        catch (InventoryValidationException exception)
+        {
+            await RollbackAsync(transaction, tracker, cancellationToken);
+            throw new OrderCancellationException(
+                "INVENTORY_COMPENSATION_INVALID",
+                exception.Message,
+                tracker.MoveTo(CommerceFlowStage.WriteInventoryLedger).Snapshot(),
+                exception);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await RollbackAsync(transaction, tracker, CancellationToken.None);
             throw;
+        }
+        catch (Exception exception)
+        {
+            await RollbackAsync(transaction, tracker, cancellationToken);
+            throw new OrderCancellationException(
+                "CANCELLATION_REVIEW_TRANSACTION_FAILED",
+                "Không thể hoàn tất transaction duyệt yêu cầu hủy.",
+                tracker.Snapshot(),
+                exception);
         }
         finally
         {
@@ -655,6 +783,53 @@ public sealed class OrderCancellationService : IOrderCancellationService
             {
                 await transaction.DisposeAsync();
             }
+        }
+    }
+
+    private async Task ValidateShipmentCreateOutboxAsync(
+        Order order,
+        CommerceFlowTracker tracker,
+        CancellationToken cancellationToken)
+    {
+        var localShipments = order.Shipments
+            .Where(item => item.Direction == ShipmentDirection.Outbound
+                && string.IsNullOrWhiteSpace(item.ExternalOrderCode))
+            .ToArray();
+        if (localShipments.Length == 0)
+        {
+            return;
+        }
+
+        var keys = localShipments
+            .Select(item => $"ghn:create:shipment:{item.Id}")
+            .ToArray();
+        tracker.MoveTo(CommerceFlowStage.Deduplicate)
+            .AddMetadata("OutboundCreateKeys", string.Join(",", keys));
+
+        var messages = await _context.IntegrationOutboxMessages
+            .AsNoTracking()
+            .Where(item => item.Provider == "GHN"
+                && keys.Contains(item.IdempotencyKey))
+            .ToArrayAsync(cancellationToken);
+
+        var processing = messages.FirstOrDefault(item =>
+            item.Status == IntegrationOutboxStatus.Processing);
+        if (processing is not null)
+        {
+            throw new OrderCancellationException(
+                "CANCELLATION_BLOCKED_BY_SHIPMENT_CREATE_IN_PROGRESS",
+                $"Outbox {processing.Id} đang gọi GHN tạo vận đơn. Chờ create flow kết thúc hoặc reconcile trước khi duyệt hủy.",
+                tracker.Snapshot());
+        }
+
+        var inconsistent = messages.FirstOrDefault(item =>
+            item.Status == IntegrationOutboxStatus.Completed);
+        if (inconsistent is not null)
+        {
+            throw new OrderCancellationException(
+                "CANCELLATION_BLOCKED_BY_SHIPMENT_CREATE_INCONSISTENCY",
+                $"Outbox {inconsistent.Id} đã Completed nhưng shipment chưa có mã provider. Cần reconcile trước khi duyệt hủy.",
+                tracker.Snapshot());
         }
     }
 
@@ -666,79 +841,94 @@ public sealed class OrderCancellationService : IOrderCancellationService
         decimal cancellationBaseTotal,
         CancellationToken cancellationToken)
     {
-        var activeShipments = order.Shipments
-            .Where(item => item.Status is
-                ShipmentStatus.Draft
-                or ShipmentStatus.PendingCreation
-                or ShipmentStatus.Created)
+        var outboundShipments = order.Shipments
+            .Where(item => item.Direction == ShipmentDirection.Outbound)
+            .OrderByDescending(item => item.Id)
             .ToArray();
 
-        foreach (var shipment in activeShipments)
+        var sourceShipment = outboundShipments.FirstOrDefault();
+        var locallyCancellable = outboundShipments
+            .Where(item => string.IsNullOrWhiteSpace(item.ExternalOrderCode)
+                && item.Status is ShipmentStatus.Draft
+                    or ShipmentStatus.PendingCreation
+                    or ShipmentStatus.Created)
+            .ToArray();
+        var localCreateKeys = locallyCancellable
+            .Select(item => $"ghn:create:shipment:{item.Id}")
+            .ToArray();
+        var localCreateMessages = localCreateKeys.Length == 0
+            ? Array.Empty<IntegrationOutboxMessage>()
+            : await _context.IntegrationOutboxMessages
+                .Where(item => item.Provider == "GHN"
+                    && localCreateKeys.Contains(item.IdempotencyKey))
+                .ToArrayAsync(cancellationToken);
+
+        foreach (var shipment in locallyCancellable)
         {
-            if (!string.IsNullOrWhiteSpace(shipment.ExternalOrderCode))
-            {
-                var key = $"cancel:{request.Id}:shipment:{shipment.Id}";
-                var exists = await _context.IntegrationOutboxMessages
-                    .AsNoTracking()
-                    .AnyAsync(item =>
-                        item.Provider == shipment.Provider
-                        && item.IdempotencyKey == key,
-                        cancellationToken);
-
-                if (!exists)
-                {
-                    _context.IntegrationOutboxMessages.Add(new IntegrationOutboxMessage
-                    {
-                        Provider = shipment.Provider,
-                        MessageType = "CancelShipmentRequested",
-                        AggregateType = "Shipment",
-                        AggregateId = shipment.Id.ToString(CultureInfo.InvariantCulture),
-                        IdempotencyKey = key,
-                        Status = IntegrationOutboxStatus.Pending,
-                        Payload = JsonSerializer.Serialize(new
-                        {
-                            orderId = order.Id,
-                            cancellationRequestId = request.Id,
-                            shipmentId = shipment.Id,
-                            shipment.ExternalOrderCode,
-                            request.ReasonText
-                        }),
-                        AttemptCount = 0,
-                        CorrelationId = ToCorrelationId(request.IdempotencyKey),
-                        CreatedAt = nowUtc
-                    });
-                }
-            }
-
             shipment.Status = ShipmentStatus.Cancelled;
+            shipment.ProviderStatus = "cancelled_before_provider_handoff";
             shipment.ProviderReason = request.ReasonText;
+            shipment.CancelRequestedAt ??= nowUtc;
+            shipment.CancelledAt ??= nowUtc;
             shipment.UpdatedAt = nowUtc;
+
+            var createKey = $"ghn:create:shipment:{shipment.Id}";
+            var createMessage = localCreateMessages.FirstOrDefault(item =>
+                item.IdempotencyKey == createKey);
+            if (createMessage is not null
+                && createMessage.Status is IntegrationOutboxStatus.Pending
+                    or IntegrationOutboxStatus.Failed)
+            {
+                createMessage.Status = IntegrationOutboxStatus.Completed;
+                createMessage.CompletedAt = nowUtc;
+                createMessage.NextAttemptAt = null;
+                createMessage.LockedAt = null;
+                createMessage.LastError =
+                    "Cancellation approval stopped shipment creation before provider handoff.";
+                createMessage.UpdatedAt = nowUtc;
+            }
         }
 
-        if (!fullCancellation && activeShipments.Length > 0)
+        var unconfirmedProviderShipment = outboundShipments.FirstOrDefault(item =>
+            !string.IsNullOrWhiteSpace(item.ExternalOrderCode)
+            && item.Status != ShipmentStatus.Cancelled);
+        if (unconfirmedProviderShipment is not null)
         {
-            var latest = activeShipments
-                .OrderByDescending(item => item.Id)
-                .First();
+            throw new OrderCancellationException(
+                "CANCELLATION_REQUIRES_PROVIDER_CONFIRMATION: " +
+                $"Vận đơn {unconfirmedProviderShipment.ExternalOrderCode} phải được GHN xác nhận Cancelled trước khi hoàn kho hoặc duyệt hủy.");
+        }
+
+        if (!fullCancellation && sourceShipment is not null)
+        {
+            if (locallyCancellable.Length > 0)
+            {
+                // Persist the old shipment cancellation first so the filtered unique
+                // active-outbound index cannot race the replacement insert.
+                await _context.SaveChangesAsync(cancellationToken);
+            }
 
             order.Shipments.Add(new Shipment
             {
-                Provider = latest.Provider,
+                Direction = ShipmentDirection.Outbound,
+                Provider = sourceShipment.Provider,
                 Status = ShipmentStatus.Draft,
                 Fee = order.ShippingFee,
                 CodAmount = order.PaymentStatus == PaymentStatus.CodPending
                     ? order.GrandTotal
                     : 0m,
-                WeightGram = 0,
-                LengthCm = 0,
-                WidthCm = 0,
-                HeightCm = 0,
+                WeightGram = sourceShipment.WeightGram,
+                LengthCm = sourceShipment.LengthCm,
+                WidthCm = sourceShipment.WidthCm,
+                HeightCm = sourceShipment.HeightCm,
                 ProviderReason =
                     $"Tạo lại sau khi hủy một phần giá trị {cancellationBaseTotal:0.00}.",
                 CreatedAt = nowUtc,
                 UpdatedAt = nowUtc
             });
         }
+
+        await Task.CompletedTask;
     }
 
     private async Task AddRefundOutboxAsync(
@@ -792,6 +982,32 @@ public sealed class OrderCancellationService : IOrderCancellationService
             CorrelationId = ToCorrelationId(request.IdempotencyKey),
             CreatedAt = nowUtc
         });
+    }
+
+    private static async Task RollbackAsync(
+        IDbContextTransaction? transaction,
+        CommerceFlowTracker tracker,
+        CancellationToken cancellationToken)
+    {
+        if (transaction is null)
+        {
+            return;
+        }
+
+        var failedStage = tracker.Stage;
+        try
+        {
+            tracker.MoveTo(CommerceFlowStage.Rollback, failedStage.ToString());
+            await transaction.RollbackAsync(cancellationToken);
+        }
+        catch (Exception rollbackException)
+        {
+            tracker.AddMetadata("RollbackException", rollbackException.Message);
+        }
+        finally
+        {
+            tracker.MoveTo(failedStage);
+        }
     }
 
     private static CreateOrderCancellationCommand NormalizeCreateCommand(
@@ -905,7 +1121,7 @@ public sealed class OrderCancellationService : IOrderCancellationService
         }
     }
 
-    private static string? GetIneligibilityMessage(Order order)
+    private static string? GetRequestIneligibilityMessage(Order order)
     {
         if (order.OrderStatus is
             OrderStatus.Completed
@@ -931,15 +1147,46 @@ public sealed class OrderCancellationService : IOrderCancellationService
             or FulfillmentStatus.Returning
             or FulfillmentStatus.Returned)
         {
-            return "Đơn đã bàn giao vận chuyển. Hãy dùng Return hoặc Shipment Interception.";
+            return "CANCELLATION_AFTER_CARRIER_HANDOFF: Đơn đã bàn giao vận chuyển. Hãy dùng return workflow sau khi đủ điều kiện.";
         }
 
-        if (order.Shipments.Any(item => HandoverShipmentStatuses.Contains(item.Status)))
+        var outbound = order.Shipments
+            .Where(item => item.Direction == ShipmentDirection.Outbound)
+            .ToArray();
+
+        if (outbound.Any(item => item.CarrierHandoffAt.HasValue
+            || HandoverShipmentStatuses.Contains(item.Status)))
         {
-            return "Vận đơn đã được bàn giao hoặc phát sinh giao hàng. Không thể hủy theo luồng thông thường.";
+            return "CANCELLATION_AFTER_CARRIER_HANDOFF: GHN đã tiếp nhận hoặc phát sinh giao hàng; không thể dùng cancellation workflow.";
         }
 
         return null;
+    }
+
+    private static string? GetApprovalIneligibilityMessage(Order order)
+    {
+        var baseMessage = GetRequestIneligibilityMessage(order);
+        if (baseMessage is not null)
+        {
+            return baseMessage;
+        }
+
+        var providerShipment = order.Shipments
+            .Where(item => item.Direction == ShipmentDirection.Outbound)
+            .OrderByDescending(item => item.Id)
+            .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.ExternalOrderCode));
+
+        if (providerShipment is null || providerShipment.Status == ShipmentStatus.Cancelled)
+        {
+            return null;
+        }
+
+        if (providerShipment.Status == ShipmentStatus.CancelRequested)
+        {
+            return "CANCELLATION_WAITING_PROVIDER_CONFIRMATION: Yêu cầu hủy vận đơn đã gửi GHN; chỉ được duyệt cancellation sau khi shipment thành Cancelled.";
+        }
+
+        return "CANCELLATION_REQUIRES_PROVIDER_CANCELLATION: Vận đơn đã có mã GHN. Hãy gửi yêu cầu hủy vận đơn và chờ provider xác nhận trước khi duyệt hủy/hoàn kho.";
     }
 
     private static OrderCancellationRequestSummary ToRequestSummary(

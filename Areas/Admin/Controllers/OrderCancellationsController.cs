@@ -34,11 +34,15 @@ public sealed class OrderCancellationsController : Controller
         }
         catch (OrderCancellationException exception)
         {
+            LogFlowException(exception, orderId, null);
             return NotFound(new
             {
                 success = false,
-                errorCode = "CANCELLATION_NOT_FOUND",
-                message = exception.Message
+                errorCode = exception.ErrorCode,
+                message = exception.Message,
+                flow = exception.FlowContext.FlowName,
+                stage = exception.FlowContext.Stage.ToString(),
+                correlationId = exception.FlowContext.CorrelationId
             });
         }
     }
@@ -95,18 +99,13 @@ public sealed class OrderCancellationsController : Controller
         }
         catch (OrderCancellationConcurrencyException exception)
         {
-            return ConflictResponse(
-                "CANCELLATION_CONCURRENCY_CONFLICT",
-                exception.Message);
+            LogFlowException(exception, orderId, null);
+            return FlowConflictResponse(exception);
         }
         catch (OrderCancellationException exception)
         {
-            return UnprocessableEntity(new
-            {
-                success = false,
-                errorCode = "CANCELLATION_REJECTED",
-                message = exception.Message
-            });
+            LogFlowException(exception, orderId, null);
+            return FlowRejectedResponse(exception);
         }
     }
 
@@ -164,9 +163,13 @@ public sealed class OrderCancellationsController : Controller
         }
         catch (OrderCancellationConcurrencyException exception)
         {
-            return ConflictResponse(
-                "CANCELLATION_CONCURRENCY_CONFLICT",
-                exception.Message);
+            LogFlowException(exception, orderId, requestId);
+            return FlowConflictResponse(exception);
+        }
+        catch (OrderCancellationException exception)
+        {
+            LogFlowException(exception, orderId, requestId);
+            return FlowRejectedResponse(exception);
         }
         catch (InventoryConflictException exception)
         {
@@ -178,17 +181,61 @@ public sealed class OrderCancellationsController : Controller
                 "INVENTORY_COMPENSATION_CONFLICT",
                 exception.Message);
         }
-        catch (Exception exception) when (exception is
-                   OrderCancellationException
-                   or InventoryValidationException)
+        catch (InventoryValidationException exception)
         {
             return UnprocessableEntity(new
             {
                 success = false,
-                errorCode = "CANCELLATION_REVIEW_REJECTED",
+                errorCode = "INVENTORY_COMPENSATION_INVALID",
                 message = exception.Message
             });
         }
+    }
+
+    private IActionResult FlowConflictResponse(OrderCancellationException exception)
+    {
+        return Conflict(new
+        {
+            success = false,
+            errorCode = exception.ErrorCode,
+            message = exception.Message,
+            flow = exception.FlowContext.FlowName,
+            stage = exception.FlowContext.Stage.ToString(),
+            aggregateType = exception.FlowContext.AggregateType,
+            aggregateId = exception.FlowContext.AggregateId,
+            correlationId = exception.FlowContext.CorrelationId
+        });
+    }
+
+    private IActionResult FlowRejectedResponse(OrderCancellationException exception)
+    {
+        return UnprocessableEntity(new
+        {
+            success = false,
+            errorCode = exception.ErrorCode,
+            message = exception.Message,
+            flow = exception.FlowContext.FlowName,
+            stage = exception.FlowContext.Stage.ToString(),
+            aggregateType = exception.FlowContext.AggregateType,
+            aggregateId = exception.FlowContext.AggregateId,
+            correlationId = exception.FlowContext.CorrelationId
+        });
+    }
+
+    private void LogFlowException(
+        OrderCancellationException exception,
+        int orderId,
+        long? requestId)
+    {
+        _logger.LogWarning(
+            exception,
+            "Cancellation flow failed. ErrorCode={ErrorCode}; Flow={Flow}; Stage={Stage}; OrderId={OrderId}; RequestId={RequestId}; CorrelationId={CorrelationId}",
+            exception.ErrorCode,
+            exception.FlowContext.FlowName,
+            exception.FlowContext.Stage,
+            orderId,
+            requestId,
+            exception.FlowContext.CorrelationId);
     }
 
     private IActionResult ConflictResponse(string errorCode, string message)

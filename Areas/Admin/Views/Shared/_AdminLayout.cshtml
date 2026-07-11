@@ -55,10 +55,16 @@
                     <span>Sản phẩm và biến thể</span>
                 </a>
                 <a asp-area="Admin" asp-controller="Orders" asp-action="Index"
-                   class="admin-nav__link @((currentController == "Orders" || currentController == "OrderCancellations") ? "is-active" : null)"
-                   aria-current="@((currentController == "Orders" || currentController == "OrderCancellations") ? "page" : null)">
+                   class="admin-nav__link @(currentController == "Orders" ? "is-active" : null)"
+                   aria-current="@(currentController == "Orders" ? "page" : null)">
                     <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>
                     <span>Đơn hàng</span>
+                </a>
+                <a asp-area="Admin" asp-controller="Shipping" asp-action="Index"
+                   class="admin-nav__link @(currentController == "Shipping" ? "is-active" : null)"
+                   aria-current="@(currentController == "Shipping" ? "page" : null)">
+                    <i class="fa-solid fa-truck-fast" aria-hidden="true"></i>
+                    <span>Vận chuyển GHN</span>
                 </a>
 
                 <p class="admin-nav__label">Giá bán</p>
@@ -150,7 +156,6 @@
     <script src="~/js/core/http.js" asp-append-version="true"></script>
     <script src="~/js/core/pricing-confirmation-integrity.js" asp-append-version="true"></script>
     <script src="~/js/layouts/admin-shell.js" asp-append-version="true"></script>
-    <script src="~/js/pages/admin/order-cancellations.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

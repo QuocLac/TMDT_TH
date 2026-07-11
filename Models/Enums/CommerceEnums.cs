@@ -35,11 +35,18 @@ public enum FulfillmentStatus
     Cancelled
 }
 
+public enum ShipmentDirection
+{
+    Outbound,
+    Return
+}
+
 public enum ShipmentStatus
 {
     Draft,
     PendingCreation,
     Created,
+    CancelRequested,
     Picking,
     InTransit,
     Delivered,
@@ -75,7 +82,8 @@ public enum OrderHistoryCategory
     Payment,
     Fulfillment,
     Inventory,
-    Integration
+    Integration,
+    Return
 }
 
 public enum IntegrationEventStatus

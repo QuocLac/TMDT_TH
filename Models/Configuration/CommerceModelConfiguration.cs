@@ -155,10 +155,16 @@ public static class CommerceModelConfiguration
     {
         modelBuilder.Entity<Shipment>(entity =>
         {
+            entity.Property(item => item.Direction)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(ShipmentDirection.Outbound);
             entity.Property(item => item.Status)
                 .HasConversion<string>()
                 .HasMaxLength(30)
                 .HasDefaultValue(ShipmentStatus.Draft);
+            entity.Property(item => item.ProviderStatus)
+                .HasMaxLength(100);
             entity.Property(item => item.CreatedAt)
                 .HasDefaultValueSql("GETUTCDATE()");
             entity.Property(item => item.RowVersion).IsRowVersion();
@@ -169,13 +175,20 @@ public static class CommerceModelConfiguration
             entity.HasIndex(item => new { item.Provider, item.TrackingCode })
                 .IsUnique()
                 .HasFilter("[TrackingCode] IS NOT NULL");
-            entity.HasIndex(item => new { item.Status, item.CreatedAt });
-            entity.HasIndex(item => item.OrderId);
+            entity.HasIndex(item => new { item.Direction, item.Status, item.CreatedAt });
+            entity.HasIndex(item => item.ParentShipmentId);
+            entity.HasIndex(item => new { item.OrderId, item.Direction })
+                .IsUnique()
+                .HasFilter("[Direction] = 'Outbound' AND [Status] <> 'Cancelled' AND [Status] <> 'Returned'");
 
             entity.HasOne(item => item.Order)
                 .WithMany(item => item.Shipments)
                 .HasForeignKey(item => item.OrderId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.ParentShipment)
+                .WithMany(item => item.ChildShipments)
+                .HasForeignKey(item => item.ParentShipmentId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.ToTable(table =>
             {
@@ -186,8 +199,24 @@ public static class CommerceModelConfiguration
                 table.HasCheckConstraint("CK_Shipment_WidthCm", "[WidthCm] >= 0");
                 table.HasCheckConstraint("CK_Shipment_HeightCm", "[HeightCm] >= 0");
                 table.HasCheckConstraint(
+                    "CK_Shipment_Direction",
+                    "[Direction] IN ('Outbound','Return')");
+                table.HasCheckConstraint(
+                    "CK_Shipment_ParentDirection",
+                    "([Direction] = 'Outbound' AND [ParentShipmentId] IS NULL) OR " +
+                    "([Direction] = 'Return' AND [ParentShipmentId] IS NOT NULL)");
+                table.HasCheckConstraint(
+                    "CK_Shipment_ReturnCodAmount",
+                    "[Direction] = 'Outbound' OR [CodAmount] = 0");
+                table.HasCheckConstraint(
                     "CK_Shipment_Status",
-                    "[Status] IN ('Draft','PendingCreation','Created','Picking','InTransit','Delivered','DeliveryFailed','Returning','Returned','Cancelled','Exception')");
+                    "[Status] IN ('Draft','PendingCreation','Created','CancelRequested','Picking','InTransit','Delivered','DeliveryFailed','Returning','Returned','Cancelled','Exception')");
+                table.HasCheckConstraint(
+                    "CK_Shipment_DeliveredAt",
+                    "[DeliveredAt] IS NULL OR [Status] IN ('Delivered','Returning','Returned')");
+                table.HasCheckConstraint(
+                    "CK_Shipment_CancelledAt",
+                    "[CancelledAt] IS NULL OR [Status] = 'Cancelled'");
             });
         });
     }
@@ -292,7 +321,7 @@ public static class CommerceModelConfiguration
             {
                 table.HasCheckConstraint(
                     "CK_OrderStatusHistory_Category",
-                    "[Category] IN ('Order','Payment','Fulfillment','Inventory','Integration')");
+                    "[Category] IN ('Order','Payment','Fulfillment','Inventory','Integration','Return')");
             });
         });
     }

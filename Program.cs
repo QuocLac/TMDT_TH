@@ -11,6 +11,7 @@ using WebApplication2.Services.Commerce.Orders;
 using WebApplication2.Services.Media;
 using WebApplication2.Services.Payments.VnPay;
 using WebApplication2.Services.Pricing;
+using WebApplication2.Services.Shipping;
 using WebApplication2.Services.Shipping.Ghn;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -70,7 +71,15 @@ builder.Services
         + "FromDistrictId, FromWardCode and a TimeoutSeconds value from 5 to 60.")
     .ValidateOnStart();
 
-builder.Services.AddHttpClient<IGhnAddressClient, GhnAddressClient>((serviceProvider, client) =>
+builder.Services
+    .AddOptions<GhnShippingOptions>()
+    .Bind(builder.Configuration.GetSection(GhnShippingOptions.SectionName))
+    .Validate(
+        options => !options.Enabled || options.IsConfigured,
+        $"Configuration section '{GhnShippingOptions.SectionName}' is invalid for shipping execution.")
+    .ValidateOnStart();
+
+static void ConfigureGhnHttpClient(IServiceProvider serviceProvider, HttpClient client)
 {
     var options = serviceProvider.GetRequiredService<IOptions<GhnAddressOptions>>().Value;
     var baseUrl = Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var configuredBaseUrl)
@@ -80,7 +89,15 @@ builder.Services.AddHttpClient<IGhnAddressClient, GhnAddressClient>((serviceProv
 
     client.BaseAddress = new Uri(baseUrl.ToString().TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 60));
-});
+}
+
+builder.Services.AddHttpClient<IGhnAddressClient, GhnAddressClient>(ConfigureGhnHttpClient);
+builder.Services.AddHttpClient<IGhnShippingClient, GhnShippingClient>(ConfigureGhnHttpClient);
+builder.Services.AddScoped<IShippingGateway, GhnShippingGateway>();
+builder.Services.AddScoped<IShippingExecutionService, ShippingExecutionService>();
+builder.Services.AddSingleton<IShippingWebhookParser, GhnShippingWebhookParser>();
+builder.Services.AddScoped<IGhnShippingWebhookProcessor, GhnShippingWebhookProcessor>();
+builder.Services.AddHostedService<ShippingOutboxWorker>();
 
 builder.Services
     .AddOptions<VnPayOptions>()
@@ -92,20 +109,10 @@ builder.Services
         + "ReturnUrl and IpnUrl.")
     .ValidateOnStart();
 
-// EffectivePriceService gốc giữ trách nhiệm preview/validation.
-// ReliableEffectivePriceService thay riêng phần projection CurrentPrice/PriceHistory.
 builder.Services.AddScoped<EffectivePriceService>();
-builder.Services.AddScoped<
-    IEffectivePriceService,
-    ReliableEffectivePriceService>();
-
-// Giữ implementation gốc cho SaveDraft/Activate/Cancel/Recover.
-// ReliablePriceCampaignWorkflowService điều phối pipeline ConfirmDraft.
+builder.Services.AddScoped<IEffectivePriceService, ReliableEffectivePriceService>();
 builder.Services.AddScoped<PriceCampaignWorkflowService>();
-builder.Services.AddScoped<
-    IPriceCampaignWorkflowService,
-    ReliablePriceCampaignWorkflowService>();
-
+builder.Services.AddScoped<IPriceCampaignWorkflowService, ReliablePriceCampaignWorkflowService>();
 builder.Services.AddHostedService<PriceCampaignWorker>();
 
 var app = builder.Build();

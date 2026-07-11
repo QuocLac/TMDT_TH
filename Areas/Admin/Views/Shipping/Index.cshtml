@@ -1,0 +1,110 @@
+@using WebApplication2.Models.Enums
+@model WebApplication2.Areas.Admin.ViewModels.Shipping.ShippingAdminIndexViewModel
+@{
+    ViewData["Title"] = "Vận chuyển GHN";
+}
+
+<section class="admin-page shipping-page">
+    <header class="admin-page-header">
+        <div>
+            <p class="eyebrow">Shipping operations</p>
+            <h2>Điều phối vận chuyển GHN</h2>
+            <p class="admin-page-lead">
+                Theo dõi shipment, tạo/hủy vận đơn qua outbox và đối soát trạng thái từ webhook.
+            </p>
+        </div>
+    </header>
+
+    <form method="get" class="shipping-filter">
+        <label>
+            <span>Tìm kiếm</span>
+            <input name="search" value="@Model.Search" placeholder="Mã đơn, khách hàng, tracking..." />
+        </label>
+        <label>
+            <span>Trạng thái</span>
+            <select name="status">
+                <option value="">Tất cả</option>
+                @foreach (var status in Enum.GetValues<ShipmentStatus>())
+                {
+                    if (Model.Status == status)
+                    {
+                        <option value="@status" selected>@status</option>
+                    }
+                    else
+                    {
+                        <option value="@status">@status</option>
+                    }
+                }
+            </select>
+        </label>
+        <button class="btn btn-primary" type="submit">Lọc</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Đặt lại</a>
+    </form>
+
+    <div class="data-panel">
+        <div class="table-responsive">
+            <table class="table align-middle shipping-table">
+                <thead>
+                    <tr>
+                        <th>Đơn hàng</th>
+                        <th>Khách hàng</th>
+                        <th>Trạng thái</th>
+                        <th>Tracking</th>
+                        <th class="text-end">Phí / COD</th>
+                        <th>Cập nhật</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7">
+                                <div class="empty-state compact">
+                                    <strong>Không có shipment phù hợp</strong>
+                                    <span>Shipment draft được tạo khi checkout thành công.</span>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@item.OrderCode</strong>
+                                    <small>Shipment #@item.Id · Order #@item.OrderId</small>
+                                </td>
+                                <td>@item.CustomerName</td>
+                                <td>
+                                    <span class="shipping-status shipping-status--@item.Status.ToString().ToLowerInvariant()">
+                                        @item.Status
+                                    </span>
+                                    <small>@(item.ProviderStatus ?? "Chưa có provider status")</small>
+                                </td>
+                                <td>
+                                    <span>@(item.TrackingCode ?? "Chưa tạo")</span>
+                                    <small>@item.Direction</small>
+                                </td>
+                                <td class="text-end">
+                                    <strong>@item.Fee.ToString("N0") ₫</strong>
+                                    <small>COD @item.CodAmount.ToString("N0") ₫</small>
+                                </td>
+                                <td>@(item.UpdatedAt ?? item.CreatedAt).ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                <td class="text-end">
+                                    <a asp-action="Details" asp-route-id="@item.Id"
+                                       class="btn btn-sm btn-outline-primary">Chi tiết</a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/shipping.css" asp-append-version="true" />
+}
