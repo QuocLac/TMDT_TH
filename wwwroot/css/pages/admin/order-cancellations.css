@@ -1,0 +1,278 @@
+.cancellation-panel {
+    margin-block: 1.25rem;
+    border-color: color-mix(in srgb, var(--danger) 22%, var(--border));
+}
+
+.cancellation-phase-badge,
+.cancellation-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    padding: .3rem .65rem;
+    border-radius: 999px;
+    font-size: .68rem;
+    font-weight: 850;
+}
+
+.cancellation-phase-badge {
+    background: color-mix(in srgb, var(--danger) 10%, var(--bg-soft));
+    color: var(--danger);
+}
+
+.cancellation-feedback {
+    display: none;
+    margin-bottom: 1rem;
+    padding: .8rem .9rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: .78rem;
+}
+
+.cancellation-feedback:not(:empty) { display: block; }
+.cancellation-feedback.is-info { background: var(--bg-soft); color: var(--text-soft); }
+.cancellation-feedback.is-success {
+    border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+    background: var(--success-soft);
+    color: var(--success);
+}
+.cancellation-feedback.is-error {
+    border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.cancellation-loading,
+.cancellation-eligibility {
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    background: var(--bg-soft);
+    color: var(--text-soft);
+    font-size: .8rem;
+}
+
+.cancellation-loading.is-error,
+.cancellation-eligibility.is-blocked {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.cancellation-eligibility.is-eligible {
+    border: 1px solid color-mix(in srgb, var(--success) 35%, var(--border));
+    background: var(--success-soft);
+    color: var(--success);
+}
+
+.cancellation-create-form {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+}
+
+.cancellation-form-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(12rem, .45fr) minmax(0, 1fr);
+}
+
+.cancellation-form-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+}
+
+.cancellation-form-grid span {
+    color: var(--text-strong);
+    font-size: .72rem;
+    font-weight: 800;
+}
+
+.cancellation-form-grid select,
+.cancellation-form-grid textarea,
+.cancellation-line input[type="number"] {
+    width: 100%;
+    padding: .7rem .8rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-solid);
+    color: var(--text-strong);
+    font: inherit;
+}
+
+.cancellation-lines {
+    display: grid;
+    gap: .55rem;
+}
+
+.cancellation-line {
+    display: grid;
+    align-items: center;
+    gap: .8rem;
+    grid-template-columns: auto minmax(0, 1fr) 6rem;
+    padding: .8rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-soft);
+}
+
+.cancellation-line strong,
+.cancellation-line small {
+    display: block;
+}
+
+.cancellation-line strong {
+    color: var(--text-strong);
+    font-size: .78rem;
+}
+
+.cancellation-line small {
+    margin-top: .15rem;
+    color: var(--text-soft);
+    font-size: .66rem;
+}
+
+.cancellation-line input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+.cancellation-line input[type="number"]:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+}
+
+.cancellation-form-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.cancellation-form-actions small {
+    max-width: 38rem;
+    color: var(--text-soft);
+    font-size: .68rem;
+    line-height: 1.5;
+}
+
+.cancellation-request-list {
+    display: grid;
+    gap: .75rem;
+    margin-top: 1.25rem;
+}
+
+.cancellation-list-heading {
+    margin-bottom: 0;
+}
+
+.cancellation-request-card {
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg-surface);
+}
+
+.cancellation-request-card > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.cancellation-request-card header strong,
+.cancellation-request-card header small {
+    display: block;
+}
+
+.cancellation-request-card header small,
+.cancellation-request-card > p,
+.cancellation-review-note {
+    color: var(--text-soft);
+    font-size: .7rem;
+}
+
+.cancellation-request-card > p {
+    margin: .75rem 0;
+}
+
+.cancellation-request-card ul {
+    display: grid;
+    gap: .35rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.cancellation-request-card li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .45rem .55rem;
+    border-radius: var(--radius-sm);
+    background: var(--bg-soft);
+    font-size: .7rem;
+}
+
+.cancellation-status--pending {
+    background: color-mix(in srgb, var(--warning) 14%, var(--bg-soft));
+    color: var(--warning);
+}
+
+.cancellation-status--approved {
+    background: var(--success-soft);
+    color: var(--success);
+}
+
+.cancellation-status--rejected {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.cancellation-refund {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: .75rem;
+    padding-top: .75rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-soft);
+    font-size: .72rem;
+}
+
+.cancellation-refund strong {
+    color: var(--brand-800);
+}
+
+.cancellation-review-note {
+    display: block;
+    margin-top: .65rem;
+}
+
+.cancellation-review-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .55rem;
+    margin-top: .85rem;
+}
+
+@media (max-width: 52rem) {
+    .cancellation-form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .cancellation-form-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .cancellation-line {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .cancellation-line input[type="number"] {
+        grid-column: 2;
+    }
+}

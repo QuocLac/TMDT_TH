@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using WebApplication2.Models;
 using WebApplication2.Services;
 using WebApplication2.Services.Cart;
+using WebApplication2.Services.Commerce.Cancellations;
 using WebApplication2.Services.Commerce.Checkout;
 using WebApplication2.Services.Commerce.Inventory;
 using WebApplication2.Services.Commerce.Orders;
@@ -45,7 +46,15 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromDays(7);
 });
 builder.Services.AddScoped<ISessionCartService, SessionCartService>();
-builder.Services.AddScoped<IInventoryService, InventoryService>();
+
+builder.Services.AddScoped<InventoryService>();
+builder.Services.AddScoped<CommerceInventoryService>();
+builder.Services.AddScoped<IInventoryService>(serviceProvider =>
+    serviceProvider.GetRequiredService<CommerceInventoryService>());
+builder.Services.AddScoped<ICancellationInventoryService>(serviceProvider =>
+    serviceProvider.GetRequiredService<CommerceInventoryService>());
+builder.Services.AddScoped<IOrderCancellationService, OrderCancellationService>();
+
 builder.Services.AddScoped<IShippingFeeCalculator, StandardShippingFeeCalculator>();
 builder.Services.AddScoped<IOrderApplicationService, OrderApplicationService>();
 builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();

@@ -48,4 +48,5 @@ public sealed class OrderItem
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<StockReservation> StockReservations { get; set; } = [];
+    public ICollection<OrderCancellationItem> CancellationItems { get; set; } = [];
 }
