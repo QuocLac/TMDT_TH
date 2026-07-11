@@ -1,3 +1,6 @@
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Data.Common;
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using WebApplication2.Models;
 using WebApplication2.Models.Enums;
@@ -552,52 +555,8 @@ public sealed class EffectivePriceService : IEffectivePriceService
             return new EffectivePriceRecalculationResult(0, 0);
         }
 
-        var variants = await _context.ProductVariants
-            .Where(variant => distinctVariantIds.Contains(variant.Id))
-            .ToListAsync(cancellationToken);
-
-        // Chỉ dùng member của entity và anonymous projection trong SQL.
-        // Không dựng EffectiveCampaignCandidate bên trong expression tree vì
-        // provider EF Core có thể không dịch được OrderBy trên record constructor.
-        var campaignCandidateRows = await _context.PriceCampaignItems
-            .AsNoTracking()
-            .Where(item =>
-                distinctVariantIds.Contains(item.VariantId)
-                && BlockingStatuses.Contains(item.Campaign.Status)
-                && item.Campaign.StartDate <= nowUtc
-                && (!item.Campaign.EndDate.HasValue
-                    || item.Campaign.EndDate.Value > nowUtc)
-                && item.NewPrice > 0)
-            .OrderBy(item => item.VariantId)
-            .ThenByDescending(item => item.Campaign.StartDate)
-            .ThenByDescending(item => item.CampaignId)
-            .Select(item => new
-            {
-                item.VariantId,
-                item.CampaignId,
-                CampaignName = item.Campaign.Name,
-                SourceType = item.Campaign.SourceType,
-                StartDate = item.Campaign.StartDate,
-                EndDate = item.Campaign.EndDate,
-                item.NewPrice
-            })
-            .ToListAsync(cancellationToken);
-
-        // Chuyển sang record sau khi SQL đã chạy và dữ liệu đã về memory.
-        var campaignCandidates = campaignCandidateRows
-            .Select(item => new EffectiveCampaignCandidate(
-                item.VariantId,
-                item.CampaignId,
-                item.CampaignName,
-                item.SourceType,
-                item.StartDate,
-                item.EndDate,
-                item.NewPrice))
-            .ToArray();
-
-        var winnerByVariantId = campaignCandidates
-            .GroupBy(candidate => candidate.VariantId)
-            .ToDictionary(group => group.Key, group => group.First());
+        EnsureAffectedVariantsAreNotPendingInChangeTracker(
+            distinctVariantIds);
 
         var normalizedChangedBy = TruncateRequired(
             changedBy,
@@ -612,81 +571,907 @@ public sealed class EffectivePriceService : IEffectivePriceService
             CorrelationIdMaxLength,
             Guid.NewGuid().ToString("N"));
 
-        var changedCount = 0;
+        var connection = _context.Database.GetDbConnection();
+        var connectionWasOpen =
+            connection.State == ConnectionState.Open;
+        var ownsTransaction =
+            _context.Database.CurrentTransaction is null;
+        IDbContextTransaction? localTransaction = null;
 
-        foreach (var variant in variants)
+        try
         {
-            winnerByVariantId.TryGetValue(variant.Id, out var winner);
-
-            var effectivePrice = winner?.NewPrice ?? variant.Price;
-            var desiredSourceType = winner is null
-                ? EffectivePriceSourceType.ListPrice
-                : EffectivePriceSourceType.Campaign;
-            var desiredSourceId = winner?.CampaignId;
-            var desiredEffectiveFrom = winner?.StartDate;
-            var desiredEffectiveTo = winner?.EndDate;
-
-            var priceChanged = variant.CurrentPrice != effectivePrice;
-            var sourceChanged =
-                variant.CurrentPriceSourceType != desiredSourceType
-                || variant.CurrentPriceSourceId != desiredSourceId
-                || variant.CurrentPriceEffectiveFrom != desiredEffectiveFrom
-                || variant.CurrentPriceEffectiveTo != desiredEffectiveTo;
-
-            if (!priceChanged && !sourceChanged)
+            if (ownsTransaction)
             {
-                continue;
+                localTransaction =
+                    await _context.Database.BeginTransactionAsync(
+                        IsolationLevel.Serializable,
+                        cancellationToken);
+            }
+            else if (connection.State != ConnectionState.Open)
+            {
+                await _context.Database.OpenConnectionAsync(
+                    cancellationToken);
             }
 
-            var eventType = historyContext?.EventTypeOverride
-                ?? ResolveHistoryEventType(variant, winner);
-            var historySourceType = historyContext?.SourceTypeOverride
-                ?? winner?.SourceType
-                ?? PriceChangeSourceType.System;
-            var historySourceId = historyContext?.SourceIdOverride
-                ?? desiredSourceId;
-            var priceSource = winner is null
-                ? "Khôi phục giá niêm yết"
-                : $"Áp dụng kế hoạch {winner.CampaignName} (#{winner.CampaignId})";
+            var dbTransaction = _context.Database
+                .CurrentTransaction?
+                .GetDbTransaction()
+                ?? throw new EffectivePriceRecalculationException(
+                    "Không thể lấy transaction hiện tại để tính lại giá.",
+                    "PRICE_RECALCULATION_TRANSACTION_MISSING");
 
-            _context.PriceHistories.Add(new PriceHistory
+            var rows = new List<EffectivePriceProjectionRow>(
+                distinctVariantIds.Length);
+
+            foreach (var variantId in distinctVariantIds)
             {
-                ProductVariantId = variant.Id,
-                OldPrice = variant.CurrentPrice,
-                NewPrice = effectivePrice,
-                EventType = eventType,
-                SourceType = historySourceType,
-                SourceId = historySourceId,
-                CorrelationId = normalizedCorrelationId,
-                Reason = normalizedReason,
-                EffectiveFrom = desiredEffectiveFrom,
-                EffectiveTo = desiredEffectiveTo,
-                ChangedBy = normalizedChangedBy,
-                Note = TruncateRequired(
+                var row = await LoadEffectivePriceProjectionRowAsync(
+                    connection,
+                    dbTransaction,
+                    variantId,
+                    nowUtc,
+                    cancellationToken);
+
+                if (row is null)
+                {
+                    throw new EffectivePriceRecalculationException(
+                        $"Không tìm thấy biến thể ID {variantId} trong bảng ProductVariants.",
+                        "VARIANT_NOT_FOUND_DURING_RECALCULATION",
+                        variantId);
+                }
+
+                ValidateEffectivePriceProjectionRow(row);
+                rows.Add(row);
+            }
+
+            var changedCount = 0;
+
+            foreach (var row in rows)
+            {
+                var hasWinner = row.WinnerCampaignId.HasValue;
+                var desiredPrice = hasWinner
+                    ? row.WinnerNewPrice!.Value
+                    : row.ListPrice;
+                var desiredSourceType = hasWinner
+                    ? EffectivePriceSourceType.Campaign.ToString()
+                    : EffectivePriceSourceType.ListPrice.ToString();
+                var desiredSourceId = row.WinnerCampaignId;
+                var desiredEffectiveFrom = row.WinnerStartDate;
+                var desiredEffectiveTo = row.WinnerEndDate;
+
+                var priceChanged = row.CurrentPrice != desiredPrice;
+                var sourceChanged =
+                    !string.Equals(
+                        row.CurrentPriceSourceType,
+                        desiredSourceType,
+                        StringComparison.Ordinal)
+                    || row.CurrentPriceSourceId != desiredSourceId
+                    || row.CurrentPriceEffectiveFrom
+                        != desiredEffectiveFrom
+                    || row.CurrentPriceEffectiveTo
+                        != desiredEffectiveTo;
+
+                if (!priceChanged && !sourceChanged)
+                {
+                    continue;
+                }
+
+                var eventType = historyContext?.EventTypeOverride
+                    ?.ToString()
+                    ?? ResolveHistoryEventTypeName(
+                        row,
+                        desiredSourceId);
+                var historySourceType =
+                    historyContext?.SourceTypeOverride
+                        ?.ToString()
+                    ?? row.WinnerSourceType
+                    ?? PriceChangeSourceType.System.ToString();
+                var historySourceId =
+                    historyContext?.SourceIdOverride
+                    ?? desiredSourceId;
+                var priceSource = hasWinner
+                    ? $"Áp dụng kế hoạch {row.WinnerCampaignName} (#{row.WinnerCampaignId})"
+                    : "Khôi phục giá niêm yết";
+                var note = TruncateRequired(
                     $"{normalizedReason}. {priceSource}.",
                     NoteMaxLength,
-                    priceSource),
-                CreatedAt = nowUtc
-            });
+                    priceSource);
 
-            variant.CurrentPrice = effectivePrice;
-            variant.CurrentPriceSourceType = desiredSourceType;
-            variant.CurrentPriceSourceId = desiredSourceId;
-            variant.CurrentPriceEffectiveFrom = desiredEffectiveFrom;
-            variant.CurrentPriceEffectiveTo = desiredEffectiveTo;
-            variant.UpdatedAt = nowUtc;
-            changedCount++;
+                await InsertPriceHistoryAsync(
+                    connection,
+                    dbTransaction,
+                    row,
+                    desiredPrice,
+                    eventType,
+                    historySourceType,
+                    historySourceId,
+                    normalizedCorrelationId,
+                    normalizedReason,
+                    desiredEffectiveFrom,
+                    desiredEffectiveTo,
+                    normalizedChangedBy,
+                    note,
+                    nowUtc,
+                    cancellationToken);
+
+                var updated = await UpdateVariantProjectionAsync(
+                    connection,
+                    dbTransaction,
+                    row,
+                    desiredPrice,
+                    desiredSourceType,
+                    desiredSourceId,
+                    desiredEffectiveFrom,
+                    desiredEffectiveTo,
+                    nowUtc,
+                    cancellationToken);
+
+                if (!updated)
+                {
+                    throw new EffectivePriceRecalculationException(
+                        $"Biến thể {row.Sku} (ID {row.VariantId}) đã thay đổi trong lúc xác nhận. "
+                        + "Transaction đã rollback; hãy tải lại dữ liệu.",
+                        "VARIANT_CONCURRENCY_CONFLICT_DURING_RECALCULATION",
+                        row.VariantId,
+                        row.Sku);
+                }
+
+                changedCount++;
+            }
+
+            if (localTransaction is not null)
+            {
+                await localTransaction.CommitAsync(
+                    cancellationToken);
+            }
+
+            return new EffectivePriceRecalculationResult(
+                rows.Count,
+                changedCount);
         }
-
-        if (changedCount > 0)
+        catch
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            if (localTransaction is not null)
+            {
+                try
+                {
+                    await localTransaction.RollbackAsync(
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // Lỗi gốc quan trọng hơn lỗi rollback cục bộ.
+                }
+            }
+
+            throw;
+        }
+        finally
+        {
+            if (localTransaction is not null)
+            {
+                await localTransaction.DisposeAsync();
+            }
+
+            if (!connectionWasOpen
+                && _context.Database.CurrentTransaction is null
+                && connection.State == ConnectionState.Open)
+            {
+                await _context.Database.CloseConnectionAsync();
+            }
+        }
+    }
+
+    private void EnsureAffectedVariantsAreNotPendingInChangeTracker(
+        IReadOnlyCollection<int> variantIds)
+    {
+        var affectedIds = variantIds.ToHashSet();
+        var trackedEntries = _context.ChangeTracker
+            .Entries<ProductVariant>()
+            .Where(entry => affectedIds.Contains(entry.Entity.Id))
+            .ToArray();
+
+        foreach (var entry in trackedEntries)
+        {
+            if (entry.State is EntityState.Added
+                or EntityState.Modified
+                or EntityState.Deleted)
+            {
+                throw new EffectivePriceRecalculationException(
+                    $"Biến thể {entry.Entity.SKU} (ID {entry.Entity.Id}) "
+                    + $"đang ở trạng thái EF {entry.State} trước khi tính lại giá.",
+                    "VARIANT_HAS_PENDING_TRACKED_CHANGES",
+                    entry.Entity.Id,
+                    entry.Entity.SKU);
+            }
+
+            entry.State = EntityState.Detached;
+        }
+    }
+
+    private static async Task<EffectivePriceProjectionRow?>
+        LoadEffectivePriceProjectionRowAsync(
+            DbConnection connection,
+            DbTransaction transaction,
+            int variantId,
+            DateTime nowUtc,
+            CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandType = CommandType.Text;
+        command.CommandText = """
+            SELECT
+                v.[Id] AS [VariantId],
+                v.[ProductId],
+                p.[Id] AS [JoinedProductId],
+                p.[Name] AS [ProductName],
+                p.[IsActive] AS [ProductIsActive],
+                v.[SKU],
+                v.[Price] AS [ListPrice],
+                v.[CurrentPrice],
+                v.[CurrentPriceSourceType],
+                v.[CurrentPriceSourceId],
+                v.[CurrentPriceEffectiveFrom],
+                v.[CurrentPriceEffectiveTo],
+                v.[IsActive] AS [VariantIsActive],
+                v.[StockQuantity],
+                v.[RowVersion],
+                winner.[CampaignId] AS [WinnerCampaignId],
+                winner.[CampaignName] AS [WinnerCampaignName],
+                winner.[SourceType] AS [WinnerSourceType],
+                winner.[StartDate] AS [WinnerStartDate],
+                winner.[EndDate] AS [WinnerEndDate],
+                winner.[NewPrice] AS [WinnerNewPrice],
+                winner.[CandidateCount]
+            FROM dbo.[ProductVariants] AS v
+            LEFT JOIN dbo.[Products] AS p
+                ON p.[Id] = v.[ProductId]
+            OUTER APPLY
+            (
+                SELECT TOP (1)
+                    pci.[CampaignId],
+                    pc.[Name] AS [CampaignName],
+                    pc.[SourceType],
+                    pc.[StartDate],
+                    pc.[EndDate],
+                    pci.[NewPrice],
+                    COUNT_BIG(*) OVER () AS [CandidateCount]
+                FROM dbo.[PriceCampaignItems] AS pci
+                INNER JOIN dbo.[PriceCampaigns] AS pc
+                    ON pc.[Id] = pci.[CampaignId]
+                WHERE pci.[VariantId] = v.[Id]
+                  AND pc.[Status] IN
+                      ('Confirmed', 'Scheduled', 'Active')
+                  AND pc.[StartDate] <= @nowUtc
+                  AND
+                  (
+                      pc.[EndDate] IS NULL
+                      OR pc.[EndDate] > @nowUtc
+                  )
+                  AND pci.[NewPrice] > 0
+                ORDER BY
+                    pc.[StartDate] DESC,
+                    pci.[CampaignId] DESC
+            ) AS winner
+            WHERE v.[Id] = @variantId;
+            """;
+
+        AddParameter(
+            command,
+            "@variantId",
+            variantId,
+            DbType.Int32);
+        AddParameter(
+            command,
+            "@nowUtc",
+            nowUtc,
+            DbType.DateTime2);
+
+        await using var reader =
+            await command.ExecuteReaderAsync(cancellationToken);
+
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return null;
         }
 
-        return new EffectivePriceRecalculationResult(
-            variants.Count,
-            changedCount);
+        return new EffectivePriceProjectionRow(
+            reader.GetInt32(reader.GetOrdinal("VariantId")),
+            reader.GetInt32(reader.GetOrdinal("ProductId")),
+            GetNullableInt32(reader, "JoinedProductId"),
+            GetNullableString(reader, "ProductName"),
+            GetNullableBoolean(reader, "ProductIsActive"),
+            GetNullableString(reader, "SKU"),
+            reader.GetDecimal(reader.GetOrdinal("ListPrice")),
+            reader.GetDecimal(reader.GetOrdinal("CurrentPrice")),
+            GetNullableString(reader, "CurrentPriceSourceType"),
+            GetNullableInt32(reader, "CurrentPriceSourceId"),
+            GetNullableDateTime(
+                reader,
+                "CurrentPriceEffectiveFrom"),
+            GetNullableDateTime(
+                reader,
+                "CurrentPriceEffectiveTo"),
+            reader.GetBoolean(
+                reader.GetOrdinal("VariantIsActive")),
+            reader.GetInt32(
+                reader.GetOrdinal("StockQuantity")),
+            GetNullableBytes(reader, "RowVersion"),
+            GetNullableInt32(reader, "WinnerCampaignId"),
+            GetNullableString(reader, "WinnerCampaignName"),
+            GetNullableString(reader, "WinnerSourceType"),
+            GetNullableDateTime(reader, "WinnerStartDate"),
+            GetNullableDateTime(reader, "WinnerEndDate"),
+            GetNullableDecimal(reader, "WinnerNewPrice"),
+            GetNullableInt64(reader, "CandidateCount") ?? 0);
     }
+
+    private static void ValidateEffectivePriceProjectionRow(
+        EffectivePriceProjectionRow row)
+    {
+        if (!row.JoinedProductId.HasValue)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Biến thể {row.Sku ?? $"ID {row.VariantId}"} "
+                + $"tham chiếu ProductId {row.ProductId} không tồn tại.",
+                "PRODUCT_REFERENCE_MISSING",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (string.IsNullOrWhiteSpace(row.ProductName))
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Sản phẩm ID {row.ProductId} của biến thể "
+                + $"{row.Sku ?? row.VariantId.ToString()} không có tên hợp lệ.",
+                "PRODUCT_NAME_INVALID",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (row.ProductIsActive != true)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Sản phẩm {row.ProductName} (ID {row.ProductId}) "
+                + "đang ngừng hoạt động.",
+                "PRODUCT_INACTIVE_DURING_RECALCULATION",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (string.IsNullOrWhiteSpace(row.Sku))
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Biến thể ID {row.VariantId} không có SKU hợp lệ.",
+                "VARIANT_SKU_INVALID",
+                row.VariantId);
+        }
+
+        if (!row.VariantIsActive)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Biến thể {row.Sku} (ID {row.VariantId}) "
+                + "đang ngừng hoạt động.",
+                "VARIANT_INACTIVE_DURING_RECALCULATION",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (row.ListPrice <= 0)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Giá niêm yết của {row.Sku} phải lớn hơn 0 "
+                + $"nhưng đang là {row.ListPrice}.",
+                "VARIANT_LIST_PRICE_INVALID",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (row.CurrentPrice <= 0)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Giá hiện tại của {row.Sku} phải lớn hơn 0 "
+                + $"nhưng đang là {row.CurrentPrice}.",
+                "VARIANT_CURRENT_PRICE_INVALID",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (row.StockQuantity < 0)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Tồn kho của {row.Sku} không được âm "
+                + $"nhưng đang là {row.StockQuantity}.",
+                "VARIANT_STOCK_INVALID",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (row.RowVersion is not { Length: 8 })
+        {
+            throw new EffectivePriceRecalculationException(
+                $"RowVersion của {row.Sku} không hợp lệ.",
+                "VARIANT_ROW_VERSION_INVALID",
+                row.VariantId,
+                row.Sku);
+        }
+
+        var listPriceSource =
+            EffectivePriceSourceType.ListPrice.ToString();
+        var campaignSource =
+            EffectivePriceSourceType.Campaign.ToString();
+
+        if (!string.Equals(
+                row.CurrentPriceSourceType,
+                listPriceSource,
+                StringComparison.Ordinal)
+            && !string.Equals(
+                row.CurrentPriceSourceType,
+                campaignSource,
+                StringComparison.Ordinal))
+        {
+            throw new EffectivePriceRecalculationException(
+                $"CurrentPriceSourceType của {row.Sku} đang là "
+                + $"“{row.CurrentPriceSourceType ?? "NULL"}”; "
+                + "chỉ chấp nhận ListPrice hoặc Campaign.",
+                "VARIANT_CURRENT_PRICE_SOURCE_INVALID",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (string.Equals(
+                row.CurrentPriceSourceType,
+                campaignSource,
+                StringComparison.Ordinal)
+            && !row.CurrentPriceSourceId.HasValue)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Biến thể {row.Sku} có nguồn Campaign "
+                + "nhưng CurrentPriceSourceId đang NULL.",
+                "VARIANT_CAMPAIGN_SOURCE_ID_MISSING",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (string.Equals(
+                row.CurrentPriceSourceType,
+                listPriceSource,
+                StringComparison.Ordinal)
+            && row.CurrentPriceSourceId.HasValue)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Biến thể {row.Sku} có nguồn ListPrice "
+                + $"nhưng CurrentPriceSourceId đang là "
+                + $"{row.CurrentPriceSourceId}.",
+                "VARIANT_LIST_PRICE_SOURCE_ID_NOT_NULL",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (row.CandidateCount > 1)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Biến thể {row.Sku} đang có "
+                + $"{row.CandidateCount} kế hoạch cùng hiệu lực. "
+                + "Dữ liệu chồng lấn phải được xử lý trước khi áp giá.",
+                "MULTIPLE_EFFECTIVE_CAMPAIGNS",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (!row.WinnerCampaignId.HasValue)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                row.WinnerCampaignName))
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Kế hoạch thắng ID {row.WinnerCampaignId} "
+                + $"của {row.Sku} không có tên hợp lệ.",
+                "WINNER_CAMPAIGN_NAME_INVALID",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (!row.WinnerNewPrice.HasValue
+            || row.WinnerNewPrice.Value <= 0)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Giá kế hoạch thắng của {row.Sku} không hợp lệ.",
+                "WINNER_CAMPAIGN_PRICE_INVALID",
+                row.VariantId,
+                row.Sku);
+        }
+
+        if (!row.WinnerStartDate.HasValue)
+        {
+            throw new EffectivePriceRecalculationException(
+                $"Kế hoạch thắng của {row.Sku} thiếu StartDate.",
+                "WINNER_CAMPAIGN_START_DATE_MISSING",
+                row.VariantId,
+                row.Sku);
+        }
+
+        var validSourceTypes = Enum.GetNames<
+            PriceChangeSourceType>();
+
+        if (string.IsNullOrWhiteSpace(
+                row.WinnerSourceType)
+            || !validSourceTypes.Contains(
+                row.WinnerSourceType,
+                StringComparer.Ordinal))
+        {
+            throw new EffectivePriceRecalculationException(
+                $"SourceType “{row.WinnerSourceType ?? "NULL"}” "
+                + $"của kế hoạch thắng cho {row.Sku} không hợp lệ.",
+                "WINNER_CAMPAIGN_SOURCE_INVALID",
+                row.VariantId,
+                row.Sku);
+        }
+    }
+
+    private static async Task InsertPriceHistoryAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        EffectivePriceProjectionRow row,
+        decimal desiredPrice,
+        string eventType,
+        string sourceType,
+        int? sourceId,
+        string correlationId,
+        string reason,
+        DateTime? effectiveFrom,
+        DateTime? effectiveTo,
+        string changedBy,
+        string note,
+        DateTime nowUtc,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandType = CommandType.Text;
+        command.CommandText = """
+            INSERT INTO dbo.[PriceHistories]
+            (
+                [ProductVariantId],
+                [OldPrice],
+                [NewPrice],
+                [EventType],
+                [SourceType],
+                [SourceId],
+                [CorrelationId],
+                [Reason],
+                [EffectiveFrom],
+                [EffectiveTo],
+                [ChangedBy],
+                [Note],
+                [CreatedAt],
+                [UpdatedAt]
+            )
+            VALUES
+            (
+                @productVariantId,
+                @oldPrice,
+                @newPrice,
+                @eventType,
+                @sourceType,
+                @sourceId,
+                @correlationId,
+                @reason,
+                @effectiveFrom,
+                @effectiveTo,
+                @changedBy,
+                @note,
+                @createdAt,
+                NULL
+            );
+            """;
+
+        AddParameter(
+            command,
+            "@productVariantId",
+            row.VariantId,
+            DbType.Int32);
+        AddMoneyParameter(
+            command,
+            "@oldPrice",
+            row.CurrentPrice);
+        AddMoneyParameter(
+            command,
+            "@newPrice",
+            desiredPrice);
+        AddParameter(
+            command,
+            "@eventType",
+            eventType,
+            DbType.String,
+            30);
+        AddParameter(
+            command,
+            "@sourceType",
+            sourceType,
+            DbType.String,
+            30);
+        AddParameter(
+            command,
+            "@sourceId",
+            sourceId,
+            DbType.Int32);
+        AddParameter(
+            command,
+            "@correlationId",
+            correlationId,
+            DbType.String,
+            CorrelationIdMaxLength);
+        AddParameter(
+            command,
+            "@reason",
+            reason,
+            DbType.String,
+            ReasonMaxLength);
+        AddParameter(
+            command,
+            "@effectiveFrom",
+            effectiveFrom,
+            DbType.DateTime2);
+        AddParameter(
+            command,
+            "@effectiveTo",
+            effectiveTo,
+            DbType.DateTime2);
+        AddParameter(
+            command,
+            "@changedBy",
+            changedBy,
+            DbType.String,
+            ChangedByMaxLength);
+        AddParameter(
+            command,
+            "@note",
+            note,
+            DbType.String,
+            NoteMaxLength);
+        AddParameter(
+            command,
+            "@createdAt",
+            nowUtc,
+            DbType.DateTime2);
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static async Task<bool> UpdateVariantProjectionAsync(
+        DbConnection connection,
+        DbTransaction transaction,
+        EffectivePriceProjectionRow row,
+        decimal desiredPrice,
+        string desiredSourceType,
+        int? desiredSourceId,
+        DateTime? desiredEffectiveFrom,
+        DateTime? desiredEffectiveTo,
+        DateTime nowUtc,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandType = CommandType.Text;
+        command.CommandText = """
+            UPDATE dbo.[ProductVariants]
+            SET
+                [CurrentPrice] = @currentPrice,
+                [CurrentPriceSourceType] = @sourceType,
+                [CurrentPriceSourceId] = @sourceId,
+                [CurrentPriceEffectiveFrom] = @effectiveFrom,
+                [CurrentPriceEffectiveTo] = @effectiveTo,
+                [UpdatedAt] = @updatedAt
+            WHERE [Id] = @variantId
+              AND [RowVersion] = @expectedRowVersion;
+
+            SELECT @@ROWCOUNT;
+            """;
+
+        AddMoneyParameter(
+            command,
+            "@currentPrice",
+            desiredPrice);
+        AddParameter(
+            command,
+            "@sourceType",
+            desiredSourceType,
+            DbType.String,
+            30);
+        AddParameter(
+            command,
+            "@sourceId",
+            desiredSourceId,
+            DbType.Int32);
+        AddParameter(
+            command,
+            "@effectiveFrom",
+            desiredEffectiveFrom,
+            DbType.DateTime2);
+        AddParameter(
+            command,
+            "@effectiveTo",
+            desiredEffectiveTo,
+            DbType.DateTime2);
+        AddParameter(
+            command,
+            "@updatedAt",
+            nowUtc,
+            DbType.DateTime2);
+        AddParameter(
+            command,
+            "@variantId",
+            row.VariantId,
+            DbType.Int32);
+        AddParameter(
+            command,
+            "@expectedRowVersion",
+            row.RowVersion,
+            DbType.Binary,
+            8);
+
+        var scalar = await command.ExecuteScalarAsync(
+            cancellationToken);
+        return Convert.ToInt32(scalar) == 1;
+    }
+
+    private static string ResolveHistoryEventTypeName(
+        EffectivePriceProjectionRow row,
+        int? desiredSourceId)
+    {
+        if (!desiredSourceId.HasValue)
+        {
+            return PriceHistoryEventType.Restored.ToString();
+        }
+
+        if (string.Equals(
+                row.CurrentPriceSourceType,
+                EffectivePriceSourceType.Campaign.ToString(),
+                StringComparison.Ordinal)
+            && row.CurrentPriceSourceId.HasValue
+            && row.CurrentPriceSourceId.Value
+                != desiredSourceId.Value)
+        {
+            return PriceHistoryEventType.Replaced.ToString();
+        }
+
+        return PriceHistoryEventType.Applied.ToString();
+    }
+
+    private static DbParameter AddParameter(
+        DbCommand command,
+        string name,
+        object? value,
+        DbType dbType,
+        int? size = null)
+    {
+        var parameter = command.CreateParameter();
+        parameter.ParameterName = name;
+        parameter.DbType = dbType;
+        parameter.Value = value ?? DBNull.Value;
+
+        if (size.HasValue)
+        {
+            parameter.Size = size.Value;
+        }
+
+        command.Parameters.Add(parameter);
+        return parameter;
+    }
+
+    private static DbParameter AddMoneyParameter(
+        DbCommand command,
+        string name,
+        decimal value)
+    {
+        var parameter = AddParameter(
+            command,
+            name,
+            value,
+            DbType.Decimal);
+        parameter.Precision = 18;
+        parameter.Scale = 2;
+        return parameter;
+    }
+
+    private static string? GetNullableString(
+        DbDataReader reader,
+        string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal)
+            ? null
+            : reader.GetString(ordinal);
+    }
+
+    private static int? GetNullableInt32(
+        DbDataReader reader,
+        string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal)
+            ? null
+            : reader.GetInt32(ordinal);
+    }
+
+    private static long? GetNullableInt64(
+        DbDataReader reader,
+        string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal)
+            ? null
+            : reader.GetInt64(ordinal);
+    }
+
+    private static bool? GetNullableBoolean(
+        DbDataReader reader,
+        string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal)
+            ? null
+            : reader.GetBoolean(ordinal);
+    }
+
+    private static DateTime? GetNullableDateTime(
+        DbDataReader reader,
+        string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal)
+            ? null
+            : reader.GetDateTime(ordinal);
+    }
+
+    private static decimal? GetNullableDecimal(
+        DbDataReader reader,
+        string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal)
+            ? null
+            : reader.GetDecimal(ordinal);
+    }
+
+    private static byte[] GetNullableBytes(
+        DbDataReader reader,
+        string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        return reader.IsDBNull(ordinal)
+            ? []
+            : (byte[])reader.GetValue(ordinal);
+    }
+
+    private sealed record EffectivePriceProjectionRow(
+        int VariantId,
+        int ProductId,
+        int? JoinedProductId,
+        string? ProductName,
+        bool? ProductIsActive,
+        string? Sku,
+        decimal ListPrice,
+        decimal CurrentPrice,
+        string? CurrentPriceSourceType,
+        int? CurrentPriceSourceId,
+        DateTime? CurrentPriceEffectiveFrom,
+        DateTime? CurrentPriceEffectiveTo,
+        bool VariantIsActive,
+        int StockQuantity,
+        byte[] RowVersion,
+        int? WinnerCampaignId,
+        string? WinnerCampaignName,
+        string? WinnerSourceType,
+        DateTime? WinnerStartDate,
+        DateTime? WinnerEndDate,
+        decimal? WinnerNewPrice,
+        long CandidateCount);
 
     private static PriceHistoryEventType ResolveHistoryEventType(
         ProductVariant variant,
@@ -783,3 +1568,25 @@ public sealed class EffectivePriceService : IEffectivePriceService
         DateTime? EndDate,
         decimal NewPrice);
 }
+
+public sealed class EffectivePriceRecalculationException : Exception
+{
+    public EffectivePriceRecalculationException(
+        string message,
+        string errorCode,
+        int? variantId = null,
+        string? sku = null)
+        : base(message)
+    {
+        ErrorCode = errorCode;
+        VariantId = variantId;
+        Sku = sku;
+    }
+
+    public string ErrorCode { get; }
+
+    public int? VariantId { get; }
+
+    public string? Sku { get; }
+}
+

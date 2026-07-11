@@ -2,6 +2,7 @@ using System.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Hosting;
 using WebApplication2.Models;
 using WebApplication2.Models.Enums;
 
@@ -33,19 +34,22 @@ public sealed class ReliablePriceCampaignWorkflowService
     private readonly IEffectivePriceService _effectivePriceService;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ReliablePriceCampaignWorkflowService> _logger;
+    private readonly IHostEnvironment _environment;
 
     public ReliablePriceCampaignWorkflowService(
         PriceCampaignWorkflowService inner,
         ApplicationDbContext context,
         IEffectivePriceService effectivePriceService,
         TimeProvider timeProvider,
-        ILogger<ReliablePriceCampaignWorkflowService> logger)
+        ILogger<ReliablePriceCampaignWorkflowService> logger,
+        IHostEnvironment environment)
     {
         _inner = inner;
         _context = context;
         _effectivePriceService = effectivePriceService;
         _timeProvider = timeProvider;
         _logger = logger;
+        _environment = environment;
     }
 
     public Task<PriceCampaignWorkflowResult> SaveDraftAsync(
@@ -267,6 +271,27 @@ public sealed class ReliablePriceCampaignWorkflowService
                 command.CampaignId,
                 preview);
         }
+        catch (EffectivePriceRecalculationException exception)
+        {
+            await SafeRollbackAsync(transaction, command, stage);
+
+            _logger.LogError(
+                exception,
+                "Pricing effective-price data validation failed. Stage={Stage}, CampaignId={CampaignId}, VariantId={VariantId}, Sku={Sku}, CorrelationId={CorrelationId}, ErrorCode={ErrorCode}.",
+                stage,
+                command.CampaignId,
+                exception.VariantId,
+                exception.Sku,
+                command.CorrelationId,
+                exception.ErrorCode);
+
+            return Failure(
+                exception.Message,
+                exception.ErrorCode,
+                command.CampaignId,
+                preview);
+        }
+
         catch (DbUpdateConcurrencyException exception)
         {
             await SafeRollbackAsync(transaction, command, stage);
@@ -335,8 +360,14 @@ public sealed class ReliablePriceCampaignWorkflowService
                 command.CorrelationId,
                 code);
 
+            var message = BuildInvalidOperationMessage(code);
+            if (_environment.IsDevelopment())
+            {
+                message += $" Chi tiết kỹ thuật: {SanitizeDiagnostic(exception.Message)}";
+            }
+
             return Failure(
-                BuildInvalidOperationMessage(code),
+                message,
                 code,
                 command.CampaignId,
                 preview);
@@ -364,9 +395,19 @@ public sealed class ReliablePriceCampaignWorkflowService
                 command.CorrelationId,
                 errorCode);
 
-            return Failure(
+            var message =
                 $"Không thể xác nhận kế hoạch tại bước “{stage.ToDisplayName()}”. "
-                + "Không có thay đổi nào được ghi vì transaction đã rollback.",
+                + "Không có thay đổi nào được ghi vì transaction đã rollback.";
+
+            if (_environment.IsDevelopment())
+            {
+                message += $" Chi tiết kỹ thuật: "
+                    + $"{exception.GetType().Name}: "
+                    + $"{SanitizeDiagnostic(exception.Message)}";
+            }
+
+            return Failure(
+                message,
                 errorCode,
                 command.CampaignId,
                 preview);
@@ -942,6 +983,24 @@ public sealed class ReliablePriceCampaignWorkflowService
         return value.Length <= maxLength
             ? value
             : value[..maxLength];
+    }
+
+    private static string SanitizeDiagnostic(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Không có thông điệp exception.";
+        }
+
+        var normalized = value
+            .Replace('\r', ' ')
+            .Replace('\n', ' ')
+            .Trim();
+
+        const int maxLength = 700;
+        return normalized.Length <= maxLength
+            ? normalized
+            : normalized[..maxLength];
     }
 
     internal enum ConfirmationStage
