@@ -2,12 +2,18 @@
 @model WebApplication2.ViewModels.Storefront.Home.ProductCardViewModel
 @{
     var culture = CultureInfo.GetCultureInfo("vi-VN");
-    var imageUrl = string.IsNullOrWhiteSpace(Model.ImageUrl) ? "/images/no-image.png" : Model.ImageUrl;
+    var imageUrl = string.IsNullOrWhiteSpace(Model.ImageUrl)
+        ? "/images/no-image.png"
+        : Model.ImageUrl;
     var productUrl = $"/products/{Uri.EscapeDataString(Model.Slug)}";
 }
 
-<article class="product-card" data-product-card data-product-id="@Model.Id">
-    <a href="@productUrl" class="product-card__link" aria-label="Xem sản phẩm @Model.Name">
+<article class="product-card"
+         data-product-card
+         data-product-id="@Model.Id">
+    <a href="@productUrl"
+       class="product-card__media-link"
+       aria-label="Xem sản phẩm @Model.Name">
         <div class="product-card__media">
             <img src="@imageUrl"
                  alt="@Model.Name"
@@ -17,47 +23,64 @@
                  decoding="async" />
             @if (Model.IsOnSale && Model.DiscountPercentage > 0)
             {
-                <span class="product-card__discount">Giảm @Model.DiscountPercentage.ToString("0")%</span>
+                <span class="product-card__discount">
+                    Giảm @Model.DiscountPercentage.ToString("0")%
+                </span>
             }
-        </div>
-
-        <div class="product-card__body">
-            <h3 class="product-card__name">@Model.Name</h3>
-            <div class="product-card__pricing">
-                @if (Model.ShowFromPrice)
-                {
-                    <span class="product-card__price-prefix">Từ</span>
-                }
-                @if (Model.IsOnSale && Model.OriginalPrice > Model.EffectivePrice)
-                {
-                    <span class="product-card__original-price">@Model.OriginalPrice.ToString("N0", culture) ₫</span>
-                }
-                <strong class="product-card__effective-price">@Model.EffectivePrice.ToString("N0", culture) ₫</strong>
-            </div>
-            <span class="product-card__stock @(Model.HasAvailableStock ? "is-available" : "is-unavailable")">
-                @(Model.HasAvailableStock
-                    ? $"{Model.AvailableVariantCount}/{Model.VariantCount} biến thể còn hàng"
-                    : "Hết hàng")
-            </span>
         </div>
     </a>
 
-    <div class="product-card__actions" aria-label="Thao tác mua @Model.Name">
-        <button type="button"
-                class="button button--secondary product-card__action"
-                data-open-variant-picker
-                data-product-id="@Model.Id"
-                data-cart-intent="add"
-                disabled="@(!Model.HasAvailableStock)">
-            Thêm vào giỏ
-        </button>
-        <button type="button"
-                class="button button--primary product-card__action"
-                data-open-variant-picker
-                data-product-id="@Model.Id"
-                data-cart-intent="buy-now"
-                disabled="@(!Model.HasAvailableStock)">
-            Mua ngay
-        </button>
+    <div class="product-card__body">
+        <a href="@productUrl"
+           class="product-card__name-link">
+            <h3 class="product-card__name">@Model.Name</h3>
+        </a>
+
+        <div class="product-card__pricing">
+            @if (Model.ShowFromPrice)
+            {
+                <span class="product-card__price-prefix">Từ</span>
+            }
+            @if (Model.IsOnSale && Model.OriginalPrice > Model.EffectivePrice)
+            {
+                <span class="product-card__original-price">
+                    @Model.OriginalPrice.ToString("N0", culture) ₫
+                </span>
+            }
+            <strong class="product-card__effective-price">
+                @Model.EffectivePrice.ToString("N0", culture) ₫
+            </strong>
+        </div>
+
+        <span class="product-card__stock @(Model.HasAvailableStock ? "is-available" : "is-unavailable")">
+            @(Model.HasAvailableStock
+                ? $"{Model.AvailableVariantCount}/{Model.VariantCount} biến thể còn hàng"
+                : "Hết hàng")
+        </span>
+
+        <div class="product-card__actions"
+             aria-label="Thao tác mua @Model.Name">
+            <button type="button"
+                    class="button button--secondary product-card__action product-card__action--cart"
+                    data-open-variant-picker
+                    data-product-id="@Model.Id"
+                    data-product-url="@productUrl"
+                    data-cart-intent="add"
+                    disabled="@(!Model.HasAvailableStock)">
+                <span aria-hidden="true">＋</span>
+                <span>Thêm vào giỏ</span>
+            </button>
+
+            <button type="button"
+                    class="button button--primary product-card__action product-card__action--buy"
+                    data-open-variant-picker
+                    data-product-id="@Model.Id"
+                    data-product-url="@productUrl"
+                    data-cart-intent="buy-now"
+                    disabled="@(!Model.HasAvailableStock)">
+                <span aria-hidden="true">⚡</span>
+                <span>Mua ngay</span>
+            </button>
+        </div>
     </div>
 </article>

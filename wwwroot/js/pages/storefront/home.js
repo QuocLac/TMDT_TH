@@ -44,7 +44,20 @@
 
     function initializeVariantPicker() {
         const dialog = document.querySelector("[data-variant-picker]");
-        if (!dialog || !cart) return;
+
+        if (!dialog || !cart) {
+            document.addEventListener("click", (event) => {
+                const button = event.target.closest("[data-open-variant-picker]");
+                if (!button) return;
+
+                event.preventDefault();
+                const fallbackUrl = button.dataset.productUrl;
+                if (fallbackUrl) {
+                    window.location.assign(fallbackUrl);
+                }
+            });
+            return;
+        }
 
         const productName = dialog.querySelector("[data-picker-product-name]");
         const image = dialog.querySelector("[data-picker-image]");
@@ -374,6 +387,8 @@
         document.addEventListener("click", (event) => {
             const openButton = event.target.closest("[data-open-variant-picker]");
             if (openButton) {
+                event.preventDefault();
+                event.stopPropagation();
                 openPicker(openButton);
                 return;
             }
