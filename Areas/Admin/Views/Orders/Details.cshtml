@@ -1,0 +1,460 @@
+@using System.Globalization
+@using WebApplication2.Areas.Admin.ViewModels.Orders
+@model OrderAdminDetailsViewModel
+@{
+    ViewData["Title"] = $"Đơn hàng {Model.Code}";
+    var culture = CultureInfo.GetCultureInfo("vi-VN");
+}
+
+<section class="admin-page orders-page order-details-page" data-order-details>
+    <header class="admin-page-header order-details-header">
+        <div>
+            <p class="eyebrow">Order detail</p>
+            <h2>@Model.Code</h2>
+            <p class="admin-page-lead">
+                Tạo lúc @Model.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · Request @Model.ClientRequestId
+            </p>
+        </div>
+        <div class="order-header-actions">
+            <a asp-action="Index" class="btn btn-outline-secondary">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                Danh sách đơn
+            </a>
+            <a asp-area=""
+               asp-controller="Checkout"
+               asp-action="Success"
+               asp-route-publicToken="@Model.PublicToken"
+               target="_blank"
+               rel="noopener noreferrer"
+               class="btn btn-outline-primary">
+                Xem trang khách hàng
+            </a>
+        </div>
+    </header>
+
+    <div class="order-state-grid" aria-label="Trạng thái đơn hàng">
+        <article class="order-state-card">
+            <span>Đơn hàng</span>
+            <strong class="order-status order-status--@OrderAdminDisplay.CssToken(Model.OrderStatus)">
+                @OrderAdminDisplay.OrderStatusText(Model.OrderStatus)
+            </strong>
+        </article>
+        <article class="order-state-card">
+            <span>Thanh toán</span>
+            <strong class="order-status order-status--@OrderAdminDisplay.CssToken(Model.PaymentStatus)">
+                @OrderAdminDisplay.PaymentStatusText(Model.PaymentStatus)
+            </strong>
+        </article>
+        <article class="order-state-card">
+            <span>Xử lý hàng</span>
+            <strong class="order-status order-status--@OrderAdminDisplay.CssToken(Model.FulfillmentStatus)">
+                @OrderAdminDisplay.FulfillmentStatusText(Model.FulfillmentStatus)
+            </strong>
+        </article>
+        <article class="order-state-card order-state-card--money">
+            <span>Tổng thanh toán</span>
+            <strong>@Model.GrandTotal.ToString("N0", culture) ₫</strong>
+        </article>
+    </div>
+
+    <section class="order-operation-panel" aria-labelledby="order-operation-heading">
+        <div class="order-section-heading">
+            <div>
+                <p class="eyebrow">State machine</p>
+                <h3 id="order-operation-heading">Thao tác trạng thái</h3>
+            </div>
+            <p>Mọi thao tác đều kiểm tra RowVersion và ghi timeline.</p>
+        </div>
+
+        <div class="order-operation-grid">
+            <article class="order-operation-card">
+                <h4>Trạng thái đơn</h4>
+                <p>Xác nhận và điều phối vòng đời thương mại của đơn.</p>
+                @if (Model.AllowedOrderTransitions.Count == 0)
+                {
+                    <div class="order-operation-empty">Không có bước chuyển hợp lệ.</div>
+                }
+                else
+                {
+                    <form asp-action="ChangeOrderStatus"
+                          asp-route-id="@Model.Id"
+                          method="post"
+                          data-order-transition-form
+                          data-transition-label="trạng thái đơn">
+                        <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+                        <label>
+                            <span>Chuyển sang</span>
+                            <select name="TargetStatus" required>
+                                @foreach (var status in Model.AllowedOrderTransitions)
+                                {
+                                    <option value="@status">@OrderAdminDisplay.OrderStatusText(status)</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            <span>Lý do</span>
+                            <textarea name="Reason" maxlength="500" minlength="3" rows="3" required></textarea>
+                        </label>
+                        <button type="submit" class="btn btn-primary">Cập nhật đơn</button>
+                    </form>
+                }
+            </article>
+
+            <article class="order-operation-card">
+                <h4>Thanh toán</h4>
+                <p>Admin chỉ được xác nhận Paid thủ công cho COD sau khi giao thành công.</p>
+                @if (Model.AllowedPaymentTransitions.Count == 0)
+                {
+                    <div class="order-operation-empty">Không có bước chuyển hợp lệ.</div>
+                }
+                else
+                {
+                    <form asp-action="ChangePaymentStatus"
+                          asp-route-id="@Model.Id"
+                          method="post"
+                          data-order-transition-form
+                          data-transition-label="trạng thái thanh toán">
+                        <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+                        <label>
+                            <span>Chuyển sang</span>
+                            <select name="TargetStatus" required>
+                                @foreach (var status in Model.AllowedPaymentTransitions)
+                                {
+                                    <option value="@status">@OrderAdminDisplay.PaymentStatusText(status)</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            <span>Lý do</span>
+                            <textarea name="Reason" maxlength="500" minlength="3" rows="3" required></textarea>
+                        </label>
+                        <button type="submit" class="btn btn-primary">Cập nhật thanh toán</button>
+                    </form>
+                }
+            </article>
+
+            <article class="order-operation-card">
+                <h4>Xử lý giao hàng</h4>
+                <p>Shipped/Delivered chỉ hợp lệ khi shipment provider đã có dữ liệu tương ứng.</p>
+                @if (Model.AllowedFulfillmentTransitions.Count == 0)
+                {
+                    <div class="order-operation-empty">Không có bước chuyển hợp lệ.</div>
+                }
+                else
+                {
+                    <form asp-action="ChangeFulfillmentStatus"
+                          asp-route-id="@Model.Id"
+                          method="post"
+                          data-order-transition-form
+                          data-transition-label="trạng thái giao hàng">
+                        <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+                        <label>
+                            <span>Chuyển sang</span>
+                            <select name="TargetStatus" required>
+                                @foreach (var status in Model.AllowedFulfillmentTransitions)
+                                {
+                                    <option value="@status">@OrderAdminDisplay.FulfillmentStatusText(status)</option>
+                                }
+                            </select>
+                        </label>
+                        <label>
+                            <span>Lý do</span>
+                            <textarea name="Reason" maxlength="500" minlength="3" rows="3" required></textarea>
+                        </label>
+                        <button type="submit" class="btn btn-primary">Cập nhật giao hàng</button>
+                    </form>
+                }
+            </article>
+        </div>
+
+        <div class="order-safety-note">
+            Hủy đơn, trả hàng và hoàn tiền chưa được mở tại đây. Các thao tác đó phải đi qua workflow riêng ở những phase tiếp theo để tránh hoàn kho hoặc hoàn tiền hai lần.
+        </div>
+    </section>
+
+    <div class="order-details-layout">
+        <div class="order-details-main">
+            <section class="data-panel order-section">
+                <div class="order-section-heading">
+                    <div>
+                        <p class="eyebrow">Order snapshot</p>
+                        <h3>Sản phẩm trong đơn</h3>
+                    </div>
+                    <span>@Model.Items.Sum(item => item.Quantity) sản phẩm</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle order-detail-table">
+                        <thead>
+                            <tr>
+                                <th>Sản phẩm</th>
+                                <th>SKU</th>
+                                <th class="text-center">SL</th>
+                                <th class="text-end">Đơn giá</th>
+                                <th class="text-end">Thành tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="order-product-cell">
+                                            <img src="@(string.IsNullOrWhiteSpace(item.ImageUrl) ? "/images/no-image.png" : item.ImageUrl)"
+                                                 alt=""
+                                                 width="52"
+                                                 height="52" />
+                                            <div>
+                                                <strong>@item.ProductName</strong>
+                                                <small>@item.VariantDescription</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>@item.Sku</td>
+                                    <td class="text-center">@item.Quantity</td>
+                                    <td class="text-end">@item.UnitPrice.ToString("N0", culture) ₫</td>
+                                    <td class="text-end"><strong>@item.LineTotal.ToString("N0", culture) ₫</strong></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <dl class="order-money-summary">
+                    <div><dt>Tạm tính</dt><dd>@Model.Subtotal.ToString("N0", culture) ₫</dd></div>
+                    <div><dt>Phí vận chuyển</dt><dd>@Model.ShippingFee.ToString("N0", culture) ₫</dd></div>
+                    <div><dt>Giảm giá</dt><dd>-@Model.DiscountTotal.ToString("N0", culture) ₫</dd></div>
+                    <div><dt>Thuế</dt><dd>@Model.TaxTotal.ToString("N0", culture) ₫</dd></div>
+                    <div class="order-money-summary__grand"><dt>Tổng cộng</dt><dd>@Model.GrandTotal.ToString("N0", culture) ₫</dd></div>
+                </dl>
+            </section>
+
+            <section class="data-panel order-section">
+                <div class="order-section-heading">
+                    <div>
+                        <p class="eyebrow">Payment attempts</p>
+                        <h3>Giao dịch thanh toán</h3>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle order-detail-table">
+                        <thead>
+                            <tr>
+                                <th>Lần thử</th>
+                                <th>Provider / phương thức</th>
+                                <th>Trạng thái</th>
+                                <th>Mã giao dịch</th>
+                                <th class="text-end">Số tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var payment in Model.Payments)
+                            {
+                                <tr>
+                                    <td>#@payment.AttemptNumber</td>
+                                    <td>
+                                        <strong>@payment.Provider</strong>
+                                        <small>@payment.Method</small>
+                                    </td>
+                                    <td>
+                                        <span class="order-status order-status--@OrderAdminDisplay.CssToken(payment.Status)">
+                                            @OrderAdminDisplay.PaymentStatusText(payment.Status)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span>@(payment.ProviderTransactionId ?? payment.MerchantReference)</span>
+                                        @if (!string.IsNullOrWhiteSpace(payment.FailureMessage))
+                                        {
+                                            <small class="text-danger">@payment.FailureCode · @payment.FailureMessage</small>
+                                        }
+                                    </td>
+                                    <td class="text-end">@payment.Amount.ToString("N0", culture) ₫</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="data-panel order-section">
+                <div class="order-section-heading">
+                    <div>
+                        <p class="eyebrow">Shipment</p>
+                        <h3>Vận đơn</h3>
+                    </div>
+                </div>
+                @if (Model.Shipments.Count == 0)
+                {
+                    <div class="empty-state compact">
+                        <strong>Chưa có vận đơn</strong>
+                        <span>Không thể chuyển sang Shipped khi chưa có shipment hợp lệ.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="order-shipment-grid">
+                        @foreach (var shipment in Model.Shipments)
+                        {
+                            <article class="order-shipment-card">
+                                <header>
+                                    <div>
+                                        <strong>@shipment.Provider</strong>
+                                        <small>@(shipment.ServiceName ?? shipment.ServiceCode ?? "Chưa chọn dịch vụ")</small>
+                                    </div>
+                                    <span class="order-status order-status--@OrderAdminDisplay.CssToken(shipment.Status)">
+                                        @OrderAdminDisplay.ShipmentStatusText(shipment.Status)
+                                    </span>
+                                </header>
+                                <dl>
+                                    <div><dt>External code</dt><dd>@(shipment.ExternalOrderCode ?? "—")</dd></div>
+                                    <div><dt>Tracking</dt><dd>@(shipment.TrackingCode ?? "—")</dd></div>
+                                    <div><dt>Phí</dt><dd>@shipment.Fee.ToString("N0", culture) ₫</dd></div>
+                                    <div><dt>COD</dt><dd>@shipment.CodAmount.ToString("N0", culture) ₫</dd></div>
+                                    <div><dt>Shipper</dt><dd>@(shipment.ShipperName ?? "—") @(shipment.ShipperPhone)</dd></div>
+                                    <div><dt>Hub</dt><dd>@(shipment.CurrentHub ?? "—")</dd></div>
+                                </dl>
+                                @if (!string.IsNullOrWhiteSpace(shipment.ProviderReason))
+                                {
+                                    <p class="order-provider-reason">@shipment.ProviderReason</p>
+                                }
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="data-panel order-section">
+                <div class="order-section-heading">
+                    <div>
+                        <p class="eyebrow">Inventory audit</p>
+                        <h3>Giữ và trừ tồn kho</h3>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle order-detail-table">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th class="text-center">Số lượng</th>
+                                <th>Trạng thái</th>
+                                <th>Thời điểm</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var reservation in Model.Reservations)
+                            {
+                                <tr>
+                                    <td>@reservation.Sku</td>
+                                    <td class="text-center">@reservation.Quantity</td>
+                                    <td>
+                                        <span class="order-status order-status--@OrderAdminDisplay.CssToken(reservation.Status)">
+                                            @OrderAdminDisplay.ReservationStatusText(reservation.Status)
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span>Giữ: @reservation.ReservedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span>
+                                        @if (reservation.CommittedAt.HasValue)
+                                        {
+                                            <small>Commit: @reservation.CommittedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                                        }
+                                        @if (reservation.ReleasedAt.HasValue)
+                                        {
+                                            <small>Release: @reservation.ReleasedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <aside class="order-details-side">
+            <section class="data-panel order-section order-customer-card">
+                <div class="order-section-heading">
+                    <div>
+                        <p class="eyebrow">Customer snapshot</p>
+                        <h3>Người nhận</h3>
+                    </div>
+                </div>
+                <dl>
+                    <div><dt>Họ tên</dt><dd>@Model.CustomerName</dd></div>
+                    <div><dt>Email</dt><dd>@Model.CustomerEmail</dd></div>
+                    <div><dt>Điện thoại</dt><dd>@Model.CustomerPhone</dd></div>
+                    <div><dt>Địa chỉ</dt><dd>@Model.ShippingAddress</dd></div>
+                </dl>
+            </section>
+
+            <section class="data-panel order-section">
+                <div class="order-section-heading">
+                    <div>
+                        <p class="eyebrow">Audit timeline</p>
+                        <h3>Lịch sử trạng thái</h3>
+                    </div>
+                </div>
+                <ol class="order-timeline">
+                    @foreach (var entry in Model.Timeline)
+                    {
+                        <li>
+                            <span class="order-timeline__dot" aria-hidden="true"></span>
+                            <div>
+                                <header>
+                                    <strong>@entry.Title</strong>
+                                    <span>@OrderAdminDisplay.CategoryText(entry.Category)</span>
+                                </header>
+                                <p>@entry.FromStatus → @entry.ToStatus</p>
+                                @if (!string.IsNullOrWhiteSpace(entry.Description))
+                                {
+                                    <p>@entry.Description</p>
+                                }
+                                <small>
+                                    @entry.OccurredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") · @entry.ChangedBy
+                                </small>
+                            </div>
+                        </li>
+                    }
+                </ol>
+            </section>
+
+            <section class="data-panel order-section">
+                <div class="order-section-heading">
+                    <div>
+                        <p class="eyebrow">Integration state</p>
+                        <h3>Inbox / Outbox</h3>
+                    </div>
+                </div>
+                @if (Model.IntegrationMessages.Count == 0)
+                {
+                    <div class="order-operation-empty">Chưa có integration message cho đơn này.</div>
+                }
+                else
+                {
+                    <div class="order-integration-list">
+                        @foreach (var message in Model.IntegrationMessages)
+                        {
+                            <article>
+                                <header>
+                                    <strong>@message.Direction · @message.Provider</strong>
+                                    <span>@message.Status</span>
+                                </header>
+                                <p>@message.Type</p>
+                                <small>@message.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @message.AttemptCount lần thử</small>
+                                @if (!string.IsNullOrWhiteSpace(message.LastError))
+                                {
+                                    <small class="text-danger">@message.LastError</small>
+                                }
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+        </aside>
+    </div>
+</section>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/orders.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/pages/admin/orders.js" asp-append-version="true"></script>
+}
