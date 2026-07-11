@@ -24,11 +24,16 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<ProductImageStorageOptions>(
     builder.Configuration.GetSection(ProductImageStorageOptions.SectionName));
 builder.Services.AddSingleton<IProductImageStorage, LocalProductImageStorage>();
-builder.Services.AddScoped<IEffectivePriceService, EffectivePriceService>();
+
+// EffectivePriceService gốc giữ trách nhiệm preview/validation.
+// ReliableEffectivePriceService thay riêng phần projection CurrentPrice/PriceHistory.
+builder.Services.AddScoped<EffectivePriceService>();
+builder.Services.AddScoped<
+    IEffectivePriceService,
+    ReliableEffectivePriceService>();
 
 // Giữ implementation gốc cho SaveDraft/Activate/Cancel/Recover.
-// ReliablePriceCampaignWorkflowService thay riêng pipeline ConfirmDraft
-// để loại bỏ ép kiểu collection và phân loại lỗi theo từng stage.
+// ReliablePriceCampaignWorkflowService điều phối pipeline ConfirmDraft.
 builder.Services.AddScoped<PriceCampaignWorkflowService>();
 builder.Services.AddScoped<
     IPriceCampaignWorkflowService,
