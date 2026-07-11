@@ -2,83 +2,76 @@
 @model WebApplication2.ViewModels.Storefront.Home.ProductCardViewModel
 @{
     var culture = CultureInfo.GetCultureInfo("vi-VN");
-    var imageUrl = string.IsNullOrWhiteSpace(Model.ImageUrl)
-        ? "/images/no-image.png"
-        : Model.ImageUrl;
+    var imageUrl = string.IsNullOrWhiteSpace(Model.ImageUrl) ? "/images/no-image.png" : Model.ImageUrl;
     var productUrl = $"/products/{Uri.EscapeDataString(Model.Slug)}";
 }
 
-<article class="product-card"
-         data-product-card
-         data-product-id="@Model.Id">
-    <a href="@productUrl"
-       class="product-card__media-link"
+<article class="product-card" data-product-card data-product-id="@Model.Id"
+         data-tilt-card data-reveal>
+    <span class="product-card__shine" aria-hidden="true"></span>
+
+    <a href="@productUrl" class="product-card__media-link"
        aria-label="Xem sản phẩm @Model.Name">
         <div class="product-card__media">
-            <img src="@imageUrl"
-                 alt="@Model.Name"
-                 width="320"
-                 height="320"
-                 loading="lazy"
-                 decoding="async" />
-            @if (Model.IsOnSale && Model.DiscountPercentage > 0)
-            {
-                <span class="product-card__discount">
-                    Giảm @Model.DiscountPercentage.ToString("0")%
-                </span>
-            }
+            <span class="product-card__media-grid" aria-hidden="true"></span>
+            <img src="@imageUrl" alt="@Model.Name" width="360" height="360"
+                 loading="lazy" decoding="async" data-progressive-image />
+            <span class="product-card__quick-label">Xem chi tiết</span>
+            <div class="product-card__badges">
+                @if (Model.IsOnSale && Model.DiscountPercentage > 0)
+                {
+                    <span class="product-card__badge product-card__badge--sale">
+                        -@Model.DiscountPercentage.ToString("0")%
+                    </span>
+                }
+                @if (Model.HasAvailableStock)
+                {
+                    <span class="product-card__badge product-card__badge--stock">Sẵn hàng</span>
+                }
+            </div>
         </div>
     </a>
 
     <div class="product-card__body">
-        <a href="@productUrl"
-           class="product-card__name-link">
+        <div class="product-card__meta">
+            <span>@Model.VariantCount biến thể</span><i aria-hidden="true"></i>
+            <span>@Model.AvailableVariantCount còn hàng</span>
+        </div>
+
+        <a href="@productUrl" class="product-card__name-link">
             <h3 class="product-card__name">@Model.Name</h3>
         </a>
 
         <div class="product-card__pricing">
             @if (Model.ShowFromPrice)
             {
-                <span class="product-card__price-prefix">Từ</span>
+                <span class="product-card__price-prefix">Giá từ</span>
             }
             @if (Model.IsOnSale && Model.OriginalPrice > Model.EffectivePrice)
             {
-                <span class="product-card__original-price">
-                    @Model.OriginalPrice.ToString("N0", culture) ₫
-                </span>
+                <span class="product-card__original-price">@Model.OriginalPrice.ToString("N0", culture) ₫</span>
             }
-            <strong class="product-card__effective-price">
-                @Model.EffectivePrice.ToString("N0", culture) ₫
-            </strong>
+            <strong class="product-card__effective-price">@Model.EffectivePrice.ToString("N0", culture) ₫</strong>
         </div>
 
-        <span class="product-card__stock @(Model.HasAvailableStock ? "is-available" : "is-unavailable")">
-            @(Model.HasAvailableStock
-                ? $"{Model.AvailableVariantCount}/{Model.VariantCount} biến thể còn hàng"
-                : "Hết hàng")
-        </span>
+        <div class="product-card__availability @(Model.HasAvailableStock ? "is-available" : "is-unavailable")">
+            <span aria-hidden="true"></span>
+            @(Model.HasAvailableStock ? "Có thể chọn biến thể và mua ngay" : "Tạm hết hàng")
+        </div>
 
-        <div class="product-card__actions"
-             aria-label="Thao tác mua @Model.Name">
-            <button type="button"
-                    class="button button--secondary product-card__action product-card__action--cart"
-                    data-open-variant-picker
-                    data-product-id="@Model.Id"
-                    data-product-url="@productUrl"
-                    data-cart-intent="add"
+        <div class="product-card__actions" aria-label="Thao tác mua @Model.Name">
+            <button type="button" class="button button--ghost product-card__action"
+                    data-open-variant-picker data-product-id="@Model.Id"
+                    data-product-url="@productUrl" data-cart-intent="add"
                     disabled="@(!Model.HasAvailableStock)">
-                <span aria-hidden="true">＋</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
                 <span>Thêm vào giỏ</span>
             </button>
-
-            <button type="button"
-                    class="button button--primary product-card__action product-card__action--buy"
-                    data-open-variant-picker
-                    data-product-id="@Model.Id"
-                    data-product-url="@productUrl"
-                    data-cart-intent="buy-now"
+            <button type="button" class="button button--primary product-card__action"
+                    data-open-variant-picker data-product-id="@Model.Id"
+                    data-product-url="@productUrl" data-cart-intent="buy-now"
                     disabled="@(!Model.HasAvailableStock)">
-                <span aria-hidden="true">⚡</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m13 2-8 12h7l-1 8 8-12h-7l1-8Z" /></svg>
                 <span>Mua ngay</span>
             </button>
         </div>

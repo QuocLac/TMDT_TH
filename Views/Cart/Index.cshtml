@@ -6,27 +6,42 @@
 }
 
 <section class="cart-page shell-container" data-cart-page>
-    <header class="cart-page__heading">
-        <div>
-            <p class="eyebrow">Session cart</p>
+    <header class="cart-masthead" data-reveal>
+        <div class="cart-masthead__content">
+            <span class="hero-pill"><i aria-hidden="true"></i>Session shopping cart</span>
             <h1>Giỏ hàng của bạn</h1>
-            <p>Giá và tồn kho được kiểm tra lại từ database ở mọi thao tác. Chưa tạo đơn hàng hoặc trừ kho trong phase này.</p>
+            <p>Giá và tồn kho được đối chiếu lại với database ở từng thao tác trước khi tính tiền.</p>
         </div>
-        <a asp-controller="Home" asp-action="Index" asp-fragment="products" class="button button--secondary">← Tiếp tục mua sắm</a>
+        <a asp-controller="Home" asp-action="Index" asp-fragment="products"
+           class="button button--glass">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+            Tiếp tục mua sắm
+        </a>
+        <span class="cart-masthead__orb" aria-hidden="true"></span>
     </header>
 
-    <div class="cart-page__notice" role="note">
-        <strong>Chế độ thử nghiệm:</strong>
-        giỏ hàng và thông tin khách hàng được lưu trong Session của trình duyệt, chưa cần đăng nhập và không ghi tài khoản vào database.
+    <ol class="cart-steps" aria-label="Tiến trình mua hàng" data-reveal>
+        <li class="is-active"><span>1</span><strong>Giỏ hàng</strong></li>
+        <li><span>2</span><strong>Kiểm tra</strong></li>
+        <li><span>3</span><strong>Đặt hàng</strong></li>
+    </ol>
+
+    <div class="cart-page__notice" role="note" data-reveal>
+        <span class="cart-page__notice-icon" aria-hidden="true">i</span>
+        <div>
+            <strong>Chế độ thử nghiệm</strong>
+            <p>Giỏ hàng và thông tin khách hàng được lưu trong Session của trình duyệt. Chưa tạo đơn hàng hoặc giữ tồn kho.</p>
+        </div>
     </div>
 
-    <section class="mock-customer" aria-labelledby="mock-customer-heading">
+    <section class="mock-customer" aria-labelledby="mock-customer-heading" data-reveal>
         <div class="mock-customer__heading">
             <div>
                 <p class="eyebrow">Mock account</p>
                 <h2 id="mock-customer-heading">Thông tin khách hàng thử nghiệm</h2>
+                <p>Dữ liệu này chỉ phục vụ kiểm thử luồng giỏ hàng trước khi phát triển đăng nhập.</p>
             </div>
-            <span class="mock-customer__badge">Chưa đăng nhập</span>
+            <span class="mock-customer__badge"><i aria-hidden="true"></i>Session profile</span>
         </div>
 
         <form class="mock-customer__form" data-mock-customer-form novalidate>
@@ -58,9 +73,10 @@
                 <span>Tỉnh/thành phố</span>
                 <input name="city" maxlength="100" required value="@Model.Customer.City" />
             </label>
+
             <div class="mock-customer__actions">
-                <button type="submit" class="button button--secondary" data-save-mock-customer>
-                    Lưu vào Session
+                <button type="submit" class="button button--ghost" data-save-mock-customer>
+                    Lưu thông tin vào Session
                 </button>
                 <span data-customer-save-status role="status"></span>
             </div>
@@ -69,24 +85,25 @@
 
     @if (Model.IsEmpty)
     {
-        <section class="empty-state cart-empty" data-cart-empty>
+        <section class="empty-state cart-empty" data-cart-empty data-reveal>
+            <span class="empty-state__icon" aria-hidden="true">🛒</span>
             <h2>Giỏ hàng đang trống</h2>
             <p>Chọn “Thêm vào giỏ” hoặc “Mua ngay” tại trang chủ để bắt đầu kiểm thử.</p>
-            <a asp-controller="Home" asp-action="Index" asp-fragment="products" class="button button--primary">Khám phá sản phẩm</a>
+            <a asp-controller="Home" asp-action="Index" asp-fragment="products"
+               class="button button--primary">Khám phá sản phẩm</a>
         </section>
     }
     else
     {
         <div class="cart-layout" data-cart-content>
-            <section class="cart-lines" aria-labelledby="cart-lines-heading">
+            <section class="cart-lines" aria-labelledby="cart-lines-heading" data-reveal>
                 <header class="cart-lines__toolbar">
                     <label class="cart-select-all">
-                        <input type="checkbox"
-                               data-cart-select-all
-                               checked="@Model.AllAvailableSelected" />
+                        <input type="checkbox" data-cart-select-all checked="@Model.AllAvailableSelected" />
+                        <span class="custom-check" aria-hidden="true"></span>
                         <span>Chọn tất cả sản phẩm còn hàng</span>
                     </label>
-                    <span>
+                    <span class="cart-lines__count">
                         <strong data-cart-line-count>@Model.TotalLineCount</strong> dòng ·
                         <strong data-cart-total-quantity>@Model.TotalQuantity</strong> sản phẩm
                     </span>
@@ -102,23 +119,27 @@
                                  data-variant-id="@item.VariantId"
                                  data-unit-price="@item.EffectivePrice.ToString(CultureInfo.InvariantCulture)">
                             <div class="cart-line__select">
-                                <input type="checkbox"
-                                       aria-label="Chọn @item.ProductName - @item.VariantDescription"
-                                       data-cart-line-select
-                                       checked="@item.IsSelected"
-                                       disabled="@(!item.CanSelect)" />
+                                <label>
+                                    <input type="checkbox"
+                                           aria-label="Chọn @item.ProductName - @item.VariantDescription"
+                                           data-cart-line-select
+                                           checked="@item.IsSelected"
+                                           disabled="@(!item.CanSelect)" />
+                                    <span class="custom-check" aria-hidden="true"></span>
+                                </label>
                             </div>
 
-                            <a href="/products/@Uri.EscapeDataString(item.ProductSlug)" class="cart-line__media" tabindex="-1">
-                                <img src="@item.ImageUrl"
-                                     alt="@item.ProductName"
-                                     width="140"
-                                     height="140"
-                                     loading="lazy" />
+                            <a href="/products/@Uri.EscapeDataString(item.ProductSlug)"
+                               class="cart-line__media" tabindex="-1">
+                                <span class="cart-line__media-grid" aria-hidden="true"></span>
+                                <img src="@item.ImageUrl" alt="@item.ProductName"
+                                     width="160" height="160" loading="lazy"
+                                     data-progressive-image />
                             </a>
 
                             <div class="cart-line__identity">
-                                <a href="/products/@Uri.EscapeDataString(item.ProductSlug)" class="cart-line__name">@item.ProductName</a>
+                                <a href="/products/@Uri.EscapeDataString(item.ProductSlug)"
+                                   class="cart-line__name">@item.ProductName</a>
                                 <span class="cart-line__variant">@item.VariantDescription</span>
                                 <span class="cart-line__sku">SKU: @item.Sku</span>
                                 @if (item.PriceChanged)
@@ -132,30 +153,27 @@
                             </div>
 
                             <div class="cart-line__price">
+                                <small>Đơn giá</small>
                                 @if (item.IsOnSale)
                                 {
                                     <span>@item.OriginalPrice.ToString("N0", culture) ₫</span>
                                 }
                                 <strong data-cart-unit-price>@item.EffectivePrice.ToString("N0", culture) ₫</strong>
-                                <small>Còn @item.StockQuantity</small>
+                                <em>Còn @item.StockQuantity</em>
                             </div>
 
                             <div class="cart-line__quantity">
+                                <small>Số lượng</small>
                                 <div class="quantity-control">
-                                    <button type="button"
-                                            data-cart-quantity-minus
+                                    <button type="button" data-cart-quantity-minus
                                             aria-label="Giảm số lượng @item.ProductName"
                                             disabled="@(item.Quantity <= 1 || !item.IsAvailable)">−</button>
-                                    <input type="number"
-                                           min="1"
-                                           max="@Math.Max(1, item.MaxQuantity)"
-                                           value="@item.Quantity"
-                                           inputmode="numeric"
+                                    <input type="number" min="1" max="@Math.Max(1, item.MaxQuantity)"
+                                           value="@item.Quantity" inputmode="numeric"
                                            data-cart-quantity
                                            aria-label="Số lượng @item.ProductName"
                                            disabled="@(!item.IsAvailable)" />
-                                    <button type="button"
-                                            data-cart-quantity-plus
+                                    <button type="button" data-cart-quantity-plus
                                             aria-label="Tăng số lượng @item.ProductName"
                                             disabled="@(item.Quantity >= item.MaxQuantity || !item.IsAvailable)">+</button>
                                 </div>
@@ -165,34 +183,22 @@
                             <div class="cart-line__total">
                                 <span>Thành tiền</span>
                                 <strong data-cart-line-total>@item.LineTotal.ToString("N0", culture) ₫</strong>
-                                <button type="button"
-                                        class="cart-line__remove"
-                                        data-cart-remove>
-                                    Xóa
-                                </button>
+                                <button type="button" class="cart-line__remove" data-cart-remove>Xóa khỏi giỏ</button>
                             </div>
                         </article>
                     }
                 </div>
             </section>
 
-            <aside class="cart-summary" aria-labelledby="cart-summary-heading">
+            <aside class="cart-summary" aria-labelledby="cart-summary-heading" data-reveal>
+                <span class="cart-summary__shine" aria-hidden="true"></span>
                 <p class="eyebrow">Tạm tính</p>
                 <h2 id="cart-summary-heading">Sản phẩm đã chọn</h2>
 
                 <dl>
-                    <div>
-                        <dt>Số dòng đã chọn</dt>
-                        <dd data-cart-selected-lines>@Model.SelectedLineCount</dd>
-                    </div>
-                    <div>
-                        <dt>Số lượng</dt>
-                        <dd data-cart-selected-quantity>@Model.SelectedQuantity</dd>
-                    </div>
-                    <div>
-                        <dt>Sản phẩm cần kiểm tra</dt>
-                        <dd data-cart-unavailable-count>@Model.UnavailableLineCount</dd>
-                    </div>
+                    <div><dt>Số dòng đã chọn</dt><dd data-cart-selected-lines>@Model.SelectedLineCount</dd></div>
+                    <div><dt>Số lượng</dt><dd data-cart-selected-quantity>@Model.SelectedQuantity</dd></div>
+                    <div><dt>Cần kiểm tra</dt><dd data-cart-unavailable-count>@Model.UnavailableLineCount</dd></div>
                     <div class="cart-summary__total">
                         <dt>Tổng tạm tính</dt>
                         <dd data-cart-selected-subtotal>@Model.SelectedSubtotal.ToString("N0", culture) ₫</dd>
@@ -204,20 +210,17 @@
                         data-prepare-checkout
                         disabled="@(!Model.HasSelectedItems)">
                     Kiểm tra giỏ hàng đã chọn
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
                 </button>
 
                 <p class="cart-summary__hint">
-                    Chưa giữ chỗ hoặc trừ tồn kho. Tồn kho được kiểm tra lại ngay khi bấm nút này.
+                    Chưa giữ chỗ hoặc trừ tồn kho. Hệ thống kiểm tra lại khi bấm nút.
                 </p>
                 <div class="cart-summary__result" data-checkout-result role="status" hidden></div>
             </aside>
         </div>
     }
 </section>
-
-@section Styles {
-    <link rel="stylesheet" href="~/css/pages/storefront/cart.css" asp-append-version="true" />
-}
 
 @section Scripts {
     <script src="~/js/pages/storefront/cart.js" asp-append-version="true"></script>

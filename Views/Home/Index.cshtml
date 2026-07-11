@@ -3,59 +3,109 @@
     ViewData["Title"] = string.IsNullOrWhiteSpace(Model.Query)
         ? "Trang chủ"
         : $"Tìm kiếm: {Model.Query}";
+
+    var categoryCount = Model.Categories?.Count() ?? 0;
+    var productCount = Model.SuggestedProducts?.Count() ?? 0;
 }
 
-<section class="home-hero" aria-labelledby="home-hero-title">
-    <div class="shell-container home-hero__grid">
+<section class="home-hero shell-container"
+         aria-labelledby="home-hero-title"
+         data-hero
+         data-reveal>
+    <div class="home-hero__surface">
+        <span class="home-hero__mesh" aria-hidden="true"></span>
+        <span class="home-hero__scan" aria-hidden="true"></span>
+        <span class="home-hero__orb home-hero__orb--one" aria-hidden="true"></span>
+        <span class="home-hero__orb home-hero__orb--two" aria-hidden="true"></span>
+
         <div class="home-hero__content">
-            <p class="eyebrow">FastBuy Marketplace</p>
+            <span class="hero-pill"><i aria-hidden="true"></i>FastBuy shopping system</span>
+
             @if (!string.IsNullOrWhiteSpace(Model.Query))
             {
-                <h2 id="home-hero-title">Kết quả cho “@Model.Query”</h2>
-                <p>Khám phá các sản phẩm phù hợp với từ khóa bạn đang tìm kiếm.</p>
+                <h1 id="home-hero-title">
+                    Kết quả dành cho
+                    <span>“@Model.Query”</span>
+                </h1>
+                <p>Khám phá sản phẩm phù hợp và chọn đúng biến thể với giá cùng tồn kho mới nhất.</p>
             }
             else
             {
-                <h2 id="home-hero-title">Mua sắm thuận tiện cho mọi nhu cầu</h2>
-                <p>Khám phá sản phẩm từ nhiều ngành hàng trong một trải nghiệm rõ ràng, nhanh và dễ sử dụng.</p>
+                <h1 id="home-hero-title">
+                    Mua đúng biến thể.
+                    <span>Chạm đúng mức giá.</span>
+                </h1>
+                <p>Trải nghiệm mua sắm đa ngành hàng với giá hiệu lực, tồn kho thực tế và giỏ hàng Session được kiểm tra ở từng thao tác.</p>
             }
+
             <div class="home-hero__actions">
-                <a class="button button--primary" href="#products">Xem sản phẩm</a>
-                <a class="button button--secondary" href="#categories">Khám phá danh mục</a>
+                <a class="button button--primary button--hero" href="#products">
+                    <span>Khám phá sản phẩm</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
+                </a>
+                <a class="button button--glass" href="#categories">Xem danh mục</a>
+            </div>
+
+            <div class="home-hero__metrics" aria-label="Thông tin dữ liệu hiện tại">
+                <div><strong>@categoryCount</strong><span>Danh mục</span></div>
+                <div><strong>@productCount</strong><span>Sản phẩm gợi ý</span></div>
+                <div><strong>Live</strong><span>Giá và tồn kho</span></div>
             </div>
         </div>
 
-        <aside class="home-hero__catalog" aria-label="Danh mục nổi bật">
-            <span class="home-hero__catalog-label">Duyệt nhanh theo danh mục</span>
-            @if (Model.Categories != null && Model.Categories.Any())
-            {
-                <ul>
-                    @foreach (var category in Model.Categories.Take(4))
-                    {
-                        <li>
-                            <a asp-controller="Home"
-                               asp-action="Index"
-                               asp-route-categoryId="@category.Id">
-                                <span>@category.Name</span>
-                                <span aria-hidden="true">→</span>
-                            </a>
-                        </li>
-                    }
-                </ul>
-            }
-            else
-            {
-                <p class="home-hero__catalog-empty">Danh mục sẽ xuất hiện khi dữ liệu sẵn sàng.</p>
-            }
-        </aside>
+        <div class="home-hero__visual" aria-hidden="true">
+            <span class="hero-visual__ring hero-visual__ring--outer"></span>
+            <span class="hero-visual__ring hero-visual__ring--inner"></span>
+
+            <div class="hero-visual__core">
+                <span class="hero-visual__core-mark">FB</span>
+                <strong>FastBuy Select</strong>
+                <small>Smart variant shopping</small>
+            </div>
+
+            <div class="hero-float-card hero-float-card--price">
+                <span>Giá theo biến thể</span>
+                <strong>Live pricing</strong>
+            </div>
+            <div class="hero-float-card hero-float-card--stock">
+                <span class="hero-float-card__dot"></span>
+                <div><strong>Tồn kho sẵn sàng</strong><small>Kiểm tra từ database</small></div>
+            </div>
+            <div class="hero-float-card hero-float-card--cart">
+                <span>Session</span>
+                <strong>Smart Cart</strong>
+            </div>
+        </div>
     </div>
 </section>
 
+<section class="trust-rail shell-container" aria-label="Lợi ích mua sắm" data-reveal>
+    <article>
+        <span class="trust-rail__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="m12 3 8 4v5c0 5-3.4 8-8 9-4.6-1-8-4-8-9V7l8-4Zm-3 9 2 2 4-4" /></svg>
+        </span>
+        <div><strong>Dữ liệu đáng tin cậy</strong><span>Giá lấy từ biến thể hiệu lực</span></div>
+    </article>
+    <article>
+        <span class="trust-rail__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 7h16v10H4zM8 7V5h8v2M8 12h8" /></svg>
+        </span>
+        <div><strong>Tồn kho theo thời điểm</strong><span>Kiểm tra lại trước mỗi thao tác</span></div>
+    </article>
+    <article>
+        <span class="trust-rail__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5" /></svg>
+        </span>
+        <div><strong>Giỏ hàng linh hoạt</strong><span>Lưu bằng Session, chưa cần đăng nhập</span></div>
+    </article>
+</section>
+
 <section id="categories" class="home-section shell-container" aria-labelledby="category-heading">
-    <div class="section-heading">
+    <div class="section-heading" data-reveal>
         <div>
-            <p class="eyebrow">Danh mục</p>
-            <h2 id="category-heading">Khám phá theo nhu cầu</h2>
+            <p class="eyebrow">Khám phá nhanh</p>
+            <h2 id="category-heading">Chọn ngành hàng phù hợp</h2>
+            <p class="section-heading__description">Đi từ nhu cầu đến đúng nhóm sản phẩm chỉ trong một bước.</p>
         </div>
         @if (Model.CategoryId.HasValue)
         {
@@ -66,38 +116,52 @@
     @if (Model.Categories != null && Model.Categories.Any())
     {
         <div class="category-grid">
+            @{
+                var categoryIndex = 0;
+            }
             @foreach (var category in Model.Categories)
             {
                 var isSelected = Model.CategoryId == category.Id;
+                categoryIndex++;
                 <a asp-controller="Home"
                    asp-action="Index"
                    asp-route-query="@Model.Query"
                    asp-route-categoryId="@category.Id"
                    class="category-card @(isSelected ? "is-selected" : null)"
-                   aria-current="@(isSelected ? "page" : null)">
+                   aria-current="@(isSelected ? "page" : null)"
+                   data-reveal>
+                    <span class="category-card__number">@categoryIndex.ToString("00")</span>
                     <span class="category-card__mark" aria-hidden="true">@category.Name[..1].ToUpperInvariant()</span>
-                    <span>@category.Name</span>
+                    <span class="category-card__copy">
+                        <strong>@category.Name</strong>
+                        <small>Xem sản phẩm</small>
+                    </span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
                 </a>
             }
         </div>
     }
     else
     {
-        <div class="empty-state">
+        <div class="empty-state" data-reveal>
+            <span class="empty-state__icon" aria-hidden="true">◎</span>
             <h3>Chưa có danh mục</h3>
-            <p>Danh mục sản phẩm sẽ được hiển thị tại đây khi có dữ liệu.</p>
+            <p>Danh mục sản phẩm sẽ được hiển thị tại đây khi dữ liệu sẵn sàng.</p>
         </div>
     }
 </section>
 
 @if (Model.FlashSaleProducts != null && Model.FlashSaleProducts.Any())
 {
-    <section class="home-section home-section--campaign shell-container" aria-labelledby="campaign-heading">
-        <div class="section-heading section-heading--campaign">
+    <section class="campaign-banner shell-container" aria-labelledby="campaign-heading" data-reveal>
+        <span class="campaign-banner__glow" aria-hidden="true"></span>
+        <div class="campaign-banner__heading">
             <div>
                 <p class="eyebrow">Giá đang áp dụng</p>
-                <h2 id="campaign-heading">Ưu đãi hiện tại</h2>
+                <h2 id="campaign-heading">Ưu đãi đang chuyển động</h2>
+                <p>Mức giá được lấy trực tiếp từ campaign hiệu lực của từng biến thể.</p>
             </div>
+
             @if (Model.FlashSaleEndsAt.HasValue)
             {
                 var flashSaleEnd = Model.FlashSaleEndsAt.Value.ToUniversalTime();
@@ -107,18 +171,15 @@
                       data-countdown-end="@flashSaleEnd.ToString("O")"
                       aria-label="Thời gian còn lại của ưu đãi">
                     <span class="countdown__label">Kết thúc sau</span>
-                    <span class="countdown__value" data-countdown-days>00</span>
-                    <span class="countdown__unit">ngày</span>
-                    <span class="countdown__value" data-countdown-hours>00</span>
-                    <span aria-hidden="true">:</span>
-                    <span class="countdown__value" data-countdown-minutes>00</span>
-                    <span aria-hidden="true">:</span>
-                    <span class="countdown__value" data-countdown-seconds>00</span>
+                    <span class="countdown__group"><strong data-countdown-days>00</strong><small>ngày</small></span>
+                    <span class="countdown__group"><strong data-countdown-hours>00</strong><small>giờ</small></span>
+                    <span class="countdown__group"><strong data-countdown-minutes>00</strong><small>phút</small></span>
+                    <span class="countdown__group"><strong data-countdown-seconds>00</strong><small>giây</small></span>
                 </time>
             }
         </div>
 
-        <div class="product-grid">
+        <div class="product-grid product-grid--campaign">
             @foreach (var product in Model.FlashSaleProducts)
             {
                 <partial name="Components/_ProductCard" model="product" />
@@ -127,14 +188,16 @@
     </section>
 }
 
-<section id="products" class="home-section shell-container" aria-labelledby="product-heading">
-    <div class="section-heading">
+<section id="products" class="home-section home-section--products shell-container" aria-labelledby="product-heading">
+    <div class="section-heading" data-reveal>
         <div>
-            <p class="eyebrow">Sản phẩm</p>
+            <p class="eyebrow">FastBuy selection</p>
             <h2 id="product-heading">
-                @(string.IsNullOrWhiteSpace(Model.Query) ? "Khám phá sản phẩm" : "Kết quả tìm kiếm")
+                @(string.IsNullOrWhiteSpace(Model.Query) ? "Sản phẩm dành cho bạn" : "Kết quả tìm kiếm")
             </h2>
+            <p class="section-heading__description">Giá hiển thị là mức thấp nhất trong các biến thể đang hoạt động.</p>
         </div>
+        <span class="section-heading__count">@productCount sản phẩm</span>
     </div>
 
     @if (Model.SuggestedProducts != null && Model.SuggestedProducts.Any())
@@ -148,39 +211,43 @@
     }
     else
     {
-        <div class="empty-state">
+        <div class="empty-state" data-reveal>
+            <span class="empty-state__icon" aria-hidden="true">⌕</span>
             <h3>Không tìm thấy sản phẩm phù hợp</h3>
             <p>Hãy thử một từ khóa khác hoặc xóa bộ lọc danh mục.</p>
-            <a asp-controller="Home" asp-action="Index" class="button button--secondary">Xem tất cả sản phẩm</a>
+            <a asp-controller="Home" asp-action="Index" class="button button--ghost">Xem tất cả sản phẩm</a>
         </div>
     }
 </section>
 
 <dialog class="variant-picker" data-variant-picker aria-labelledby="variant-picker-title">
     <div class="variant-picker__panel">
+        <span class="variant-picker__ambient" aria-hidden="true"></span>
+
         <header class="variant-picker__header">
             <div>
                 <p class="eyebrow">Chọn nhanh biến thể</p>
                 <h2 id="variant-picker-title" data-picker-product-name>Đang tải sản phẩm</h2>
             </div>
-            <button type="button"
-                    class="variant-picker__close"
-                    data-picker-close
-                    aria-label="Đóng cửa sổ chọn biến thể">×</button>
+            <button type="button" class="variant-picker__close"
+                    data-picker-close aria-label="Đóng cửa sổ chọn biến thể">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+            </button>
         </header>
 
         <div class="variant-picker__content">
             <div class="variant-picker__media">
-                <img src="/images/no-image.png"
-                     alt=""
-                     width="360"
-                     height="360"
-                     data-picker-image />
+                <span class="variant-picker__media-grid" aria-hidden="true"></span>
+                <img src="/images/no-image.png" alt="" width="420" height="420"
+                     data-picker-image data-progressive-image />
             </div>
 
             <div class="variant-picker__configuration">
                 <div class="variant-picker__loading" data-picker-loading>
-                    Đang tải biến thể và tồn kho mới nhất…
+                    <div class="skeleton skeleton--title"></div>
+                    <div class="skeleton skeleton--line"></div>
+                    <div class="skeleton skeleton--options"></div>
+                    <span>Đang đồng bộ biến thể và tồn kho mới nhất…</span>
                 </div>
 
                 <div data-picker-ready hidden>
@@ -192,7 +259,8 @@
 
                     <div class="variant-picker__attributes" data-picker-attributes></div>
 
-                    <div class="variant-picker__selection-status" data-picker-status role="status">
+                    <div class="variant-picker__selection-status"
+                         data-picker-status role="status">
                         Hãy chọn đầy đủ thuộc tính để xác định đúng biến thể.
                     </div>
 
@@ -200,40 +268,24 @@
                         <label for="quick-cart-quantity">Số lượng</label>
                         <div class="quantity-control">
                             <button type="button" data-picker-quantity-minus aria-label="Giảm số lượng">−</button>
-                            <input id="quick-cart-quantity"
-                                   type="number"
-                                   min="1"
-                                   max="1"
-                                   value="1"
-                                   inputmode="numeric"
-                                   data-picker-quantity />
+                            <input id="quick-cart-quantity" type="number" min="1" max="1"
+                                   value="1" inputmode="numeric" data-picker-quantity />
                             <button type="button" data-picker-quantity-plus aria-label="Tăng số lượng">+</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="variant-picker__error app-alert app-alert--danger"
-                     data-picker-error
-                     role="alert"
-                     hidden></div>
+                     data-picker-error role="alert" hidden></div>
             </div>
         </div>
 
         <footer class="variant-picker__footer">
-            <button type="button" class="button button--secondary" data-picker-close>Quay lại</button>
-            <button type="button"
-                    class="button button--primary"
-                    data-picker-confirm
-                    disabled>
-                Thêm vào giỏ
-            </button>
+            <button type="button" class="button button--glass" data-picker-close>Quay lại</button>
+            <button type="button" class="button button--primary" data-picker-confirm disabled>Thêm vào giỏ</button>
         </footer>
     </div>
 </dialog>
-
-@section Styles {
-    <link rel="stylesheet" href="~/css/pages/storefront/home.css" asp-append-version="true" />
-}
 
 @section Scripts {
     <script src="~/js/pages/storefront/home.js" asp-append-version="true"></script>

@@ -9,6 +9,9 @@
     var antiforgeryTokens = Antiforgery.GetAndStoreTokens(Context);
     var cartHeader = CartService.GetHeaderSnapshot();
     var mockCustomer = CartService.GetMockCustomer();
+    var mockInitial = string.IsNullOrWhiteSpace(mockCustomer.FullName)
+        ? "K"
+        : mockCustomer.FullName.Trim()[0].ToString().ToUpperInvariant();
 }
 <!DOCTYPE html>
 <html lang="vi" data-theme="light" data-event-theme="@eventTheme">
@@ -16,77 +19,102 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#244515" />
     <meta name="request-verification-token" content="@antiforgeryTokens.RequestToken" />
     <title>@ViewData["Title"] - FastBuy</title>
     <script src="~/js/layouts/theme.js" asp-append-version="true"></script>
-    @* Storefront, product card và cart UI dùng chung một bundle để tránh tải thiếu CSS component. *@
     <link rel="stylesheet" href="~/css/storefront.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
 </head>
-<body class="storefront-shell">
+<body class="storefront-shell" data-storefront>
+    <div class="page-loader" data-page-loader aria-hidden="true">
+        <div class="page-loader__brand">
+            <span class="page-loader__mark">FB</span>
+            <span>FastBuy</span>
+        </div>
+        <span class="page-loader__track"><span></span></span>
+    </div>
+
+    <div class="scroll-progress" data-scroll-progress aria-hidden="true"></div>
+
+    <div class="storefront-backdrop" aria-hidden="true">
+        <span class="storefront-backdrop__grid"></span>
+        <span class="storefront-backdrop__orb storefront-backdrop__orb--one"></span>
+        <span class="storefront-backdrop__orb storefront-backdrop__orb--two"></span>
+        <span class="storefront-backdrop__orb storefront-backdrop__orb--three"></span>
+    </div>
+
     <a class="skip-link" href="#main-content">Bỏ qua đến nội dung chính</a>
 
-    <div class="storefront-topbar">
-        <div class="shell-container storefront-topbar__inner">
-            <span>Mua sắm đa ngành hàng trên một nền tảng</span>
-            <a asp-area="Admin" asp-controller="Home" asp-action="Index">Khu vực quản trị</a>
+    <div class="announcement-bar" aria-label="Thông báo mua sắm">
+        <div class="announcement-bar__track">
+            <span>Giá bán theo đúng biến thể</span>
+            <span>Tồn kho được kiểm tra trực tiếp</span>
+            <span>Giỏ hàng Session không cần đăng nhập</span>
+            <span>FastBuy Marketplace đa ngành hàng</span>
+            <span aria-hidden="true">Giá bán theo đúng biến thể</span>
+            <span aria-hidden="true">Tồn kho được kiểm tra trực tiếp</span>
+            <span aria-hidden="true">Giỏ hàng Session không cần đăng nhập</span>
+            <span aria-hidden="true">FastBuy Marketplace đa ngành hàng</span>
         </div>
     </div>
 
-    <header class="storefront-header">
+    <header class="storefront-header" data-storefront-header>
         <div class="shell-container storefront-header__inner">
-            <a asp-area="" asp-controller="Home" asp-action="Index" class="brand" aria-label="FastBuy - Trang chủ">
-                <span class="brand__mark" aria-hidden="true">FB</span>
+            <a asp-area="" asp-controller="Home" asp-action="Index"
+               class="brand" aria-label="FastBuy - Trang chủ">
+                <span class="brand__mark" aria-hidden="true"><span>FB</span><i></i></span>
                 <span class="brand__copy">
                     <strong>FastBuy</strong>
                     <small>Marketplace</small>
                 </span>
             </a>
 
-            <form asp-area="" asp-controller="Home" asp-action="Index" method="get" class="storefront-search" role="search">
+            <form asp-area="" asp-controller="Home" asp-action="Index"
+                  method="get" class="storefront-search" role="search">
                 <label class="visually-hidden" for="global-search">Tìm kiếm sản phẩm</label>
-                <input id="global-search"
-                       name="query"
-                       type="search"
+                <span class="storefront-search__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="m21 21-4.2-4.2m1.2-5.3A6.5 6.5 0 1 1 5 11.5a6.5 6.5 0 0 1 13 0Z" /></svg>
+                </span>
+                <input id="global-search" name="query" type="search"
                        value="@currentQuery"
                        placeholder="Tìm sản phẩm, thương hiệu hoặc SKU"
                        autocomplete="off" />
-                <button type="submit">Tìm kiếm</button>
+                <button type="submit">
+                    <span>Tìm kiếm</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+                </button>
             </form>
 
             <div class="storefront-header__actions">
-                <a asp-area=""
-                   asp-controller="Cart"
-                   asp-action="Index"
-                   class="mock-account-chip"
+                <a asp-area="" asp-controller="Cart" asp-action="Index"
+                   class="header-action mock-account-chip"
                    title="Tài khoản thử nghiệm chưa có đăng nhập">
-                    <span class="mock-account-chip__avatar" aria-hidden="true">@mockCustomer.FullName[..1].ToUpperInvariant()</span>
+                    <span class="mock-account-chip__avatar" aria-hidden="true">@mockInitial</span>
                     <span class="mock-account-chip__copy">
                         <strong data-mock-account-name>@mockCustomer.FullName</strong>
                         <small>Khách thử nghiệm</small>
                     </span>
                 </a>
 
-                <a asp-area=""
-                   asp-controller="Cart"
-                   asp-action="Index"
-                   class="cart-link"
+                <a asp-area="" asp-controller="Cart" asp-action="Index"
+                   class="header-action cart-link"
                    aria-label="Giỏ hàng có @cartHeader.TotalQuantity sản phẩm">
-                    <span class="cart-link__icon" aria-hidden="true">🛒</span>
+                    <span class="header-action__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M3 4h2l1.7 9.1a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 1.9-1.4L20 7H6.1M9 20h.01M17 20h.01" /></svg>
+                    </span>
                     <span class="cart-link__label">Giỏ hàng</span>
-                    <span class="cart-link__badge"
-                          data-cart-badge
+                    <span class="cart-link__badge" data-cart-badge
                           hidden="@(cartHeader.TotalQuantity <= 0 ? "hidden" : null)">
                         @Math.Min(cartHeader.TotalQuantity, 99)
                     </span>
                 </a>
 
-                <button type="button"
-                        class="theme-toggle"
-                        data-theme-toggle
-                        aria-pressed="false"
+                <button type="button" class="header-action theme-toggle"
+                        data-theme-toggle aria-pressed="false"
                         aria-label="Chuyển sang giao diện tối">
-                    <span class="theme-toggle__icon" data-theme-icon aria-hidden="true">◐</span>
+                    <span class="header-action__icon theme-toggle__icon"
+                          data-theme-icon aria-hidden="true">◐</span>
                     <span class="theme-toggle__label">Giao diện</span>
                 </button>
             </div>
@@ -94,10 +122,12 @@
 
         <nav class="storefront-nav" aria-label="Điều hướng chính">
             <div class="shell-container storefront-nav__inner">
-                <a asp-area="" asp-controller="Home" asp-action="Index">Trang chủ</a>
-                <a href="/#categories">Danh mục</a>
-                <a href="/#products">Sản phẩm</a>
-                <a asp-area="" asp-controller="Cart" asp-action="Index">Giỏ hàng</a>
+                <a asp-area="" asp-controller="Home" asp-action="Index"><span>Trang chủ</span></a>
+                <a href="/#categories"><span>Danh mục</span></a>
+                <a href="/#products"><span>Sản phẩm</span></a>
+                <a asp-area="" asp-controller="Cart" asp-action="Index"><span>Giỏ hàng</span></a>
+                <a asp-area="Admin" asp-controller="Home" asp-action="Index"
+                   class="storefront-nav__admin"><span>Quản trị</span><small>Dev</small></a>
             </div>
         </nav>
     </header>
@@ -105,25 +135,28 @@
     <main id="main-content" class="storefront-main" tabindex="-1">
         @if (TempData["SuccessMessage"] is string successMessage)
         {
-            <div class="shell-container alert-host">
+            <div class="shell-container alert-host" data-reveal>
                 <div class="app-alert app-alert--success" role="status">@successMessage</div>
             </div>
         }
         @if (TempData["ErrorMessage"] is string errorMessage)
         {
-            <div class="shell-container alert-host">
+            <div class="shell-container alert-host" data-reveal>
                 <div class="app-alert app-alert--danger" role="alert">@errorMessage</div>
             </div>
         }
-
         @RenderBody()
     </main>
 
     <footer class="storefront-footer">
+        <div class="storefront-footer__glow" aria-hidden="true"></div>
         <div class="shell-container storefront-footer__grid">
-            <section>
-                <h2>FastBuy</h2>
-                <p>Nền tảng thương mại điện tử được xây dựng để phục vụ nhiều ngành hàng.</p>
+            <section class="storefront-footer__brand">
+                <span class="brand__mark" aria-hidden="true"><span>FB</span><i></i></span>
+                <div>
+                    <h2>FastBuy Marketplace</h2>
+                    <p>Mua sắm đa ngành hàng với dữ liệu giá và tồn kho theo đúng biến thể.</p>
+                </div>
             </section>
             <nav aria-label="Liên kết mua sắm">
                 <h2>Khám phá</h2>
@@ -133,17 +166,24 @@
                 <a asp-area="" asp-controller="Cart" asp-action="Index">Giỏ hàng</a>
             </nav>
             <section>
-                <h2>Trợ giúp</h2>
-                <p>Tài khoản và khách hàng hiện là dữ liệu mock trong Session để kiểm thử giỏ hàng.</p>
+                <h2>Trạng thái thử nghiệm</h2>
+                <p>Tài khoản khách hàng đang dùng dữ liệu mock trong Session, chưa có đăng nhập.</p>
+                <span class="storefront-footer__status"><i aria-hidden="true"></i>Session cart đang hoạt động</span>
             </section>
         </div>
         <div class="shell-container storefront-footer__bottom">
             <span>&copy; @DateTime.UtcNow.Year FastBuy.</span>
+            <span>Custom storefront UI · No Bootstrap</span>
         </div>
     </footer>
 
     <div class="cart-toast-host" data-cart-toast-host aria-live="polite" aria-atomic="true"></div>
 
+    <button type="button" class="back-to-top" data-back-to-top aria-label="Lên đầu trang">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
+    </button>
+
+    <script src="~/js/layouts/storefront-motion.js" asp-append-version="true"></script>
     <script src="~/js/core/storefront-cart.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
