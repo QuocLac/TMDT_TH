@@ -71,6 +71,16 @@
         return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     }
 
+    function isValidRowVersion(value) {
+        if (typeof value !== "string" || !value.trim()) return false;
+
+        try {
+            return window.atob(value.trim()).length === 8;
+        } catch {
+            return false;
+        }
+    }
+
     function initializeDefaultPlanDates(root) {
         if (Number(root.dataset.campaignId ?? 0) > 0) return;
 
@@ -453,9 +463,14 @@
             canConfirmPreview: false,
             latestPreviewSummary: null,
             productAbortController: null,
-            variantRequests: new Map()
+            variantRequests: new Map(),
+            campaignLoadState: Number(root.dataset.campaignId ?? 0) > 0
+                ? "loading"
+                : "ready",
+            campaignLoadError: null
         };
 
+        root.dataset.campaignLoadState = state.campaignLoadState;
         clientRequestIdInput.value =
             clientRequestIdInput.value || createRequestId();
 
@@ -501,6 +516,24 @@
         function readPlanForm() {
             const name = root.querySelector("[data-campaign-name]").value.trim();
             const reason = root.querySelector("[data-campaign-reason]").value.trim();
+
+            if (state.campaignId > 0) {
+                if (state.campaignLoadState === "loading") {
+                    throw new Error("Dữ liệu bản nháp đang được tải. Vui lòng chờ trong giây lát.");
+                }
+
+                if (state.campaignLoadState !== "ready") {
+                    throw new Error(
+                        state.campaignLoadError
+                            ?? "Không thể tải dữ liệu bản nháp. Hãy tải lại trang trước khi chỉnh sửa.");
+                }
+
+                if (!isValidRowVersion(rowVersionInput.value)) {
+                    throw new Error(
+                        "Không nhận được phiên bản dữ liệu của bản nháp. Hãy tải lại trang trước khi lưu.");
+                }
+            }
+
             const times = readPlanTimes();
 
             if (!name) throw new Error("Vui lòng nhập tên kế hoạch giá.");
@@ -1157,11 +1190,22 @@
         function updateActionAvailability() {
             const hasStaging = state.staging.size > 0;
             const immutable = state.campaignStatus !== "Draft";
-            saveDraftButton.disabled = !hasStaging || immutable;
-            openConfirmButton.disabled = !hasStaging || immutable;
+            const waitingForCampaign = state.campaignId > 0
+                && state.campaignLoadState !== "ready";
+
+            saveDraftButton.disabled = !hasStaging || immutable || waitingForCampaign;
+            openConfirmButton.disabled = !hasStaging || immutable || waitingForCampaign;
             saveDraftButton.hidden = immutable;
             openConfirmButton.hidden = immutable;
-            openConfirmButton.textContent = "Xác nhận kế hoạch";
+            openConfirmButton.textContent = waitingForCampaign
+                ? "Đang tải bản nháp..."
+                : "Xác nhận kế hoạch";
+            saveDraftButton.title = waitingForCampaign
+                ? "Cần tải xong dữ liệu và RowVersion trước khi lưu."
+                : "";
+            openConfirmButton.title = waitingForCampaign
+                ? "Cần tải xong dữ liệu và RowVersion trước khi xác nhận."
+                : "";
         }
 
         function openConfiguration(variantIds, label) {
@@ -1343,63 +1387,107 @@
         }
 
         async function loadCampaign() {
-            if (!state.campaignId) return;
-
-            setFeedback(feedback, "Đang tải dữ liệu kế hoạch...");
-            const result = await http.getJson(
-                `/Admin/PriceCampaigns/GetCampaign/${state.campaignId}`);
-
-            if (!result.success) {
-                throw new Error(result.message ?? "Không thể tải kế hoạch.");
+            if (!state.campaignId) {
+                state.campaignLoadState = "ready";
+                root.dataset.campaignLoadState = "ready";
+                return;
             }
 
-            const data = result.data;
-            root.querySelector("[data-campaign-name]").value = data.name ?? "";
-            root.querySelector("[data-campaign-description]").value = data.description ?? "";
-            root.querySelector("[data-campaign-reason]").value = data.reason ?? "";
-            root.querySelector("[data-campaign-source]").value = data.sourceType ?? "Manual";
-            conflictPolicyInput.value = data.conflictPolicy ?? "Reject";
-            modeInput.value = data.mode ?? "FixedWindow";
-            root.querySelector("[data-campaign-start]").value = toLocalInput(data.startDateUtc);
-            endInput.value = toLocalInput(data.endDateUtc);
-            rowVersionInput.value = data.rowVersion ?? "";
-            clientRequestIdInput.value = data.clientRequestId
-                ?? clientRequestIdInput.value;
-            state.campaignStatus = data.status ?? "Draft";
-            statusInput.value = state.campaignStatus;
-            editorState.textContent = `${data.code} · ${translateCampaignStatus(state.campaignStatus)}`;
+            state.campaignLoadState = "loading";
+            state.campaignLoadError = null;
+            root.dataset.campaignLoadState = "loading";
+            root.setAttribute("aria-busy", "true");
+            rowVersionInput.value = "";
+            editorState.textContent = "Đang tải bản nháp...";
+            setFeedback(feedback, "Đang tải dữ liệu kế hoạch...");
+            updateActionAvailability();
 
-            (data.items ?? []).forEach((item) => {
-                const currentPrice = Number(item.currentPrice);
-                const newPrice = Number(item.newPrice);
-                const staged = {
-                    productId: item.productId,
-                    productName: item.productName ?? item.name,
-                    variantId: item.variantId,
-                    id: item.variantId,
-                    sku: item.sku,
-                    attributes: item.attributes,
-                    rowVersion: item.variantRowVersion,
-                    listPrice: Number(item.originalPrice),
-                    currentPrice,
-                    newPrice,
-                    deltaAmount: newPrice - currentPrice,
-                    deltaPercent: currentPrice
-                        ? Number((((newPrice - currentPrice) / currentPrice) * 100).toFixed(2))
-                        : 0,
-                    adjustmentType: item.adjustmentType ?? "FixedPrice",
-                    adjustmentValue: Number(item.adjustmentValue ?? item.newPrice),
-                    conflicts: [],
-                    isStale: false
-                };
-                state.selectedVariants.set(item.variantId, staged);
-                state.staging.set(item.variantId, staged);
-            });
+            try {
+                const result = await http.getJson(
+                    `/Admin/PriceCampaigns/GetCampaign/${state.campaignId}`);
 
-            updateModeState();
-            updateConflictPolicyState();
-            renderAllSelectionViews();
-            setFeedback(feedback, "");
+                if (!result.success) {
+                    throw new Error(result.message ?? "Không thể tải kế hoạch.");
+                }
+
+                const data = result.data;
+                if (Number(data?.id) !== state.campaignId) {
+                    throw new Error("Dữ liệu kế hoạch trả về không khớp với trang đang mở.");
+                }
+
+                if (!isValidRowVersion(data?.rowVersion)) {
+                    throw new Error(
+                        "Kế hoạch không có RowVersion hợp lệ. Hãy kiểm tra migration và tải lại trang.");
+                }
+
+                root.querySelector("[data-campaign-name]").value = data.name ?? "";
+                root.querySelector("[data-campaign-description]").value = data.description ?? "";
+                root.querySelector("[data-campaign-reason]").value = data.reason ?? "";
+                root.querySelector("[data-campaign-source]").value = data.sourceType ?? "Manual";
+                conflictPolicyInput.value = data.conflictPolicy ?? "Reject";
+                modeInput.value = data.mode ?? "FixedWindow";
+                root.querySelector("[data-campaign-start]").value = toLocalInput(data.startDateUtc);
+                endInput.value = toLocalInput(data.endDateUtc);
+                rowVersionInput.value = data.rowVersion.trim();
+                clientRequestIdInput.value = data.clientRequestId
+                    ?? clientRequestIdInput.value;
+                state.campaignStatus = data.status ?? "Draft";
+                statusInput.value = state.campaignStatus;
+                editorState.textContent = `${data.code} · ${translateCampaignStatus(state.campaignStatus)}`;
+
+                state.selectedVariants.clear();
+                state.staging.clear();
+                (data.items ?? []).forEach((item) => {
+                    const currentPrice = Number(item.currentPrice);
+                    const newPrice = Number(item.newPrice);
+                    const staged = {
+                        productId: item.productId,
+                        productName: item.productName ?? item.name,
+                        variantId: item.variantId,
+                        id: item.variantId,
+                        sku: item.sku,
+                        attributes: item.attributes,
+                        rowVersion: item.variantRowVersion,
+                        listPrice: Number(item.originalPrice),
+                        currentPrice,
+                        newPrice,
+                        deltaAmount: newPrice - currentPrice,
+                        deltaPercent: currentPrice
+                            ? Number((((newPrice - currentPrice) / currentPrice) * 100).toFixed(2))
+                            : 0,
+                        adjustmentType: item.adjustmentType ?? "FixedPrice",
+                        adjustmentValue: Number(item.adjustmentValue ?? item.newPrice),
+                        conflicts: [],
+                        isStale: false
+                    };
+                    state.selectedVariants.set(item.variantId, staged);
+                    state.staging.set(item.variantId, staged);
+                });
+
+                state.campaignLoadState = "ready";
+                root.dataset.campaignLoadState = "ready";
+                updateModeState();
+                updateConflictPolicyState();
+                renderAllSelectionViews();
+                setFeedback(feedback, "");
+            } catch (error) {
+                const message = error instanceof Error
+                    ? error.message
+                    : "Không thể tải dữ liệu bản nháp.";
+                state.campaignLoadState = "failed";
+                state.campaignLoadError = message;
+                root.dataset.campaignLoadState = "failed";
+                rowVersionInput.value = "";
+                editorState.textContent = "Không tải được bản nháp";
+                setFeedback(
+                    feedback,
+                    `${message} Không thể lưu hoặc xác nhận cho đến khi tải lại trang thành công.`,
+                    "error");
+                throw error;
+            } finally {
+                root.removeAttribute("aria-busy");
+                updateActionAvailability();
+            }
         }
 
         function translateStatus(status) {

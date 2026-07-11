@@ -3,11 +3,17 @@
     ViewData["Title"] = Model.CampaignId > 0
         ? "Chỉnh sửa kế hoạch giá"
         : "Tạo kế hoạch giá";
+    var initialLoadState = Model.CampaignId > 0 ? "loading" : "ready";
+    var initialEditorState = Model.CampaignId > 0
+        ? "Đang tải bản nháp..."
+        : "Bản nháp mới";
 }
 
 <section class="admin-page pricing-editor"
          data-price-campaign-editor
-         data-campaign-id="@Model.CampaignId">
+         data-campaign-id="@Model.CampaignId"
+         data-campaign-load-state="@initialLoadState"
+         aria-busy="@(Model.CampaignId > 0 ? "true" : "false")">
     <header class="admin-page-header pricing-page-header">
         <div>
             <p class="eyebrow">Pricing operations</p>
@@ -40,7 +46,7 @@
                     <p>Thông tin này được dùng khi preview, lưu nháp và xác nhận cuối.</p>
                 </div>
             </div>
-            <span class="pricing-state-badge" data-editor-state>Bản nháp mới</span>
+            <span class="pricing-state-badge" data-editor-state>@initialEditorState</span>
         </header>
 
         <div class="campaign-form-grid">
