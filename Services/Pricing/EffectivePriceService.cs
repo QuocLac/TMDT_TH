@@ -556,7 +556,10 @@ public sealed class EffectivePriceService : IEffectivePriceService
             .Where(variant => distinctVariantIds.Contains(variant.Id))
             .ToListAsync(cancellationToken);
 
-        var campaignCandidates = await _context.PriceCampaignItems
+        // Chỉ dùng member của entity và anonymous projection trong SQL.
+        // Không dựng EffectiveCampaignCandidate bên trong expression tree vì
+        // provider EF Core có thể không dịch được OrderBy trên record constructor.
+        var campaignCandidateRows = await _context.PriceCampaignItems
             .AsNoTracking()
             .Where(item =>
                 distinctVariantIds.Contains(item.VariantId)
@@ -565,18 +568,32 @@ public sealed class EffectivePriceService : IEffectivePriceService
                 && (!item.Campaign.EndDate.HasValue
                     || item.Campaign.EndDate.Value > nowUtc)
                 && item.NewPrice > 0)
+            .OrderBy(item => item.VariantId)
+            .ThenByDescending(item => item.Campaign.StartDate)
+            .ThenByDescending(item => item.CampaignId)
+            .Select(item => new
+            {
+                item.VariantId,
+                item.CampaignId,
+                CampaignName = item.Campaign.Name,
+                SourceType = item.Campaign.SourceType,
+                StartDate = item.Campaign.StartDate,
+                EndDate = item.Campaign.EndDate,
+                item.NewPrice
+            })
+            .ToListAsync(cancellationToken);
+
+        // Chuyển sang record sau khi SQL đã chạy và dữ liệu đã về memory.
+        var campaignCandidates = campaignCandidateRows
             .Select(item => new EffectiveCampaignCandidate(
                 item.VariantId,
                 item.CampaignId,
-                item.Campaign.Name,
-                item.Campaign.SourceType,
-                item.Campaign.StartDate,
-                item.Campaign.EndDate,
+                item.CampaignName,
+                item.SourceType,
+                item.StartDate,
+                item.EndDate,
                 item.NewPrice))
-            .OrderBy(candidate => candidate.VariantId)
-            .ThenByDescending(candidate => candidate.StartDate)
-            .ThenByDescending(candidate => candidate.CampaignId)
-            .ToListAsync(cancellationToken);
+            .ToArray();
 
         var winnerByVariantId = campaignCandidates
             .GroupBy(candidate => candidate.VariantId)
