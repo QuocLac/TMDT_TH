@@ -9,10 +9,14 @@
     const provinceSelect = page.querySelector("[data-province-select]");
     const districtSelect = page.querySelector("[data-district-select]");
     const wardSelect = page.querySelector("[data-ward-select]");
+    const validateButton = page.querySelector("[data-validate-address]");
+    const placeOrderButton = page.querySelector("[data-place-order]");
     const state = page.querySelector("[data-address-validation-state]");
     const message = page.querySelector("[data-checkout-message]");
     const canonical = page.querySelector("[data-canonical-address]");
     const canonicalText = page.querySelector("[data-canonical-address-text]");
+    const onlineOutcome = page.querySelector("[data-online-outcome]");
+    const paymentInputs = [...page.querySelectorAll('input[name="PaymentMethod"]')];
 
     function setBusy(element, busy) {
         if (!element) return;
@@ -30,7 +34,7 @@
 
     function resetValidation() {
         if (state) {
-            state.textContent = "Chưa đối chiếu";
+            state.textContent = "Chưa kiểm tra";
             state.classList.remove("is-valid", "is-invalid");
         }
         if (canonical) canonical.hidden = true;
@@ -48,26 +52,21 @@
 
     async function loadOptions(url, select, placeholder, valueKey, labelKey) {
         setOptions(select, [], "Đang tải...", valueKey, labelKey);
-        try {
-            const response = await fetch(url, {
-                headers: { Accept: "application/json" },
-                credentials: "same-origin"
-            });
-            const payload = await response.json().catch(() => null);
-            if (!response.ok || payload?.success !== true) {
-                throw new Error(payload?.message ?? "Không thể tải dữ liệu địa chỉ.");
-            }
-            setOptions(select, payload.data, placeholder, valueKey, labelKey);
-        } catch (error) {
+        const response = await fetch(url, {
+            headers: { Accept: "application/json" },
+            credentials: "same-origin"
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || payload?.success !== true) {
             setOptions(select, [], placeholder, valueKey, labelKey);
-            setMessage(error.message, "error");
+            throw new Error(payload?.message ?? "Không thể tải dữ liệu địa chỉ.");
         }
+        setOptions(select, payload.data, placeholder, valueKey, labelKey);
+        return payload.data ?? [];
     }
 
-    provinceSelect?.addEventListener("change", async () => {
-        const provinceId = Number.parseInt(provinceSelect.value, 10);
+    async function loadDistricts(provinceId, selectedDistrictId = "") {
         setOptions(wardSelect, [], "Chọn phường/xã", "code", "name");
-        resetValidation();
         if (!Number.isInteger(provinceId) || provinceId <= 0) {
             setOptions(districtSelect, [], "Chọn quận/huyện", "id", "name");
             return;
@@ -79,11 +78,10 @@
             "id",
             "name"
         );
-    });
+        if (selectedDistrictId) districtSelect.value = String(selectedDistrictId);
+    }
 
-    districtSelect?.addEventListener("change", async () => {
-        const districtId = Number.parseInt(districtSelect.value, 10);
-        resetValidation();
+    async function loadWards(districtId, selectedWardCode = "") {
         if (!Number.isInteger(districtId) || districtId <= 0) {
             setOptions(wardSelect, [], "Chọn phường/xã", "code", "name");
             return;
@@ -95,14 +93,32 @@
             "code",
             "name"
         );
+        if (selectedWardCode) wardSelect.value = selectedWardCode;
+    }
+
+    provinceSelect?.addEventListener("change", async () => {
+        resetValidation();
+        try {
+            await loadDistricts(Number.parseInt(provinceSelect.value, 10));
+        } catch (error) {
+            setMessage(error.message, "error");
+        }
+    });
+
+    districtSelect?.addEventListener("change", async () => {
+        resetValidation();
+        try {
+            await loadWards(Number.parseInt(districtSelect.value, 10));
+        } catch (error) {
+            setMessage(error.message, "error");
+        }
     });
 
     wardSelect?.addEventListener("change", resetValidation);
+    form?.querySelector('input[name="AddressLine"]')?.addEventListener("input", resetValidation);
 
-    form?.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const submit = form.querySelector("[data-validate-address]");
-        const addressLine = form.elements.namedItem("addressLine")?.value?.trim() ?? "";
+    validateButton?.addEventListener("click", async () => {
+        const addressLine = form?.elements.namedItem("AddressLine")?.value?.trim() ?? "";
         const provinceId = Number.parseInt(provinceSelect?.value ?? "", 10);
         const districtId = Number.parseInt(districtSelect?.value ?? "", 10);
         const wardCode = wardSelect?.value?.trim() ?? "";
@@ -116,9 +132,9 @@
             return;
         }
 
-        setBusy(submit, true);
+        setBusy(validateButton, true);
         if (state) {
-            state.textContent = "Đang đối chiếu...";
+            state.textContent = "Đang kiểm tra...";
             state.classList.remove("is-valid", "is-invalid");
         }
         setMessage("");
@@ -130,7 +146,7 @@
             });
             const data = result.data;
             if (state) {
-                state.textContent = "Đã xác minh";
+                state.textContent = "Địa chỉ hợp lệ";
                 state.classList.add("is-valid");
             }
             if (canonical && canonicalText) {
@@ -140,8 +156,7 @@
                     + data.districtName + ", "
                     + data.provinceName;
             }
-            setMessage("Địa chỉ hợp lệ. Có thể chuyển sang bước lấy báo giá GHN.", "success");
-            api.toast("Địa chỉ đã được xác minh với GHN.", "success");
+            setMessage("Địa chỉ đã được xác minh. Hệ thống sẽ kiểm tra lại khi đặt hàng.", "success");
         } catch (error) {
             if (state) {
                 state.textContent = "Cần kiểm tra lại";
@@ -149,7 +164,44 @@
             }
             setMessage(error.message, "error");
         } finally {
-            setBusy(submit, false);
+            setBusy(validateButton, false);
         }
     });
+
+    function updatePaymentVisibility() {
+        const selected = paymentInputs.find((input) => input.checked)?.value;
+        if (onlineOutcome) onlineOutcome.hidden = selected !== "MockOnline";
+    }
+
+    paymentInputs.forEach((input) => input.addEventListener("change", updatePaymentVisibility));
+    updatePaymentVisibility();
+
+    form?.addEventListener("submit", (event) => {
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            form.reportValidity();
+            return;
+        }
+        setBusy(placeOrderButton, true);
+        if (placeOrderButton) placeOrderButton.textContent = "Đang tạo đơn...";
+    });
+
+    async function restoreAddressSelection() {
+        const initialProvince = Number.parseInt(page.dataset.initialProvince ?? "", 10);
+        const initialDistrict = Number.parseInt(page.dataset.initialDistrict ?? "", 10);
+        const initialWard = page.dataset.initialWard ?? "";
+        if (!Number.isInteger(initialProvince) || initialProvince <= 0) return;
+
+        provinceSelect.value = String(initialProvince);
+        try {
+            await loadDistricts(initialProvince, initialDistrict);
+            if (Number.isInteger(initialDistrict) && initialDistrict > 0) {
+                await loadWards(initialDistrict, initialWard);
+            }
+        } catch (error) {
+            setMessage(error.message, "error");
+        }
+    }
+
+    restoreAddressSelection();
 })();

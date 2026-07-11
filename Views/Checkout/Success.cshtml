@@ -1,0 +1,78 @@
+@using System.Globalization
+@using WebApplication2.Models.Enums
+@model WebApplication2.ViewModels.Storefront.Checkout.CheckoutSuccessViewModel
+@{
+    ViewData["Title"] = "Kết quả đặt hàng";
+    var culture = CultureInfo.GetCultureInfo("vi-VN");
+    var isSuccessful = Model.OrderStatus == OrderStatus.Placed;
+}
+
+<section class="checkout-page shell-container checkout-success-page">
+    <header class="checkout-success-hero @(isSuccessful ? "is-success" : "is-failed")">
+        <span class="checkout-success-icon" aria-hidden="true">@(isSuccessful ? "✓" : "!")</span>
+        <p class="eyebrow">Mã đơn @Model.OrderCode</p>
+        <h1>@(isSuccessful ? "Đơn hàng đã được ghi nhận" : "Giao dịch chưa thành công")</h1>
+        <p>
+            @(isSuccessful
+                ? "Đơn đã được lưu, giá và tồn kho đã được xác nhận trên server."
+                : "Đơn thất bại được lưu để theo dõi lần thanh toán. Sản phẩm vẫn còn trong giỏ hàng.")
+        </p>
+        <div class="checkout-success-actions">
+            <a asp-controller="Home" asp-action="Index" class="button button--primary">Tiếp tục mua sắm</a>
+            <a asp-controller="Cart" asp-action="Index" class="button button--glass">Mở giỏ hàng</a>
+        </div>
+    </header>
+
+    <div class="checkout-layout checkout-success-layout">
+        <section class="checkout-card">
+            <div class="checkout-card__heading">
+                <div>
+                    <p class="eyebrow">Sản phẩm</p>
+                    <h2>@Model.Items.Count dòng sản phẩm</h2>
+                </div>
+            </div>
+            <div class="checkout-items checkout-items--receipt">
+                @foreach (var item in Model.Items)
+                {
+                    <article class="checkout-item">
+                        <img src="@(string.IsNullOrWhiteSpace(item.ImageUrl) ? "/images/no-image.png" : item.ImageUrl)"
+                             alt="@item.ProductName" width="64" height="64" />
+                        <div>
+                            <strong>@item.ProductName</strong>
+                            <span>@item.VariantDescription · @item.Sku · SL @item.Quantity</span>
+                        </div>
+                        <b>@item.LineTotal.ToString("N0", culture) ₫</b>
+                    </article>
+                }
+            </div>
+        </section>
+
+        <aside class="checkout-card checkout-summary-card">
+            <div class="checkout-card__heading">
+                <div>
+                    <p class="eyebrow">Thông tin đơn</p>
+                    <h2>@Model.OrderCode</h2>
+                </div>
+            </div>
+
+            <dl class="checkout-receipt-info">
+                <div><dt>Người nhận</dt><dd>@Model.CustomerName</dd></div>
+                <div><dt>Điện thoại</dt><dd>@Model.CustomerPhone</dd></div>
+                <div><dt>Email</dt><dd>@Model.CustomerEmail</dd></div>
+                <div><dt>Địa chỉ</dt><dd>@Model.ShippingAddress</dd></div>
+                <div><dt>Trạng thái đơn</dt><dd>@Model.OrderStatus</dd></div>
+                <div><dt>Thanh toán</dt><dd>@Model.PaymentStatus</dd></div>
+            </dl>
+
+            <dl class="checkout-totals">
+                <div><dt>Tạm tính</dt><dd>@Model.Subtotal.ToString("N0", culture) ₫</dd></div>
+                <div><dt>Phí vận chuyển</dt><dd>@Model.ShippingFee.ToString("N0", culture) ₫</dd></div>
+                <div class="checkout-totals__grand"><dt>Tổng cộng</dt><dd>@Model.GrandTotal.ToString("N0", culture) ₫</dd></div>
+            </dl>
+        </aside>
+    </div>
+</section>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/checkout.css" asp-append-version="true" />
+}

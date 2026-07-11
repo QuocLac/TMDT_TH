@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using WebApplication2.Models;
 using WebApplication2.Services;
 using WebApplication2.Services.Cart;
+using WebApplication2.Services.Commerce.Checkout;
 using WebApplication2.Services.Commerce.Inventory;
 using WebApplication2.Services.Commerce.Orders;
 using WebApplication2.Services.Media;
@@ -45,6 +46,8 @@ builder.Services.AddSession(options =>
 });
 builder.Services.AddScoped<ISessionCartService, SessionCartService>();
 builder.Services.AddScoped<IInventoryService, InventoryService>();
+builder.Services.AddScoped<IShippingFeeCalculator, StandardShippingFeeCalculator>();
+builder.Services.AddScoped<IOrderApplicationService, OrderApplicationService>();
 builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
 builder.Services.AddScoped<IOrderWorkflowService, OrderWorkflowService>();
 

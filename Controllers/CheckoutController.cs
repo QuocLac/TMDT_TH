@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using WebApplication2.Services.Cart;
+using WebApplication2.Services.Commerce.Checkout;
+using WebApplication2.Services.Commerce.Inventory;
+using WebApplication2.Services.Commerce.Orders;
 using WebApplication2.Services.Shipping.Ghn;
+using WebApplication2.ViewModels.Storefront.Cart;
 using WebApplication2.ViewModels.Storefront.Checkout;
 
 namespace WebApplication2.Controllers;
@@ -10,13 +14,22 @@ public sealed class CheckoutController : Controller
 {
     private readonly ISessionCartService _cartService;
     private readonly IGhnAddressClient _addressClient;
+    private readonly IShippingFeeCalculator _shippingFeeCalculator;
+    private readonly IOrderApplicationService _orderApplicationService;
+    private readonly ILogger<CheckoutController> _logger;
 
     public CheckoutController(
         ISessionCartService cartService,
-        IGhnAddressClient addressClient)
+        IGhnAddressClient addressClient,
+        IShippingFeeCalculator shippingFeeCalculator,
+        IOrderApplicationService orderApplicationService,
+        ILogger<CheckoutController> logger)
     {
         _cartService = cartService;
         _addressClient = addressClient;
+        _shippingFeeCalculator = shippingFeeCalculator;
+        _orderApplicationService = orderApplicationService;
+        _logger = logger;
     }
 
     [HttpGet("")]
@@ -28,24 +41,161 @@ public sealed class CheckoutController : Controller
             return RedirectToAction("Index", "Cart");
         }
 
-        var provinces = await _addressClient.GetProvincesAsync(cancellationToken);
-        var provinceOptions = provinces.Success && provinces.Data is not null
-            ? provinces.Data
-                .Where(item => item.IsEnabled)
-                .OrderBy(item => item.ProvinceName)
-                .Select(item => new CheckoutProvinceOption(
-                    item.ProvinceId,
-                    item.ProvinceName,
-                    item.Code))
-                .ToArray()
-            : Array.Empty<CheckoutProvinceOption>();
-
-        var model = CheckoutPageViewModel.FromCart(
+        var cartVersion = _cartService.GetCartVersion();
+        var clientRequestId = _cartService.GetOrCreateCheckoutClientRequestId(cartVersion);
+        var model = await BuildPageModelAsync(
             cart,
-            provinceOptions,
-            provinces.Success ? null : provinces.Message);
+            cartVersion,
+            clientRequestId,
+            form: null,
+            errorMessage: null,
+            cancellationToken);
 
         return View(model);
+    }
+
+    [HttpPost("place-order")]
+    public async Task<IActionResult> PlaceOrder(
+        CheckoutPlaceOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _orderApplicationService.FindByClientRequestIdAsync(
+            request.ClientRequestId,
+            cancellationToken);
+        if (existing is not null)
+        {
+            return RedirectToAction(nameof(Success), new { publicToken = existing.PublicToken });
+        }
+
+        var cart = await _cartService.GetCartAsync(cancellationToken);
+        var cartVersion = _cartService.GetCartVersion();
+        var selectedItems = cart.Items
+            .Where(item => item.IsSelected && item.CanSelect)
+            .OrderBy(item => item.VariantId)
+            .ToArray();
+
+        if (!cart.HasSelectedItems)
+        {
+            ModelState.AddModelError(string.Empty, "Giỏ hàng không còn sản phẩm được chọn.");
+        }
+
+        if (request.CartVersion != cartVersion)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "Giỏ hàng đã thay đổi sau khi mở trang checkout. Vui lòng kiểm tra lại.");
+        }
+
+        if (!MatchesCart(request.Items, selectedItems))
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "Danh sách sản phẩm xác nhận không khớp giỏ hàng hiện tại.");
+        }
+
+        GhnAddressValidationResult? addressValidation = null;
+        if (ModelState.IsValid)
+        {
+            addressValidation = await _addressClient.ValidateAddressAsync(
+                request.ProvinceId,
+                request.DistrictId,
+                request.WardCode,
+                cancellationToken);
+
+            if (!addressValidation.IsValid)
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    addressValidation.ErrorMessage ?? "Địa chỉ giao hàng không hợp lệ.");
+            }
+        }
+
+        if (!ModelState.IsValid || addressValidation is null || !addressValidation.IsValid)
+        {
+            var invalidModel = await BuildPageModelAsync(
+                cart,
+                cartVersion,
+                request.ClientRequestId,
+                request,
+                FirstModelError(),
+                cancellationToken);
+            return View("Index", invalidModel);
+        }
+
+        try
+        {
+            var result = await _orderApplicationService.PlaceOrderAsync(
+                new PlaceOrderCommand(
+                    request.ClientRequestId,
+                    request.FullName,
+                    request.Email,
+                    request.Phone,
+                    request.AddressLine,
+                    addressValidation.Province!.ProvinceId,
+                    addressValidation.Province.ProvinceName,
+                    addressValidation.District!.DistrictId,
+                    addressValidation.District.DistrictName,
+                    addressValidation.Ward!.WardCode,
+                    addressValidation.Ward.WardName,
+                    request.PaymentMethod,
+                    request.MockPaymentOutcome,
+                    selectedItems.Select(item => new PlaceOrderLine(
+                        item.VariantId,
+                        item.Quantity,
+                        item.EffectivePrice)).ToArray()),
+                cancellationToken);
+
+            if (result.ShouldClearPurchasedItems)
+            {
+                try
+                {
+                    _cartService.CompleteCheckout(
+                        result.PurchasedVariantIds,
+                        request.ClientRequestId);
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogWarning(
+                        exception,
+                        "Order {OrderCode} was committed but purchased cart lines could not be removed.",
+                        result.OrderCode);
+                }
+            }
+
+            return RedirectToAction(nameof(Success), new { publicToken = result.PublicToken });
+        }
+        catch (Exception exception) when (exception is
+                   CheckoutValidationException
+                   or CheckoutConflictException
+                   or InventoryValidationException
+                   or InventoryConflictException)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            var failedModel = await BuildPageModelAsync(
+                cart,
+                cartVersion,
+                request.ClientRequestId,
+                request,
+                exception.Message,
+                cancellationToken);
+            return View("Index", failedModel);
+        }
+    }
+
+    [HttpGet("success/{publicToken:guid}")]
+    public async Task<IActionResult> Success(
+        Guid publicToken,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await _orderApplicationService.GetReceiptAsync(
+            publicToken,
+            cancellationToken);
+        if (receipt is null)
+        {
+            return NotFound();
+        }
+
+        return View(CheckoutSuccessViewModel.FromReceipt(receipt));
     }
 
     [HttpGet("provinces")]
@@ -144,6 +294,88 @@ public sealed class CheckoutController : Controller
                 WardName = validation.Ward.WardName
             }
         });
+    }
+
+    private async Task<CheckoutPageViewModel> BuildPageModelAsync(
+        CartPageViewModel cart,
+        long cartVersion,
+        string clientRequestId,
+        CheckoutPlaceOrderRequest? form,
+        string? errorMessage,
+        CancellationToken cancellationToken)
+    {
+        var provinces = await _addressClient.GetProvincesAsync(cancellationToken);
+        var provinceOptions = provinces.Success && provinces.Data is not null
+            ? provinces.Data
+                .Where(item => item.IsEnabled)
+                .OrderBy(item => item.ProvinceName)
+                .Select(item => new CheckoutProvinceOption(
+                    item.ProvinceId,
+                    item.ProvinceName,
+                    item.Code))
+                .ToArray()
+            : Array.Empty<CheckoutProvinceOption>();
+
+        var selectedQuantity = cart.Items
+            .Where(item => item.IsSelected && item.CanSelect)
+            .Sum(item => item.Quantity);
+        var shippingFee = selectedQuantity > 0
+            ? _shippingFeeCalculator.Calculate(cart.SelectedSubtotal, selectedQuantity)
+            : 0m;
+
+        return CheckoutPageViewModel.FromCart(
+            cart,
+            cartVersion,
+            clientRequestId,
+            shippingFee,
+            provinceOptions,
+            form,
+            provinces.Success ? null : provinces.Message,
+            errorMessage);
+    }
+
+    private static bool MatchesCart(
+        IReadOnlyCollection<CheckoutItemConfirmationRequest> requested,
+        IReadOnlyCollection<CartLineViewModel> selected)
+    {
+        if (requested.Count != selected.Count)
+        {
+            return false;
+        }
+
+        var requestedByVariant = requested
+            .GroupBy(item => item.VariantId)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+        if (requestedByVariant.Values.Any(group => group.Length != 1))
+        {
+            return false;
+        }
+
+        foreach (var item in selected)
+        {
+            if (!requestedByVariant.TryGetValue(item.VariantId, out var matches))
+            {
+                return false;
+            }
+
+            var requestedItem = matches[0];
+            if (requestedItem.Quantity != item.Quantity
+                || requestedItem.ExpectedUnitPrice != item.EffectivePrice)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private string FirstModelError()
+    {
+        return ModelState.Values
+            .SelectMany(value => value.Errors)
+            .Select(error => error.ErrorMessage)
+            .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message))
+            ?? "Thông tin checkout chưa hợp lệ.";
     }
 
     private IActionResult LookupResponse<T>(

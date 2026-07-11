@@ -8,6 +8,14 @@ public interface ISessionCartService
 
     MockCustomerViewModel GetMockCustomer();
 
+    long GetCartVersion();
+
+    string GetOrCreateCheckoutClientRequestId(long cartVersion);
+
+    void CompleteCheckout(
+        IReadOnlyCollection<int> purchasedVariantIds,
+        string clientRequestId);
+
     Task<CartPageViewModel> GetCartAsync(CancellationToken cancellationToken);
 
     Task<ProductOptionPickerViewModel?> GetProductOptionsAsync(
