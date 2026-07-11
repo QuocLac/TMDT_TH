@@ -25,7 +25,15 @@ builder.Services.Configure<ProductImageStorageOptions>(
     builder.Configuration.GetSection(ProductImageStorageOptions.SectionName));
 builder.Services.AddSingleton<IProductImageStorage, LocalProductImageStorage>();
 builder.Services.AddScoped<IEffectivePriceService, EffectivePriceService>();
-builder.Services.AddScoped<IPriceCampaignWorkflowService, PriceCampaignWorkflowService>();
+
+// Giữ implementation gốc cho SaveDraft/Activate/Cancel/Recover.
+// ReliablePriceCampaignWorkflowService thay riêng pipeline ConfirmDraft
+// để loại bỏ ép kiểu collection và phân loại lỗi theo từng stage.
+builder.Services.AddScoped<PriceCampaignWorkflowService>();
+builder.Services.AddScoped<
+    IPriceCampaignWorkflowService,
+    ReliablePriceCampaignWorkflowService>();
+
 builder.Services.AddHostedService<PriceCampaignWorker>();
 
 var app = builder.Build();
