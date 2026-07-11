@@ -333,7 +333,7 @@ public sealed class ReturnShippingExecutionService : IReturnShippingService
 
         try
         {
-            return await CommerceFlowTransaction.ExecuteAsync(
+            var syncedShipment = await CommerceFlowTransaction.ExecuteAsync(
                 _context,
                 tracker,
                 async token =>
@@ -370,6 +370,8 @@ public sealed class ReturnShippingExecutionService : IReturnShippingService
                     return trackedShipment;
                 },
                 cancellationToken);
+
+            return ShippingOperationResult<Shipment>.Ok(syncedShipment);
         }
         catch (CommerceFlowException exception)
         {

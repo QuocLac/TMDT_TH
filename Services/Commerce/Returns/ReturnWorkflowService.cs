@@ -68,7 +68,7 @@ public sealed class ReturnWorkflowService : IReturnWorkflowService
 
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
         var outbound = ReturnPolicy.GetDeliveredOutboundShipment(order);
-        var deadline = outbound?.DeliveredAt is DateTime deliveredAt
+        DateTime? deadline = outbound?.DeliveredAt is DateTime deliveredAt
             ? ReturnPolicy.GetDeadlineUtc(deliveredAt)
             : null;
         var error = GetEligibilityError(order, outbound, nowUtc);
