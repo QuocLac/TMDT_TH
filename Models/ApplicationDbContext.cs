@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using WebApplication2.Models.Configuration;
 using WebApplication2.Models.Enums;
 
 namespace WebApplication2.Models;
@@ -25,6 +26,16 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<Address> Addresses => Set<Address>();
     public DbSet<PromotionCustomer> PromotionCustomers => Set<PromotionCustomer>();
 
+    public DbSet<Order> Orders => Set<Order>();
+    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
+    public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
+    public DbSet<Shipment> Shipments => Set<Shipment>();
+    public DbSet<StockReservation> StockReservations => Set<StockReservation>();
+    public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
+    public DbSet<OrderStatusHistory> OrderStatusHistories => Set<OrderStatusHistory>();
+    public DbSet<IntegrationInboxEvent> IntegrationInboxEvents => Set<IntegrationInboxEvent>();
+    public DbSet<IntegrationOutboxMessage> IntegrationOutboxMessages => Set<IntegrationOutboxMessage>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -33,6 +44,7 @@ public sealed class ApplicationDbContext : DbContext
         ConfigurePricing(modelBuilder);
         ConfigurePromotions(modelBuilder);
         ConfigureCustomers(modelBuilder);
+        modelBuilder.ConfigureCommerce();
     }
 
     private static void ConfigureCatalog(ModelBuilder modelBuilder)
@@ -144,9 +156,6 @@ public sealed class ApplicationDbContext : DbContext
                 table.HasCheckConstraint(
                     "CK_PriceCampaign_Mode",
                     "[Mode] IN ('FixedWindow','OpenEnded')");
-                // Keep the explicit NOT NULL guard in the SQL definition so EF
-                // generates a constraint refresh for databases created from an
-                // earlier pricing lifecycle that did not allow Scheduled.
                 table.HasCheckConstraint(
                     "CK_PriceCampaign_Status",
                     "[Status] IS NOT NULL AND " +

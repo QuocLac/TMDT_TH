@@ -4,7 +4,10 @@ using Microsoft.Extensions.Options;
 using WebApplication2.Models;
 using WebApplication2.Services;
 using WebApplication2.Services.Cart;
+using WebApplication2.Services.Commerce.Inventory;
+using WebApplication2.Services.Commerce.Orders;
 using WebApplication2.Services.Media;
+using WebApplication2.Services.Payments.VnPay;
 using WebApplication2.Services.Pricing;
 using WebApplication2.Services.Shipping.Ghn;
 
@@ -41,9 +44,20 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromDays(7);
 });
 builder.Services.AddScoped<ISessionCartService, SessionCartService>();
+builder.Services.AddScoped<IInventoryService, InventoryService>();
+builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
+builder.Services.AddScoped<IOrderWorkflowService, OrderWorkflowService>();
 
-builder.Services.Configure<GhnAddressOptions>(
-    builder.Configuration.GetSection(GhnAddressOptions.SectionName));
+builder.Services
+    .AddOptions<GhnAddressOptions>()
+    .Bind(builder.Configuration.GetSection(GhnAddressOptions.SectionName))
+    .Validate(
+        options => !options.Enabled || options.IsConfigured,
+        $"Configuration section '{GhnAddressOptions.SectionName}' is invalid. "
+        + "When GHN is enabled, configure an HTTPS host-only BaseUrl, Token, ShopId, "
+        + "FromDistrictId, FromWardCode and a TimeoutSeconds value from 5 to 60.")
+    .ValidateOnStart();
+
 builder.Services.AddHttpClient<IGhnAddressClient, GhnAddressClient>((serviceProvider, client) =>
 {
     var options = serviceProvider.GetRequiredService<IOptions<GhnAddressOptions>>().Value;
@@ -53,8 +67,18 @@ builder.Services.AddHttpClient<IGhnAddressClient, GhnAddressClient>((serviceProv
         : new Uri("https://dev-online-gateway.ghn.vn/");
 
     client.BaseAddress = new Uri(baseUrl.ToString().TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 30));
+    client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 60));
 });
+
+builder.Services
+    .AddOptions<VnPayOptions>()
+    .Bind(builder.Configuration.GetSection(VnPayOptions.SectionName))
+    .Validate(
+        options => !options.Enabled || options.IsConfigured,
+        $"Configuration section '{VnPayOptions.SectionName}' is invalid. "
+        + "When VNPay is enabled, configure HTTPS BaseUrl, TmnCode, HashSecret, "
+        + "ReturnUrl and IpnUrl.")
+    .ValidateOnStart();
 
 // EffectivePriceService gốc giữ trách nhiệm preview/validation.
 // ReliableEffectivePriceService thay riêng phần projection CurrentPrice/PriceHistory.

@@ -4,6 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>FastBuy-TMDT-9f3e1657-2d8d-49c2-b2e5-d5739fc18ba1</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
