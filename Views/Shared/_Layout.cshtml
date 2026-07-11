@@ -1,9 +1,14 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@inject WebApplication2.Services.Cart.ISessionCartService CartService
 @{
     var currentQuery = Context.Request.Query["query"].ToString();
     var requestedEventTheme = ViewData["EventTheme"]?.ToString();
     var eventTheme = string.Equals(requestedEventTheme, "tet", StringComparison.OrdinalIgnoreCase)
         ? "tet"
         : "default";
+    var antiforgeryTokens = Antiforgery.GetAndStoreTokens(Context);
+    var cartHeader = CartService.GetHeaderSnapshot();
+    var mockCustomer = CartService.GetMockCustomer();
 }
 <!DOCTYPE html>
 <html lang="vi" data-theme="light" data-event-theme="@eventTheme">
@@ -11,6 +16,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
+    <meta name="request-verification-token" content="@antiforgeryTokens.RequestToken" />
     <title>@ViewData["Title"] - FastBuy</title>
     <script src="~/js/layouts/theme.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/css/storefront.css" asp-append-version="true" />
@@ -47,14 +53,42 @@
                 <button type="submit">Tìm kiếm</button>
             </form>
 
-            <button type="button"
-                    class="theme-toggle"
-                    data-theme-toggle
-                    aria-pressed="false"
-                    aria-label="Chuyển sang giao diện tối">
-                <span class="theme-toggle__icon" data-theme-icon aria-hidden="true">◐</span>
-                <span class="theme-toggle__label">Giao diện</span>
-            </button>
+            <div class="storefront-header__actions">
+                <a asp-area=""
+                   asp-controller="Cart"
+                   asp-action="Index"
+                   class="mock-account-chip"
+                   title="Tài khoản thử nghiệm chưa có đăng nhập">
+                    <span class="mock-account-chip__avatar" aria-hidden="true">@mockCustomer.FullName[..1].ToUpperInvariant()</span>
+                    <span class="mock-account-chip__copy">
+                        <strong data-mock-account-name>@mockCustomer.FullName</strong>
+                        <small>Khách thử nghiệm</small>
+                    </span>
+                </a>
+
+                <a asp-area=""
+                   asp-controller="Cart"
+                   asp-action="Index"
+                   class="cart-link"
+                   aria-label="Giỏ hàng có @cartHeader.TotalQuantity sản phẩm">
+                    <span class="cart-link__icon" aria-hidden="true">🛒</span>
+                    <span class="cart-link__label">Giỏ hàng</span>
+                    <span class="cart-link__badge"
+                          data-cart-badge
+                          hidden="@(cartHeader.TotalQuantity <= 0 ? "hidden" : null)">
+                        @Math.Min(cartHeader.TotalQuantity, 99)
+                    </span>
+                </a>
+
+                <button type="button"
+                        class="theme-toggle"
+                        data-theme-toggle
+                        aria-pressed="false"
+                        aria-label="Chuyển sang giao diện tối">
+                    <span class="theme-toggle__icon" data-theme-icon aria-hidden="true">◐</span>
+                    <span class="theme-toggle__label">Giao diện</span>
+                </button>
+            </div>
         </div>
 
         <nav class="storefront-nav" aria-label="Điều hướng chính">
@@ -62,6 +96,7 @@
                 <a asp-area="" asp-controller="Home" asp-action="Index">Trang chủ</a>
                 <a href="/#categories">Danh mục</a>
                 <a href="/#products">Sản phẩm</a>
+                <a asp-area="" asp-controller="Cart" asp-action="Index">Giỏ hàng</a>
             </div>
         </nav>
     </header>
@@ -94,10 +129,11 @@
                 <a asp-area="" asp-controller="Home" asp-action="Index">Trang chủ</a>
                 <a href="/#categories">Danh mục</a>
                 <a href="/#products">Sản phẩm</a>
+                <a asp-area="" asp-controller="Cart" asp-action="Index">Giỏ hàng</a>
             </nav>
             <section>
                 <h2>Trợ giúp</h2>
-                <p>Các chính sách và kênh hỗ trợ sẽ được công bố khi module tương ứng sẵn sàng.</p>
+                <p>Tài khoản và khách hàng hiện là dữ liệu mock trong Session để kiểm thử giỏ hàng.</p>
             </section>
         </div>
         <div class="shell-container storefront-footer__bottom">
@@ -105,6 +141,9 @@
         </div>
     </footer>
 
+    <div class="cart-toast-host" data-cart-toast-host aria-live="polite" aria-atomic="true"></div>
+
+    <script src="~/js/core/storefront-cart.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

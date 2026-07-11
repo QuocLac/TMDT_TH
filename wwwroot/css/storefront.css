@@ -5,4 +5,5 @@
 @import url("./foundation/base.css");
 @import url("./components/primitives.css");
 @import url("./components/product-card.css");
+@import url("./components/cart-ui.css");
 @import url("./layouts/storefront-shell.css");

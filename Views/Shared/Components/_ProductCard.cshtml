@@ -6,7 +6,7 @@
     var productUrl = $"/products/{Uri.EscapeDataString(Model.Slug)}";
 }
 
-<article class="product-card">
+<article class="product-card" data-product-card data-product-id="@Model.Id">
     <a href="@productUrl" class="product-card__link" aria-label="Xem sản phẩm @Model.Name">
         <div class="product-card__media">
             <img src="@imageUrl"
@@ -24,15 +24,40 @@
         <div class="product-card__body">
             <h3 class="product-card__name">@Model.Name</h3>
             <div class="product-card__pricing">
+                @if (Model.ShowFromPrice)
+                {
+                    <span class="product-card__price-prefix">Từ</span>
+                }
                 @if (Model.IsOnSale && Model.OriginalPrice > Model.EffectivePrice)
                 {
                     <span class="product-card__original-price">@Model.OriginalPrice.ToString("N0", culture) ₫</span>
                 }
                 <strong class="product-card__effective-price">@Model.EffectivePrice.ToString("N0", culture) ₫</strong>
             </div>
-            <span class="product-card__stock @(Model.StockQuantity > 0 ? "is-available" : "is-unavailable")">
-                @(Model.StockQuantity > 0 ? "Còn hàng" : "Hết hàng")
+            <span class="product-card__stock @(Model.HasAvailableStock ? "is-available" : "is-unavailable")">
+                @(Model.HasAvailableStock
+                    ? $"{Model.AvailableVariantCount}/{Model.VariantCount} biến thể còn hàng"
+                    : "Hết hàng")
             </span>
         </div>
     </a>
+
+    <div class="product-card__actions" aria-label="Thao tác mua @Model.Name">
+        <button type="button"
+                class="button button--secondary product-card__action"
+                data-open-variant-picker
+                data-product-id="@Model.Id"
+                data-cart-intent="add"
+                disabled="@(!Model.HasAvailableStock)">
+            Thêm vào giỏ
+        </button>
+        <button type="button"
+                class="button button--primary product-card__action"
+                data-open-variant-picker
+                data-product-id="@Model.Id"
+                data-cart-intent="buy-now"
+                disabled="@(!Model.HasAvailableStock)">
+            Mua ngay
+        </button>
+    </div>
 </article>

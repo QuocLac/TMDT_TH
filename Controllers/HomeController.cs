@@ -176,20 +176,22 @@ public sealed class HomeController : Controller
         return products
             .Select(product =>
             {
-                var selectedVariant = product.Variants
+                // Giá hiển thị của sản phẩm luôn lấy từ biến thể có
+                // CurrentPrice thấp nhất, không lấy ngẫu nhiên biến thể đầu tiên.
+                var lowestPriceVariant = product.Variants
                     .OrderBy(variant => variant.CurrentPrice)
                     .ThenBy(variant => variant.Price)
                     .FirstOrDefault();
 
-                if (selectedVariant is null)
+                if (lowestPriceVariant is null)
                 {
                     return null;
                 }
 
-                var isOnSale = selectedVariant.CurrentPrice < selectedVariant.Price;
+                var isOnSale = lowestPriceVariant.CurrentPrice < lowestPriceVariant.Price;
                 var discountPercentage = isOnSale
                     ? (int)Math.Round(
-                        (1 - selectedVariant.CurrentPrice / selectedVariant.Price) * 100,
+                        (1 - lowestPriceVariant.CurrentPrice / lowestPriceVariant.Price) * 100,
                         MidpointRounding.AwayFromZero)
                     : 0;
 
@@ -201,14 +203,16 @@ public sealed class HomeController : Controller
                     ImageUrl = string.IsNullOrWhiteSpace(product.ImageUrl)
                         ? "/images/no-image.png"
                         : product.ImageUrl,
-                    OriginalPrice = selectedVariant.Price,
-                    EffectivePrice = selectedVariant.CurrentPrice,
+                    OriginalPrice = lowestPriceVariant.Price,
+                    EffectivePrice = lowestPriceVariant.CurrentPrice,
                     DiscountPercentage = discountPercentage,
                     IsOnSale = isOnSale,
-                    StockQuantity = selectedVariant.StockQuantity,
-                    SaleEndsAt = selectedVariant.SaleEndsAt.HasValue
+                    StockQuantity = product.Variants.Sum(variant => Math.Max(0, variant.StockQuantity)),
+                    VariantCount = product.Variants.Count,
+                    AvailableVariantCount = product.Variants.Count(variant => variant.StockQuantity > 0),
+                    SaleEndsAt = lowestPriceVariant.SaleEndsAt.HasValue
                         ? new DateTimeOffset(
-                            DateTime.SpecifyKind(selectedVariant.SaleEndsAt.Value, DateTimeKind.Utc))
+                            DateTime.SpecifyKind(lowestPriceVariant.SaleEndsAt.Value, DateTimeKind.Utc))
                         : null
                 };
             })

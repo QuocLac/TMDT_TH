@@ -44,5 +44,13 @@ public sealed class ProductCardViewModel
 
     public int StockQuantity { get; init; }
 
+    public int VariantCount { get; init; }
+
+    public int AvailableVariantCount { get; init; }
+
+    public bool HasAvailableStock => AvailableVariantCount > 0;
+
+    public bool ShowFromPrice => VariantCount > 1;
+
     public DateTimeOffset? SaleEndsAt { get; init; }
 }

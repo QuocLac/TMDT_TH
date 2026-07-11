@@ -156,6 +156,81 @@
     }
 </section>
 
+<dialog class="variant-picker" data-variant-picker aria-labelledby="variant-picker-title">
+    <div class="variant-picker__panel">
+        <header class="variant-picker__header">
+            <div>
+                <p class="eyebrow">Chọn nhanh biến thể</p>
+                <h2 id="variant-picker-title" data-picker-product-name>Đang tải sản phẩm</h2>
+            </div>
+            <button type="button"
+                    class="variant-picker__close"
+                    data-picker-close
+                    aria-label="Đóng cửa sổ chọn biến thể">×</button>
+        </header>
+
+        <div class="variant-picker__content">
+            <div class="variant-picker__media">
+                <img src="/images/no-image.png"
+                     alt=""
+                     width="360"
+                     height="360"
+                     data-picker-image />
+            </div>
+
+            <div class="variant-picker__configuration">
+                <div class="variant-picker__loading" data-picker-loading>
+                    Đang tải biến thể và tồn kho mới nhất…
+                </div>
+
+                <div data-picker-ready hidden>
+                    <div class="variant-picker__price-block">
+                        <span class="variant-picker__price-label">Giá hiện tại</span>
+                        <strong data-picker-price>—</strong>
+                        <span data-picker-original-price hidden></span>
+                    </div>
+
+                    <div class="variant-picker__attributes" data-picker-attributes></div>
+
+                    <div class="variant-picker__selection-status" data-picker-status role="status">
+                        Hãy chọn đầy đủ thuộc tính để xác định đúng biến thể.
+                    </div>
+
+                    <div class="variant-picker__quantity-row">
+                        <label for="quick-cart-quantity">Số lượng</label>
+                        <div class="quantity-control">
+                            <button type="button" data-picker-quantity-minus aria-label="Giảm số lượng">−</button>
+                            <input id="quick-cart-quantity"
+                                   type="number"
+                                   min="1"
+                                   max="1"
+                                   value="1"
+                                   inputmode="numeric"
+                                   data-picker-quantity />
+                            <button type="button" data-picker-quantity-plus aria-label="Tăng số lượng">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="variant-picker__error app-alert app-alert--danger"
+                     data-picker-error
+                     role="alert"
+                     hidden></div>
+            </div>
+        </div>
+
+        <footer class="variant-picker__footer">
+            <button type="button" class="button button--secondary" data-picker-close>Quay lại</button>
+            <button type="button"
+                    class="button button--primary"
+                    data-picker-confirm
+                    disabled>
+                Thêm vào giỏ
+            </button>
+        </footer>
+    </div>
+</dialog>
+
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/storefront/home.css" asp-append-version="true" />
 }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebApplication2.Models;
 using WebApplication2.Services;
+using WebApplication2.Services.Cart;
 using WebApplication2.Services.Media;
 using WebApplication2.Services.Pricing;
 
@@ -24,6 +25,19 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<ProductImageStorageOptions>(
     builder.Configuration.GetSection(ProductImageStorageOptions.SectionName));
 builder.Services.AddSingleton<IProductImageStorage, LocalProductImageStorage>();
+
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSession(options =>
+{
+    options.Cookie.Name = ".FastBuy.Session";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.IdleTimeout = TimeSpan.FromDays(7);
+});
+builder.Services.AddScoped<ISessionCartService, SessionCartService>();
 
 // EffectivePriceService gốc giữ trách nhiệm preview/validation.
 // ReliableEffectivePriceService thay riêng phần projection CurrentPrice/PriceHistory.
@@ -61,6 +75,7 @@ app.UseStatusCodePagesWithReExecute("/Home/Error", "?statusCode={0}");
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
+app.UseSession();
 app.UseAuthorization();
 
 app.MapControllerRoute(
