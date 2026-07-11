@@ -117,10 +117,13 @@
                     method: "POST"
                 });
                 api.applyCartSummary(result.cart);
+                if (result.success) {
+                    window.location.assign(result.redirectUrl || "/checkout");
+                    return;
+                }
                 resultHost.hidden = false;
                 resultHost.classList.remove("is-error");
                 resultHost.textContent = result.message;
-                api.toast(result.message, "success", 5000);
             } catch (error) {
                 resultHost.hidden = false;
                 resultHost.classList.add("is-error");

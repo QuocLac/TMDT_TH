@@ -1,0 +1,134 @@
+@using System.Globalization
+@model WebApplication2.ViewModels.Storefront.Checkout.CheckoutPageViewModel
+@{
+    ViewData["Title"] = "Kiểm tra đơn hàng";
+    var culture = CultureInfo.GetCultureInfo("vi-VN");
+}
+
+<section class="checkout-page shell-container" data-checkout-page>
+    <header class="checkout-hero" data-reveal>
+        <div>
+            <span class="hero-pill"><i aria-hidden="true"></i>Checkout foundation</span>
+            <h1>Kiểm tra địa chỉ giao hàng</h1>
+            <p>Chọn mã địa chỉ chuẩn từ GHN để sẵn sàng tính phí vận chuyển và tạo vận đơn ở bước tiếp theo.</p>
+        </div>
+        <a asp-controller="Cart" asp-action="Index" class="button button--glass">Quay lại giỏ hàng</a>
+    </header>
+
+    <div class="checkout-layout" data-reveal>
+        <section class="checkout-card checkout-address-card" aria-labelledby="checkout-address-heading">
+            <div class="checkout-card__heading">
+                <div>
+                    <p class="eyebrow">Địa chỉ nhận hàng</p>
+                    <h2 id="checkout-address-heading">Chọn theo dữ liệu GHN</h2>
+                </div>
+                <span class="checkout-provider-badge"><i aria-hidden="true"></i>GHN Sandbox ready</span>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(Model.AddressLookupError))
+            {
+                <div class="checkout-alert checkout-alert--warning" role="alert">
+                    @Model.AddressLookupError
+                    <small>Hãy cấu hình token GHN trên server trước khi dùng dropdown địa chỉ.</small>
+                </div>
+            }
+
+            <form data-checkout-form novalidate>
+                <div class="checkout-form-grid">
+                    <label class="checkout-field checkout-field--wide">
+                        <span>Địa chỉ cụ thể</span>
+                        <input name="addressLine" maxlength="200" minlength="3" required
+                               value="@Model.Customer.AddressLine"
+                               placeholder="Số nhà, tên đường, tòa nhà..." autocomplete="street-address" />
+                    </label>
+
+                    <label class="checkout-field">
+                        <span>Tỉnh/thành phố <b>*</b></span>
+                        <select name="provinceId" required data-province-select @(Model.Provinces.Count == 0 ? "disabled" : null)>
+                            <option value="">Chọn tỉnh/thành phố</option>
+                            @foreach (var province in Model.Provinces)
+                            {
+                                <option value="@province.ProvinceId">@province.ProvinceName</option>
+                            }
+                        </select>
+                    </label>
+
+                    <label class="checkout-field">
+                        <span>Quận/huyện <b>*</b></span>
+                        <select name="districtId" required data-district-select disabled>
+                            <option value="">Chọn quận/huyện</option>
+                        </select>
+                    </label>
+
+                    <label class="checkout-field">
+                        <span>Phường/xã <b>*</b></span>
+                        <select name="wardCode" required data-ward-select disabled>
+                            <option value="">Chọn phường/xã</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="checkout-address-actions">
+                    <button type="submit" class="button button--primary" data-validate-address>
+                        Đối chiếu địa chỉ
+                    </button>
+                    <span class="checkout-validation-state" data-address-validation-state role="status">
+                        Chưa đối chiếu
+                    </span>
+                </div>
+                <div class="checkout-alert" data-checkout-message role="status" hidden></div>
+            </form>
+
+            <div class="checkout-canonical-address" data-canonical-address hidden>
+                <span class="checkout-canonical-address__icon" aria-hidden="true">✓</span>
+                <div>
+                    <strong data-canonical-address-text></strong>
+                    <small>Mã tỉnh, huyện và phường đã được xác minh từ GHN.</small>
+                </div>
+            </div>
+        </section>
+
+        <aside class="checkout-card checkout-summary-card" aria-labelledby="checkout-summary-heading">
+            <div class="checkout-card__heading">
+                <div>
+                    <p class="eyebrow">Tóm tắt lựa chọn</p>
+                    <h2 id="checkout-summary-heading">@Model.Items.Count sản phẩm</h2>
+                </div>
+                <span class="checkout-summary-card__step">01 / 03</span>
+            </div>
+
+            <div class="checkout-items">
+                @foreach (var item in Model.Items)
+                {
+                    <article class="checkout-item">
+                        <img src="@item.ImageUrl" alt="@item.ProductName" width="64" height="64" loading="lazy" />
+                        <div>
+                            <strong>@item.ProductName</strong>
+                            <span>@item.VariantDescription · SL @item.Quantity</span>
+                        </div>
+                        <b>@item.LineTotal.ToString("N0", culture) ₫</b>
+                    </article>
+                }
+            </div>
+
+            <dl class="checkout-totals">
+                <div><dt>Tạm tính</dt><dd>@Model.Subtotal.ToString("N0", culture) ₫</dd></div>
+                <div><dt>Phí vận chuyển</dt><dd data-shipping-fee>Chờ GHN báo giá</dd></div>
+                <div class="checkout-totals__grand"><dt>Tổng dự kiến</dt><dd data-checkout-total>@Model.Subtotal.ToString("N0", culture) ₫</dd></div>
+            </dl>
+
+            <div class="checkout-next-step">
+                <span class="checkout-next-step__dot" aria-hidden="true"></span>
+                <p><strong>Chưa tạo đơn, chưa trừ tiền.</strong> Bước này chỉ xác minh địa chỉ để chuẩn bị cho shipping quote GHN.</p>
+            </div>
+        </aside>
+    </div>
+</section>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/checkout.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/pages/storefront/checkout-address.js" asp-append-version="true"></script>
+}

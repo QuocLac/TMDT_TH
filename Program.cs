@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using WebApplication2.Models;
 using WebApplication2.Services;
 using WebApplication2.Services.Cart;
 using WebApplication2.Services.Media;
 using WebApplication2.Services.Pricing;
+using WebApplication2.Services.Shipping.Ghn;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +29,7 @@ builder.Services.Configure<ProductImageStorageOptions>(
 builder.Services.AddSingleton<IProductImageStorage, LocalProductImageStorage>();
 
 builder.Services.AddDistributedMemoryCache();
+builder.Services.AddMemoryCache();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSession(options =>
 {
@@ -38,6 +41,20 @@ builder.Services.AddSession(options =>
     options.IdleTimeout = TimeSpan.FromDays(7);
 });
 builder.Services.AddScoped<ISessionCartService, SessionCartService>();
+
+builder.Services.Configure<GhnAddressOptions>(
+    builder.Configuration.GetSection(GhnAddressOptions.SectionName));
+builder.Services.AddHttpClient<IGhnAddressClient, GhnAddressClient>((serviceProvider, client) =>
+{
+    var options = serviceProvider.GetRequiredService<IOptions<GhnAddressOptions>>().Value;
+    var baseUrl = Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var configuredBaseUrl)
+        && configuredBaseUrl.Scheme == Uri.UriSchemeHttps
+        ? configuredBaseUrl
+        : new Uri("https://dev-online-gateway.ghn.vn/");
+
+    client.BaseAddress = new Uri(baseUrl.ToString().TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 30));
+});
 
 // EffectivePriceService gốc giữ trách nhiệm preview/validation.
 // ReliableEffectivePriceService thay riêng phần projection CurrentPrice/PriceHistory.
