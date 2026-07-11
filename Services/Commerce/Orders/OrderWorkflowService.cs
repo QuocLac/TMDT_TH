@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using WebApplication2.Models;
 using WebApplication2.Models.Enums;
 using WebApplication2.Services.Commerce.Flows;
+using WebApplication2.Services.Commerce.Returns;
 
 namespace WebApplication2.Services.Commerce.Orders;
 
@@ -105,14 +106,14 @@ public sealed class OrderWorkflowService : IOrderWorkflowService
             var normalizedActor = NormalizeRequired(actor, ActorMaxLength, nameof(actor), tracker);
             var normalizedReason = NormalizeRequired(reason, ReasonMaxLength, nameof(reason), tracker);
 
+            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
             tracker.MoveTo(CommerceFlowStage.ValidateBusinessRules, order.OrderStatus.ToString());
-            ValidateOrderInvariant(order, targetStatus, tracker);
+            ValidateOrderInvariant(order, targetStatus, nowUtc, tracker);
 
             tracker.MoveTo(CommerceFlowStage.ValidateConcurrency, order.OrderStatus.ToString());
             ApplyOriginalRowVersion(order, rowVersion, tracker);
 
             var previousStatus = order.OrderStatus;
-            var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
             tracker.MoveTo(CommerceFlowStage.ApplyStateTransition, previousStatus.ToString());
             order.OrderStatus = targetStatus;
             order.UpdatedAt = nowUtc;
@@ -320,6 +321,7 @@ public sealed class OrderWorkflowService : IOrderWorkflowService
         return await _context.Orders
             .Include(item => item.PaymentTransactions)
             .Include(item => item.Shipments)
+            .Include(item => item.ReturnRequests)
             .Include(item => item.StatusHistory)
             .SingleOrDefaultAsync(item => item.Id == orderId, cancellationToken)
             ?? throw new OrderTransitionException(
@@ -361,6 +363,7 @@ public sealed class OrderWorkflowService : IOrderWorkflowService
     private static void ValidateOrderInvariant(
         Order order,
         OrderStatus targetStatus,
+        DateTime nowUtc,
         CommerceFlowTracker tracker)
     {
         if (targetStatus == OrderStatus.Cancelled)
@@ -390,13 +393,31 @@ public sealed class OrderWorkflowService : IOrderWorkflowService
         }
 
         if (targetStatus == OrderStatus.Closed
-            && order.OrderStatus == OrderStatus.Completed
-            && order.FulfillmentStatus is FulfillmentStatus.Returning)
+            && order.OrderStatus == OrderStatus.Completed)
         {
-            throw new OrderTransitionException(
-                "ORDER_CLOSE_BLOCKED_BY_ACTIVE_RETURN",
-                "Không thể đóng đơn khi return workflow đang hoạt động.",
-                tracker.Snapshot());
+            var activeReturn = order.ReturnRequests
+                .FirstOrDefault(item => item.Status is not
+                    ReturnRequestStatus.Rejected
+                    and not ReturnRequestStatus.RejectedAfterInspection
+                    and not ReturnRequestStatus.Cancelled
+                    and not ReturnRequestStatus.Closed);
+            if (activeReturn is not null)
+            {
+                throw new OrderTransitionException(
+                    "ORDER_CLOSE_BLOCKED_BY_ACTIVE_RETURN",
+                    $"Không thể đóng đơn vì return {activeReturn.Code} đang ở {activeReturn.Status}.",
+                    tracker.Snapshot());
+            }
+
+            var deliveredOutbound = ReturnPolicy.GetDeliveredOutboundShipment(order);
+            if (deliveredOutbound?.DeliveredAt is DateTime deliveredAt
+                && ReturnPolicy.NormalizeUtc(nowUtc) <= ReturnPolicy.GetDeadlineUtc(deliveredAt))
+            {
+                throw new OrderTransitionException(
+                    "ORDER_CLOSE_BLOCKED_BY_RETURN_WINDOW",
+                    $"Không thể đóng đơn trước khi hết thời hạn hoàn trả {ReturnPolicy.GetDeadlineUtc(deliveredAt):O}.",
+                    tracker.Snapshot());
+            }
         }
     }
 

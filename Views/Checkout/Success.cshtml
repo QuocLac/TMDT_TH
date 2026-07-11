@@ -20,6 +20,13 @@
         <div class="checkout-success-actions">
             <a asp-controller="Home" asp-action="Index" class="button button--primary">Tiếp tục mua sắm</a>
             <a asp-controller="Cart" asp-action="Index" class="button button--glass">Mở giỏ hàng</a>
+            @if (Model.OrderStatus == OrderStatus.Completed
+                && Model.FulfillmentStatus == FulfillmentStatus.Delivered)
+            {
+                <a asp-controller="Returns" asp-action="RequestReturn"
+                   asp-route-publicToken="@Model.PublicToken"
+                   class="button button--glass">Yêu cầu hoàn trả</a>
+            }
         </div>
     </header>
 

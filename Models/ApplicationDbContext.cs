@@ -35,6 +35,10 @@ public sealed class ApplicationDbContext : DbContext
     public DbSet<OrderStatusHistory> OrderStatusHistories => Set<OrderStatusHistory>();
     public DbSet<IntegrationInboxEvent> IntegrationInboxEvents => Set<IntegrationInboxEvent>();
     public DbSet<IntegrationOutboxMessage> IntegrationOutboxMessages => Set<IntegrationOutboxMessage>();
+    public DbSet<ReturnRequest> ReturnRequests => Set<ReturnRequest>();
+    public DbSet<ReturnItem> ReturnItems => Set<ReturnItem>();
+    public DbSet<ReturnInspection> ReturnInspections => Set<ReturnInspection>();
+    public DbSet<ReturnEvidence> ReturnEvidence => Set<ReturnEvidence>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

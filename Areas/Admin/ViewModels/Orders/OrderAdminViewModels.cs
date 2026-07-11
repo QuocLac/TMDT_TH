@@ -432,6 +432,7 @@ public static class OrderAdminDisplay
         OrderHistoryCategory.Fulfillment => "Giao hàng",
         OrderHistoryCategory.Inventory => "Tồn kho",
         OrderHistoryCategory.Integration => "Tích hợp",
+        OrderHistoryCategory.Return => "Hoàn trả",
         _ => category.ToString()
     };
 

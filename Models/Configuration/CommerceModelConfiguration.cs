@@ -15,6 +15,7 @@ public static class CommerceModelConfiguration
         ConfigureTimeline(modelBuilder);
         ConfigureIntegrationInbox(modelBuilder);
         ConfigureIntegrationOutbox(modelBuilder);
+        ConfigureReturns(modelBuilder);
     }
 
     private static void ConfigureOrders(ModelBuilder modelBuilder)
@@ -177,6 +178,10 @@ public static class CommerceModelConfiguration
                 .HasFilter("[TrackingCode] IS NOT NULL");
             entity.HasIndex(item => new { item.Direction, item.Status, item.CreatedAt });
             entity.HasIndex(item => item.ParentShipmentId);
+            entity.HasIndex(item => item.ReturnRequestId);
+            entity.HasIndex(item => new { item.ReturnRequestId, item.Direction })
+                .IsUnique()
+                .HasFilter("[Direction] = 'Return' AND [ReturnRequestId] IS NOT NULL AND [Status] <> 'Cancelled' AND [Status] <> 'Returned'");
             entity.HasIndex(item => new { item.OrderId, item.Direction })
                 .IsUnique()
                 .HasFilter("[Direction] = 'Outbound' AND [Status] <> 'Cancelled' AND [Status] <> 'Returned'");
@@ -188,6 +193,10 @@ public static class CommerceModelConfiguration
             entity.HasOne(item => item.ParentShipment)
                 .WithMany(item => item.ChildShipments)
                 .HasForeignKey(item => item.ParentShipmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ReturnRequest)
+                .WithMany(item => item.Shipments)
+                .HasForeignKey(item => item.ReturnRequestId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.ToTable(table =>
@@ -202,9 +211,9 @@ public static class CommerceModelConfiguration
                     "CK_Shipment_Direction",
                     "[Direction] IN ('Outbound','Return')");
                 table.HasCheckConstraint(
-                    "CK_Shipment_ParentDirection",
-                    "([Direction] = 'Outbound' AND [ParentShipmentId] IS NULL) OR " +
-                    "([Direction] = 'Return' AND [ParentShipmentId] IS NOT NULL)");
+                    "CK_Shipment_DirectionOwnership",
+                    "([Direction] = 'Outbound' AND [ParentShipmentId] IS NULL AND [ReturnRequestId] IS NULL) OR " +
+                    "([Direction] = 'Return' AND [ParentShipmentId] IS NOT NULL AND [ReturnRequestId] IS NOT NULL)");
                 table.HasCheckConstraint(
                     "CK_Shipment_ReturnCodAmount",
                     "[Direction] = 'Outbound' OR [CodAmount] = 0");
@@ -285,7 +294,10 @@ public static class CommerceModelConfiguration
 
             entity.ToTable(table =>
             {
-                table.HasCheckConstraint("CK_InventoryMovement_QuantityDelta", "[QuantityDelta] <> 0");
+                table.HasCheckConstraint(
+                    "CK_InventoryMovement_QuantityDelta",
+                    "([MovementType] IN ('ReturnReceived','ReturnWriteOff') AND [QuantityDelta] = 0) OR " +
+                    "([MovementType] NOT IN ('ReturnReceived','ReturnWriteOff') AND [QuantityDelta] <> 0)");
                 table.HasCheckConstraint("CK_InventoryMovement_QuantityBefore", "[QuantityBefore] >= 0");
                 table.HasCheckConstraint("CK_InventoryMovement_QuantityAfter", "[QuantityAfter] >= 0");
                 table.HasCheckConstraint(
@@ -293,7 +305,7 @@ public static class CommerceModelConfiguration
                     "[QuantityAfter] = [QuantityBefore] + [QuantityDelta]");
                 table.HasCheckConstraint(
                     "CK_InventoryMovement_MovementType",
-                    "[MovementType] IN ('ReservationCreated','ReservationReleased','ReservationExpired','ManualIncrease','ManualDecrease','ReturnRestocked','ReturnWriteOff')");
+                    "[MovementType] IN ('ReservationCreated','ReservationReleased','ReservationExpired','ManualIncrease','ManualDecrease','ReturnReceived','ReturnRestocked','ReturnWriteOff')");
             });
         });
     }
@@ -322,6 +334,138 @@ public static class CommerceModelConfiguration
                 table.HasCheckConstraint(
                     "CK_OrderStatusHistory_Category",
                     "[Category] IN ('Order','Payment','Fulfillment','Inventory','Integration','Return')");
+            });
+        });
+    }
+
+    private static void ConfigureReturns(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ReturnRequest>(entity =>
+        {
+            entity.Property(item => item.Status)
+                .HasConversion<string>()
+                .HasMaxLength(40);
+            entity.Property(item => item.InspectionResult)
+                .HasConversion<string>()
+                .HasMaxLength(30);
+            entity.Property(item => item.CreatedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+            entity.Property(item => item.RowVersion).IsRowVersion();
+
+            entity.HasIndex(item => item.Code).IsUnique();
+            entity.HasIndex(item => item.IdempotencyKey).IsUnique();
+            entity.HasIndex(item => new { item.OrderId, item.Status, item.RequestedAt });
+
+            entity.HasOne(item => item.Order)
+                .WithMany(item => item.ReturnRequests)
+                .HasForeignKey(item => item.OrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_ReturnRequest_Status",
+                    "[Status] IN ('Requested','UnderReview','Approved','Rejected','AwaitingReturnShipment','AwaitingPickup','ReturnInTransit','ReceivedAtWarehouse','Inspecting','RefundPending','RejectedAfterInspection','Refunded','Closed','Cancelled')");
+                table.HasCheckConstraint(
+                    "CK_ReturnRequest_Window",
+                    "[RequestedAt] <= [ReturnWindowExpiresAt]");
+                table.HasCheckConstraint(
+                    "CK_ReturnRequest_InspectionResult",
+                    "[InspectionResult] IS NULL OR [InspectionResult] IN ('Accepted','PartiallyAccepted','Rejected')");
+            });
+        });
+
+        modelBuilder.Entity<ReturnItem>(entity =>
+        {
+            entity.Property(item => item.ConditionCode)
+                .HasConversion<string>()
+                .HasMaxLength(30);
+
+            entity.HasIndex(item => new { item.ReturnRequestId, item.OrderItemId })
+                .IsUnique();
+            entity.HasIndex(item => item.OrderItemId);
+
+            entity.HasOne(item => item.ReturnRequest)
+                .WithMany(item => item.Items)
+                .HasForeignKey(item => item.ReturnRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(item => item.OrderItem)
+                .WithMany(item => item.ReturnItems)
+                .HasForeignKey(item => item.OrderItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_ReturnItem_RequestedQuantity",
+                    "[RequestedQuantity] > 0");
+                table.HasCheckConstraint(
+                    "CK_ReturnItem_ApprovedQuantity",
+                    "[ApprovedQuantity] >= 0 AND [ApprovedQuantity] <= [RequestedQuantity]");
+                table.HasCheckConstraint(
+                    "CK_ReturnItem_ReceivedQuantity",
+                    "[ReceivedQuantity] >= 0 AND [ReceivedQuantity] <= [ApprovedQuantity]");
+                table.HasCheckConstraint(
+                    "CK_ReturnItem_AcceptedRejected",
+                    "[AcceptedQuantity] >= 0 AND [RejectedQuantity] >= 0 AND " +
+                    "[AcceptedQuantity] + [RejectedQuantity] <= [ReceivedQuantity]");
+                table.HasCheckConstraint(
+                    "CK_ReturnItem_Disposition",
+                    "[RestockQuantity] >= 0 AND [WriteOffQuantity] >= 0 AND " +
+                    "[RestockQuantity] + [WriteOffQuantity] = [AcceptedQuantity]");
+                table.HasCheckConstraint(
+                    "CK_ReturnItem_RefundAmount",
+                    "[RefundAmount] >= 0");
+                table.HasCheckConstraint(
+                    "CK_ReturnItem_ConditionCode",
+                    "[ConditionCode] IS NULL OR [ConditionCode] IN ('Restockable','Damaged','MissingParts','WrongItem','WriteOff')");
+            });
+        });
+
+        modelBuilder.Entity<ReturnEvidence>(entity =>
+        {
+            entity.Property(item => item.Type)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+            entity.Property(item => item.CreatedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(item => new { item.ReturnRequestId, item.CreatedAt });
+
+            entity.HasOne(item => item.ReturnRequest)
+                .WithMany(item => item.Evidence)
+                .HasForeignKey(item => item.ReturnRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_ReturnEvidence_Type",
+                    "[Type] IN ('Image','Video')");
+            });
+        });
+
+        modelBuilder.Entity<ReturnInspection>(entity =>
+        {
+            entity.Property(item => item.Result)
+                .HasConversion<string>()
+                .HasMaxLength(30);
+            entity.Property(item => item.CreatedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(item => item.IdempotencyKey).IsUnique();
+            entity.HasIndex(item => new { item.ReturnRequestId, item.CreatedAt });
+
+            entity.HasOne(item => item.ReturnRequest)
+                .WithMany(item => item.Inspections)
+                .HasForeignKey(item => item.ReturnRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_ReturnInspection_Result",
+                    "[Result] IN ('Accepted','PartiallyAccepted','Rejected')");
             });
         });
     }

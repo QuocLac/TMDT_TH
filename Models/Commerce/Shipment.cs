@@ -17,6 +17,9 @@ public sealed class Shipment : BaseEntity
     public Shipment? ParentShipment { get; set; }
     public ICollection<Shipment> ChildShipments { get; set; } = [];
 
+    public long? ReturnRequestId { get; set; }
+    public ReturnRequest? ReturnRequest { get; set; }
+
     [Required, MaxLength(50)]
     public string Provider { get; set; } = string.Empty;
 

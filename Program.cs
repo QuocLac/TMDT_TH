@@ -8,6 +8,7 @@ using WebApplication2.Services.Commerce.Cancellations;
 using WebApplication2.Services.Commerce.Checkout;
 using WebApplication2.Services.Commerce.Inventory;
 using WebApplication2.Services.Commerce.Orders;
+using WebApplication2.Services.Commerce.Returns;
 using WebApplication2.Services.Media;
 using WebApplication2.Services.Payments.VnPay;
 using WebApplication2.Services.Pricing;
@@ -54,7 +55,11 @@ builder.Services.AddScoped<IInventoryService>(serviceProvider =>
     serviceProvider.GetRequiredService<CommerceInventoryService>());
 builder.Services.AddScoped<ICancellationInventoryService>(serviceProvider =>
     serviceProvider.GetRequiredService<CommerceInventoryService>());
+builder.Services.AddScoped<IReturnInventoryService>(serviceProvider =>
+    serviceProvider.GetRequiredService<CommerceInventoryService>());
 builder.Services.AddScoped<IOrderCancellationService, OrderCancellationService>();
+builder.Services.AddScoped<IReturnCodeGenerator, ReturnCodeGenerator>();
+builder.Services.AddScoped<IReturnWorkflowService, ReturnWorkflowService>();
 
 builder.Services.AddScoped<IShippingFeeCalculator, StandardShippingFeeCalculator>();
 builder.Services.AddScoped<IOrderApplicationService, OrderApplicationService>();
@@ -95,9 +100,11 @@ builder.Services.AddHttpClient<IGhnAddressClient, GhnAddressClient>(ConfigureGhn
 builder.Services.AddHttpClient<IGhnShippingClient, GhnShippingClient>(ConfigureGhnHttpClient);
 builder.Services.AddScoped<IShippingGateway, GhnShippingGateway>();
 builder.Services.AddScoped<IShippingExecutionService, ShippingExecutionService>();
+builder.Services.AddScoped<IReturnShippingService, ReturnShippingExecutionService>();
 builder.Services.AddSingleton<IShippingWebhookParser, GhnShippingWebhookParser>();
 builder.Services.AddScoped<IGhnShippingWebhookProcessor, GhnShippingWebhookProcessor>();
 builder.Services.AddHostedService<ShippingOutboxWorker>();
+builder.Services.AddHostedService<ReturnShippingOutboxWorker>();
 
 builder.Services
     .AddOptions<VnPayOptions>()

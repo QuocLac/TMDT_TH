@@ -1,0 +1,93 @@
+@using WebApplication2.Models.Enums
+@model WebApplication2.Areas.Admin.ViewModels.Returns.ReturnAdminIndexViewModel
+@{
+    ViewData["Title"] = "Quản lý hoàn trả";
+}
+
+<section class="admin-page returns-page">
+    <header class="admin-page-header">
+        <div>
+            <p class="eyebrow">Return operations</p>
+            <h2>Yêu cầu hoàn trả</h2>
+            <p class="admin-page-lead">
+                Vòng đời độc lập từ yêu cầu, duyệt, GHN chiều về, nhận kho, kiểm định đến RefundPending.
+            </p>
+        </div>
+    </header>
+
+    <form method="get" class="returns-filter">
+        <label>
+            <span>Tìm kiếm</span>
+            <input name="search" value="@Model.Search"
+                   placeholder="Mã return, mã đơn, khách hàng..." />
+        </label>
+        <label>
+            <span>Trạng thái</span>
+            <select name="status">
+                <option value="">Tất cả</option>
+                @foreach (var status in Enum.GetValues<ReturnRequestStatus>())
+                {
+                    <option value="@status" selected="@(Model.Status == status)">@status</option>
+                }
+            </select>
+        </label>
+        <button class="btn btn-primary" type="submit">Lọc</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Đặt lại</a>
+    </form>
+
+    <div class="data-panel">
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Return / Order</th>
+                        <th>Khách hàng</th>
+                        <th>Trạng thái</th>
+                        <th>Số lượng</th>
+                        <th class="text-end">Refund dự kiến</th>
+                        <th>Thời gian</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7">
+                                <div class="empty-state compact">Không có yêu cầu phù hợp.</div>
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@item.Code</strong>
+                                <small>@item.OrderCode · #@item.OrderId</small>
+                            </td>
+                            <td>@item.CustomerName</td>
+                            <td><span class="return-status">@item.Status</span></td>
+                            <td>
+                                <strong>@item.RequestedQuantity yêu cầu</strong>
+                                <small>@item.ApprovedQuantity được duyệt</small>
+                            </td>
+                            <td class="text-end">@item.RefundAmount.ToString("N0") ₫</td>
+                            <td>
+                                @item.RequestedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                <small>Hạn @item.ReturnWindowExpiresAt.ToLocalTime().ToString("dd/MM HH:mm")</small>
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="Details" asp-route-id="@item.Id"
+                                   class="btn btn-sm btn-outline-primary">Chi tiết</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/returns.css" asp-append-version="true" />
+}

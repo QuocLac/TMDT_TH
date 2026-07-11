@@ -37,14 +37,23 @@ public sealed class GhnShippingClient : IGhnShippingClient
 
     public Task<ShippingOperationResult<IReadOnlyList<ShippingServiceOption>>> GetAvailableServicesAsync(
         int toDistrictId,
+        CancellationToken cancellationToken) =>
+        GetAvailableServicesAsync(
+            _options.FromDistrictId,
+            toDistrictId,
+            cancellationToken);
+
+    public Task<ShippingOperationResult<IReadOnlyList<ShippingServiceOption>>> GetAvailableServicesAsync(
+        int fromDistrictId,
+        int toDistrictId,
         CancellationToken cancellationToken)
     {
-        if (toDistrictId <= 0)
+        if (fromDistrictId <= 0 || toDistrictId <= 0)
         {
             return Task.FromResult(
                 ShippingOperationResult<IReadOnlyList<ShippingServiceOption>>.Failure(
                     "INVALID_DISTRICT",
-                    "Mã quận/huyện nhận hàng không hợp lệ."));
+                    "Mã quận/huyện gửi và nhận hàng phải hợp lệ."));
         }
 
         return SendAsync(
@@ -52,7 +61,7 @@ public sealed class GhnShippingClient : IGhnShippingClient
             new
             {
                 shop_id = _options.ShopId,
-                from_district = _options.FromDistrictId,
+                from_district = fromDistrictId,
                 to_district = toDistrictId
             },
             data => (IReadOnlyList<ShippingServiceOption>)(data.ValueKind == JsonValueKind.Array
@@ -118,8 +127,8 @@ public sealed class GhnShippingClient : IGhnShippingClient
         CancellationToken cancellationToken)
     {
         var validation = ValidateParcel(
-            request.ToDistrictId,
-            request.ToWardCode,
+            request.Recipient.DistrictId,
+            request.Recipient.WardCode,
             request.WeightGram,
             request.LengthCm,
             request.WidthCm,
@@ -132,15 +141,15 @@ public sealed class GhnShippingClient : IGhnShippingClient
                     validation));
         }
 
-        if (string.IsNullOrWhiteSpace(request.ClientOrderCode)
-            || string.IsNullOrWhiteSpace(request.RecipientName)
-            || string.IsNullOrWhiteSpace(request.RecipientPhone)
-            || string.IsNullOrWhiteSpace(request.RecipientAddress))
+        if (!IsValidParty(request.Sender)
+            || !IsValidParty(request.Recipient)
+            || !IsValidParty(request.ReturnAddress)
+            || string.IsNullOrWhiteSpace(request.ClientOrderCode))
         {
             return Task.FromResult(
                 ShippingOperationResult<ShippingCreateResult>.Failure(
-                    "INVALID_RECIPIENT",
-                    "Thông tin người nhận và mã đơn hàng là bắt buộc."));
+                    "INVALID_SHIPPING_PARTY",
+                    "Mã đơn và thông tin người gửi, người nhận, địa chỉ hoàn hàng là bắt buộc."));
         }
 
         return SendAsync(
@@ -150,22 +159,22 @@ public sealed class GhnShippingClient : IGhnShippingClient
                 payment_type_id = request.PaymentTypeId,
                 note = request.Note,
                 required_note = request.RequiredNote,
-                from_name = _options.SenderName,
-                from_phone = _options.SenderPhone,
-                from_address = _options.SenderAddress,
-                from_ward_code = _options.FromWardCode,
-                from_district_id = _options.FromDistrictId,
-                return_name = _options.SenderName,
-                return_phone = _options.SenderPhone,
-                return_address = _options.SenderAddress,
-                return_ward_code = _options.FromWardCode,
-                return_district_id = _options.FromDistrictId,
+                from_name = request.Sender.Name,
+                from_phone = request.Sender.Phone,
+                from_address = request.Sender.Address,
+                from_ward_code = request.Sender.WardCode,
+                from_district_id = request.Sender.DistrictId,
+                return_name = request.ReturnAddress.Name,
+                return_phone = request.ReturnAddress.Phone,
+                return_address = request.ReturnAddress.Address,
+                return_ward_code = request.ReturnAddress.WardCode,
+                return_district_id = request.ReturnAddress.DistrictId,
                 client_order_code = request.ClientOrderCode,
-                to_name = request.RecipientName,
-                to_phone = request.RecipientPhone,
-                to_address = request.RecipientAddress,
-                to_ward_code = request.ToWardCode,
-                to_district_id = request.ToDistrictId,
+                to_name = request.Recipient.Name,
+                to_phone = request.Recipient.Phone,
+                to_address = request.Recipient.Address,
+                to_ward_code = request.Recipient.WardCode,
+                to_district_id = request.Recipient.DistrictId,
                 cod_amount = Math.Clamp(request.CodAmount, 0, 50_000_000),
                 content = $"Đơn hàng {request.ClientOrderCode}",
                 weight = request.WeightGram,
@@ -373,6 +382,13 @@ public sealed class GhnShippingClient : IGhnShippingClient
         width = item.WidthCm,
         height = item.HeightCm
     };
+
+    private static bool IsValidParty(ShippingParty party) =>
+        !string.IsNullOrWhiteSpace(party.Name)
+        && !string.IsNullOrWhiteSpace(party.Phone)
+        && !string.IsNullOrWhiteSpace(party.Address)
+        && party.DistrictId > 0
+        && !string.IsNullOrWhiteSpace(party.WardCode);
 
     private static string? ValidateParcel(
         int districtId,

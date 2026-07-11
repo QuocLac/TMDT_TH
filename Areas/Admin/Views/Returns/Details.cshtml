@@ -1,0 +1,370 @@
+@using WebApplication2.Models.Enums
+@model WebApplication2.Areas.Admin.ViewModels.Returns.ReturnAdminDetailsViewModel
+@{
+    ViewData["Title"] = $"Return {Model.Code}";
+    var ghnEnabled = ViewBag.GhnEnabled is true;
+    var serviceType = (int?)ViewBag.DefaultServiceTypeId ?? 2;
+    var weight = Model.Shipment?.WeightGram > 0 ? Model.Shipment.WeightGram : (int?)ViewBag.DefaultWeightGram ?? 500;
+    var length = Model.Shipment?.LengthCm > 0 ? Model.Shipment.LengthCm : (int?)ViewBag.DefaultLengthCm ?? 20;
+    var width = Model.Shipment?.WidthCm > 0 ? Model.Shipment.WidthCm : (int?)ViewBag.DefaultWidthCm ?? 15;
+    var height = Model.Shipment?.HeightCm > 0 ? Model.Shipment.HeightCm : (int?)ViewBag.DefaultHeightCm ?? 10;
+    var inspectionIdempotencyKey = Guid.NewGuid().ToString("N");
+}
+
+<section class="admin-page returns-page" data-return-details data-return-id="@Model.Id">
+    <header class="admin-page-header">
+        <div>
+            <p class="eyebrow">Return lifecycle</p>
+            <h2>@Model.Code</h2>
+            <p class="admin-page-lead">
+                Đơn @Model.OrderCode · @Model.CustomerName · trạng thái <strong>@Model.Status</strong>
+            </p>
+        </div>
+        <div class="return-header-actions">
+            <a asp-action="Index" class="btn btn-outline-secondary">Danh sách</a>
+            <a asp-area="Admin" asp-controller="Orders" asp-action="Details"
+               asp-route-id="@Model.OrderId" class="btn btn-outline-primary">Mở đơn hàng</a>
+            <a asp-area="" asp-controller="Returns" asp-action="Confirmation"
+               asp-route-returnCode="@Model.Code" asp-route-publicToken="@Model.OrderPublicToken"
+               target="_blank" rel="noopener noreferrer"
+               class="btn btn-outline-primary">Trang khách hàng</a>
+        </div>
+    </header>
+
+    <div class="return-metrics">
+        <article><span>Return</span><strong>@Model.Status</strong></article>
+        <article><span>GHN chiều về</span><strong>@(Model.Shipment?.Status.ToString() ?? "Chưa tạo")</strong></article>
+        <article><span>Kho nhận</span><strong>@(Model.ReceivedAt?.ToLocalTime().ToString("dd/MM HH:mm") ?? "Chưa nhận")</strong></article>
+        <article><span>Kiểm định</span><strong>@(Model.InspectionResult?.ToString() ?? "Chưa có")</strong></article>
+    </div>
+
+    <div class="return-admin-layout">
+        <div class="return-admin-main">
+            <section class="data-panel return-section">
+                <div class="return-section-heading">
+                    <div>
+                        <p class="eyebrow">Request snapshot</p>
+                        <h3>Lý do và khách hàng</h3>
+                    </div>
+                </div>
+                <dl class="return-snapshot">
+                    <div><dt>Khách hàng</dt><dd>@Model.CustomerName</dd></div>
+                    <div><dt>Email / điện thoại</dt><dd>@Model.CustomerEmail · @Model.CustomerPhone</dd></div>
+                    <div class="wide"><dt>Địa chỉ lấy hàng</dt><dd>@Model.CustomerAddress</dd></div>
+                    <div><dt>Lý do</dt><dd>@Model.ReasonCode</dd></div>
+                    <div><dt>Người gửi yêu cầu</dt><dd>@Model.RequestedBy</dd></div>
+                    <div class="wide"><dt>Mô tả</dt><dd>@Model.ReasonText</dd></div>
+                    <div><dt>Gửi lúc</dt><dd>@Model.RequestedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
+                    <div><dt>Hạn 7 ngày</dt><dd>@Model.ReturnWindowExpiresAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
+                </dl>
+            </section>
+
+            @if (Model.Evidence.Count > 0)
+            {
+                <section class="data-panel return-section">
+                    <div class="return-section-heading">
+                        <div>
+                            <p class="eyebrow">Customer evidence</p>
+                            <h3>Ảnh và video đính kèm</h3>
+                        </div>
+                    </div>
+                    <div class="return-evidence-grid">
+                        @foreach (var evidence in Model.Evidence)
+                        {
+                            <a href="@evidence.Url" target="_blank" rel="noopener noreferrer">
+                                <strong>@evidence.Type</strong>
+                                <span>@evidence.Url</span>
+                                <small>@evidence.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                            </a>
+                        }
+                    </div>
+                </section>
+            }
+
+            <section class="data-panel return-section">
+                <div class="return-section-heading">
+                    <div>
+                        <p class="eyebrow">Line control</p>
+                        <h3>Sản phẩm hoàn trả</h3>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle return-items-table">
+                        <thead>
+                            <tr>
+                                <th>Sản phẩm</th>
+                                <th>Mua</th>
+                                <th>Yêu cầu</th>
+                                <th>Duyệt</th>
+                                <th>Nhận</th>
+                                <th>Accepted / Rejected</th>
+                                <th>Restock / Write-off</th>
+                                <th class="text-end">Refund</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@item.ProductName</strong>
+                                        <small>@item.VariantDescription · @item.Sku</small>
+                                    </td>
+                                    <td>@item.PurchasedQuantity</td>
+                                    <td>@item.RequestedQuantity</td>
+                                    <td>@item.ApprovedQuantity</td>
+                                    <td>@item.ReceivedQuantity</td>
+                                    <td>@item.AcceptedQuantity / @item.RejectedQuantity</td>
+                                    <td>@item.RestockQuantity / @item.WriteOffQuantity</td>
+                                    <td class="text-end">@item.RefundAmount.ToString("N0") ₫</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            @if (Model.Status == ReturnRequestStatus.Requested)
+            {
+                <section class="data-panel return-section">
+                    <h3>Bắt đầu duyệt</h3>
+                    <form asp-action="StartReview" asp-route-id="@Model.Id" method="post"
+                          class="return-action-form">
+                        <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+                        <textarea name="Note" rows="3" maxlength="1000"
+                                  placeholder="Ghi chú tiếp nhận hồ sơ..."></textarea>
+                        <button class="btn btn-primary" type="submit">Chuyển sang UnderReview</button>
+                    </form>
+                </section>
+            }
+
+            @if (Model.Status == ReturnRequestStatus.UnderReview)
+            {
+                <section class="data-panel return-section">
+                    <h3>Quyết định duyệt</h3>
+                    <form asp-action="Decide" asp-route-id="@Model.Id" method="post"
+                          class="return-action-form">
+                        <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+                        <div class="return-quantity-grid">
+                            @for (var index = 0; index < Model.Items.Count; index++)
+                            {
+                                var item = Model.Items[index];
+                                <label>
+                                    <span>@item.Sku · tối đa @item.RequestedQuantity</span>
+                                    <input type="hidden" name="Items[@index].ReturnItemId" value="@item.Id" />
+                                    <input type="number" name="Items[@index].ApprovedQuantity"
+                                           min="0" max="@item.RequestedQuantity"
+                                           value="@item.RequestedQuantity" />
+                                </label>
+                            }
+                        </div>
+                        <textarea name="Note" rows="3" maxlength="500" required
+                                  placeholder="Lý do duyệt hoặc từ chối..."></textarea>
+                        <div class="return-inline-actions">
+                            <button class="btn btn-primary" type="submit" name="Approve" value="true">
+                                Phê duyệt
+                            </button>
+                            <button class="btn btn-outline-danger" type="submit" name="Approve" value="false">
+                                Từ chối
+                            </button>
+                        </div>
+                    </form>
+                </section>
+            }
+
+            @if (Model.Status is ReturnRequestStatus.Approved or ReturnRequestStatus.AwaitingReturnShipment)
+            {
+                <section class="data-panel return-section">
+                    <div class="return-section-heading">
+                        <div>
+                            <p class="eyebrow">GHN reverse logistics</p>
+                            <h3>Tạo vận đơn chiều về</h3>
+                        </div>
+                    </div>
+                    @if (!ghnEnabled)
+                    {
+                        <div class="alert alert-warning">GHN đang tắt trong configuration.</div>
+                    }
+                    <form asp-action="QueueShipment" asp-route-id="@Model.Id" method="post"
+                          class="return-shipping-form" data-return-shipping-form>
+                        <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+                        <label>
+                            <span>Dịch vụ</span>
+                            <select name="ServiceId" data-return-service>
+                                <option value="">Tải dịch vụ GHN...</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>Loại dịch vụ</span>
+                            <select name="ServiceTypeId">
+                                <option value="2" selected="@(serviceType == 2)">Hàng nhẹ</option>
+                                <option value="5" selected="@(serviceType == 5)">Hàng nặng</option>
+                            </select>
+                        </label>
+                        <label><span>Gram</span><input name="WeightGram" type="number" value="@weight" min="1" max="50000" /></label>
+                        <label><span>Dài</span><input name="LengthCm" type="number" value="@length" min="1" max="200" /></label>
+                        <label><span>Rộng</span><input name="WidthCm" type="number" value="@width" min="1" max="200" /></label>
+                        <label><span>Cao</span><input name="HeightCm" type="number" value="@height" min="1" max="200" /></label>
+                        <label class="wide">
+                            <span>Ghi chú</span>
+                            <textarea name="Note" rows="3" maxlength="500">Liên hệ khách trước khi lấy hàng hoàn trả.</textarea>
+                        </label>
+                        <div class="wide return-inline-actions">
+                            <button type="button" class="btn btn-outline-primary"
+                                    data-return-quote disabled="@(!ghnEnabled)">Báo giá</button>
+                            <button type="submit" class="btn btn-primary" disabled="@(!ghnEnabled)">
+                                Xếp hàng tạo vận đơn
+                            </button>
+                        </div>
+                    </form>
+                    <div class="return-provider-result" data-return-provider-result hidden></div>
+                </section>
+            }
+
+            @if (Model.Status == ReturnRequestStatus.ReceivedAtWarehouse)
+            {
+                <section class="data-panel return-section">
+                    <h3>Ghi nhận kho tiếp nhận</h3>
+                    <form asp-action="BeginInspection" asp-route-id="@Model.Id" method="post"
+                          class="return-action-form">
+                        <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+                        <div class="return-quantity-grid">
+                            @{
+                                var approvedItems = Model.Items.Where(item => item.ApprovedQuantity > 0).ToArray();
+                            }
+                            @for (var index = 0; index < approvedItems.Length; index++)
+                            {
+                                var item = approvedItems[index];
+                                <label>
+                                    <span>@item.Sku · được duyệt @item.ApprovedQuantity</span>
+                                    <input type="hidden" name="Items[@index].ReturnItemId" value="@item.Id" />
+                                    <input type="number" name="Items[@index].ReceivedQuantity"
+                                           min="0" max="@item.ApprovedQuantity"
+                                           value="@item.ApprovedQuantity" />
+                                </label>
+                            }
+                        </div>
+                        <textarea name="Note" rows="3" maxlength="1000"
+                                  placeholder="Biên bản tiếp nhận kiện hàng..."></textarea>
+                        <button class="btn btn-primary" type="submit">Bắt đầu kiểm định</button>
+                    </form>
+                </section>
+            }
+
+            @if (Model.Status == ReturnRequestStatus.Inspecting)
+            {
+                <section class="data-panel return-section">
+                    <h3>Hoàn tất kiểm định</h3>
+                    <p class="return-rule">
+                        Accepted + Rejected = Received; Restock + Write-off = Accepted.
+                    </p>
+                    <form asp-action="CompleteInspection" asp-route-id="@Model.Id" method="post"
+                          class="return-action-form">
+                        <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+                        <input type="hidden" name="IdempotencyKey" value="@inspectionIdempotencyKey" />
+                        @{
+                            var receivedItems = Model.Items.Where(item => item.ReceivedQuantity > 0).ToArray();
+                        }
+                        <div class="return-inspection-list">
+                            @for (var index = 0; index < receivedItems.Length; index++)
+                            {
+                                var item = receivedItems[index];
+                                <article>
+                                    <strong>@item.ProductName · @item.Sku</strong>
+                                    <small>Kho nhận @item.ReceivedQuantity</small>
+                                    <input type="hidden" name="Items[@index].ReturnItemId" value="@item.Id" />
+                                    <div class="return-inspection-grid">
+                                        <label><span>Accepted</span><input type="number" name="Items[@index].AcceptedQuantity" min="0" max="@item.ReceivedQuantity" value="@item.ReceivedQuantity" /></label>
+                                        <label><span>Rejected</span><input type="number" name="Items[@index].RejectedQuantity" min="0" max="@item.ReceivedQuantity" value="0" /></label>
+                                        <label><span>Restock</span><input type="number" name="Items[@index].RestockQuantity" min="0" max="@item.ReceivedQuantity" value="@item.ReceivedQuantity" /></label>
+                                        <label><span>Write-off</span><input type="number" name="Items[@index].WriteOffQuantity" min="0" max="@item.ReceivedQuantity" value="0" /></label>
+                                        <label>
+                                            <span>Tình trạng</span>
+                                            <select name="Items[@index].ConditionCode">
+                                                @foreach (var condition in Enum.GetValues<ReturnItemCondition>())
+                                                {
+                                                    <option value="@condition">@condition</option>
+                                                }
+                                            </select>
+                                        </label>
+                                        <label><span>Ghi chú dòng</span><input name="Items[@index].Note" maxlength="500" /></label>
+                                    </div>
+                                </article>
+                            }
+                        </div>
+                        <textarea name="Note" rows="3" maxlength="1000" required
+                                  placeholder="Kết luận kiểm định tổng thể..."></textarea>
+                        <button class="btn btn-primary" type="submit">Hoàn tất và chuyển RefundPending</button>
+                    </form>
+                </section>
+            }
+        </div>
+
+        <aside class="return-admin-side">
+            <section class="data-panel return-section">
+                <div class="return-section-heading">
+                    <div>
+                        <p class="eyebrow">Return shipment</p>
+                        <h3>GHN chiều về</h3>
+                    </div>
+                    @if (Model.Shipment?.TrackingCode is not null)
+                    {
+                        <form asp-action="SyncShipment" asp-route-id="@Model.Id" method="post">
+                            <button class="btn btn-sm btn-outline-primary" type="submit">Đồng bộ</button>
+                        </form>
+                    }
+                </div>
+                @if (Model.Shipment is null)
+                {
+                    <p class="return-muted">Chưa tạo vận đơn.</p>
+                }
+                else
+                {
+                    <dl class="return-summary-list">
+                        <div><dt>Shipment</dt><dd>#@Model.Shipment.Id</dd></div>
+                        <div><dt>Status</dt><dd>@Model.Shipment.Status</dd></div>
+                        <div><dt>Provider</dt><dd>@(Model.Shipment.ProviderStatus ?? "—")</dd></div>
+                        <div><dt>Tracking</dt><dd>@(Model.Shipment.TrackingCode ?? "—")</dd></div>
+                        <div><dt>Phí</dt><dd>@Model.Shipment.Fee.ToString("N0") ₫</dd></div>
+                        <div><dt>Delivered kho</dt><dd>@(Model.Shipment.DeliveredAt?.ToLocalTime().ToString("dd/MM HH:mm") ?? "—")</dd></div>
+                        <div><dt>Lý do provider</dt><dd>@(Model.Shipment.ProviderReason ?? "—")</dd></div>
+                    </dl>
+                }
+            </section>
+
+            <section class="data-panel return-section">
+                <p class="eyebrow">Timeline</p>
+                <h3>Lịch sử return</h3>
+                <div class="return-timeline">
+                    @if (Model.History.Count == 0)
+                    {
+                        <p class="return-muted">Chưa có lịch sử.</p>
+                    }
+                    @foreach (var item in Model.History)
+                    {
+                        <article>
+                            <header><strong>@item.Title</strong><code>@item.Code</code></header>
+                            <p>@item.Description</p>
+                            <small>
+                                @item.OccurredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+                                · @item.ChangedBy
+                            </small>
+                            @if (!string.IsNullOrWhiteSpace(item.CorrelationId))
+                            {
+                                <small>Correlation: @item.CorrelationId</small>
+                            }
+                        </article>
+                    }
+                </div>
+            </section>
+        </aside>
+    </div>
+</section>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/returns.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/pages/admin/returns.js" asp-append-version="true"></script>
+}

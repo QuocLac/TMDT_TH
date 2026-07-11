@@ -1,0 +1,128 @@
+@using System.Globalization
+@model WebApplication2.ViewModels.Storefront.Returns.ReturnRequestPageViewModel
+@{
+    ViewData["Title"] = "Yêu cầu hoàn trả";
+    var culture = CultureInfo.GetCultureInfo("vi-VN");
+}
+
+<section class="return-page shell-container">
+    <header class="return-hero">
+        <p class="eyebrow">Đơn hàng @Model.Eligibility.OrderCode</p>
+        <h1>Yêu cầu hoàn trả</h1>
+        <p>@Model.Eligibility.Message</p>
+        @if (Model.Eligibility.DeliveredAt.HasValue)
+        {
+            <div class="return-deadline">
+                <span>GHN giao thành công</span>
+                <strong>@Model.Eligibility.DeliveredAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
+                <span>Hạn gửi yêu cầu</span>
+                <strong>@Model.Eligibility.ReturnDeadlineAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
+            </div>
+        }
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+    }
+
+    @if (!Model.Eligibility.IsEligible)
+    {
+        <section class="return-card return-empty">
+            <h2>Không thể gửi yêu cầu</h2>
+            <p>Mã kiểm tra: <code>@(Model.Eligibility.ErrorCode ?? "RETURN_NOT_ELIGIBLE")</code></p>
+            <a asp-controller="Checkout" asp-action="Success"
+               asp-route-publicToken="@Model.Eligibility.OrderPublicToken"
+               class="button button--primary">Quay lại đơn hàng</a>
+        </section>
+    }
+    else
+    {
+        <form asp-action="RequestReturn" method="post" class="return-form">
+            <input type="hidden" asp-for="Form.OrderPublicToken" />
+            <input type="hidden" asp-for="Form.IdempotencyKey" />
+
+            <section class="return-card">
+                <div class="return-card__heading">
+                    <div>
+                        <p class="eyebrow">Sản phẩm</p>
+                        <h2>Chọn số lượng cần hoàn</h2>
+                    </div>
+                    <span>Không vượt số lượng còn khả dụng</span>
+                </div>
+
+                <div class="return-lines">
+                    @for (var index = 0; index < Model.Eligibility.Items.Count; index++)
+                    {
+                        var item = Model.Eligibility.Items[index];
+                        <article class="return-line">
+                            <img src="@(string.IsNullOrWhiteSpace(item.ImageUrl) ? "/images/no-image.png" : item.ImageUrl)"
+                                 alt="@item.ProductName" width="72" height="72" />
+                            <div class="return-line__content">
+                                <strong>@item.ProductName</strong>
+                                <span>@item.VariantDescription · @item.Sku</span>
+                                <small>
+                                    Đã mua @item.PurchasedQuantity · Đã hủy @item.CancelledQuantity ·
+                                    Đang giữ bởi return khác @item.ReservedReturnQuantity
+                                </small>
+                                <b>@item.UnitPrice.ToString("N0", culture) ₫</b>
+                            </div>
+                            <label>
+                                <span>Số lượng hoàn</span>
+                                <input type="hidden" name="Form.Lines[@index].OrderItemId"
+                                       value="@item.OrderItemId" />
+                                <input type="number"
+                                       name="Form.Lines[@index].Quantity"
+                                       value="@Model.Form.Lines.FirstOrDefault(line => line.OrderItemId == item.OrderItemId)?.Quantity"
+                                       min="0"
+                                       max="@item.AvailableQuantity"
+                                       @(item.AvailableQuantity == 0 ? "disabled" : null) />
+                                <small>Còn @item.AvailableQuantity</small>
+                            </label>
+                        </article>
+                    }
+                </div>
+            </section>
+
+            <section class="return-card return-reason-grid">
+                <label>
+                    <span>Lý do</span>
+                    <select asp-for="Form.ReasonCode">
+                        <option value="ChangedMind">Đổi ý / không còn nhu cầu</option>
+                        <option value="WrongSize">Không phù hợp kích thước</option>
+                        <option value="Damaged">Sản phẩm hư hỏng</option>
+                        <option value="WrongItem">Giao sai sản phẩm</option>
+                        <option value="MissingParts">Thiếu phụ kiện</option>
+                        <option value="Other">Khác</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Mô tả chi tiết</span>
+                    <textarea asp-for="Form.ReasonText" rows="5"
+                              placeholder="Mô tả tình trạng sản phẩm và mong muốn xử lý..."></textarea>
+                    <span asp-validation-for="Form.ReasonText" class="text-danger"></span>
+                </label>
+                <label>
+                    <span>Evidence URLs — tối đa 8</span>
+                    <textarea asp-for="Form.EvidenceUrls" rows="4"
+                              placeholder="Mỗi dòng một URL ảnh hoặc video HTTPS..."></textarea>
+                    <small>File thực tế phải được tải lên kho media an toàn trước khi gắn URL.</small>
+                </label>
+                <div class="return-policy-note">
+                    <strong>Quy tắc xử lý</strong>
+                    <p>
+                        Gửi yêu cầu không làm tăng tồn kho. Tồn kho chỉ được cập nhật sau khi
+                        GHN giao hàng về kho và nhân viên hoàn tất kiểm định từng dòng.
+                    </p>
+                </div>
+                <button type="submit" class="button button--primary">
+                    Gửi yêu cầu hoàn trả
+                </button>
+            </section>
+        </form>
+    }
+</section>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/returns.css" asp-append-version="true" />
+}

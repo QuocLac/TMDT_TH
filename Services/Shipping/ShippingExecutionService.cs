@@ -582,8 +582,13 @@ public sealed class ShippingExecutionService : IShippingExecutionService
                 Math.Max(1, shipment.HeightCm)))
             .ToArray();
 
-        return new ShippingCreateRequest(
-            order.Code,
+        var storeParty = new ShippingParty(
+            options.SenderName,
+            options.SenderPhone,
+            options.SenderAddress,
+            options.FromDistrictId,
+            options.FromWardCode);
+        var customerParty = new ShippingParty(
             order.CustomerName,
             order.CustomerPhone,
             string.Join(", ", new[]
@@ -594,7 +599,13 @@ public sealed class ShippingExecutionService : IShippingExecutionService
                 order.ShippingCity
             }.Where(value => !string.IsNullOrWhiteSpace(value))),
             order.ShippingDistrictId.Value,
-            order.ShippingWardCode,
+            order.ShippingWardCode);
+
+        return new ShippingCreateRequest(
+            order.Code,
+            storeParty,
+            customerParty,
+            storeParty,
             serviceId,
             serviceTypeId,
             options.PaymentTypeId,

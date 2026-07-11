@@ -85,4 +85,5 @@ public sealed class Order : BaseEntity
     public ICollection<StockReservation> StockReservations { get; set; } = [];
     public ICollection<OrderStatusHistory> StatusHistory { get; set; } = [];
     public ICollection<OrderCancellationRequest> CancellationRequests { get; set; } = [];
+    public ICollection<ReturnRequest> ReturnRequests { get; set; } = [];
 }

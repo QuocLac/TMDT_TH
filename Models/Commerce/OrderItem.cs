@@ -49,4 +49,5 @@ public sealed class OrderItem
 
     public ICollection<StockReservation> StockReservations { get; set; } = [];
     public ICollection<OrderCancellationItem> CancellationItems { get; set; } = [];
+    public ICollection<ReturnItem> ReturnItems { get; set; } = [];
 }

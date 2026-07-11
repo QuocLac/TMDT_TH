@@ -4,6 +4,13 @@ namespace WebApplication2.Services.Shipping;
 
 public sealed record ShippingServiceOption(int ServiceId, int ServiceTypeId, string Name);
 
+public sealed record ShippingParty(
+    string Name,
+    string Phone,
+    string Address,
+    int DistrictId,
+    string WardCode);
+
 public sealed record ShippingParcelItem(
     string Name,
     string Code,
@@ -38,11 +45,9 @@ public sealed record ShippingQuote(
 
 public sealed record ShippingCreateRequest(
     string ClientOrderCode,
-    string RecipientName,
-    string RecipientPhone,
-    string RecipientAddress,
-    int ToDistrictId,
-    string ToWardCode,
+    ShippingParty Sender,
+    ShippingParty Recipient,
+    ShippingParty ReturnAddress,
     int ServiceId,
     int ServiceTypeId,
     int PaymentTypeId,
@@ -98,4 +103,7 @@ public sealed record ShippingOperationResult<T>(
         new(false, default, errorCode, message, retryable);
 }
 
-public sealed record ShippingQueueResult(long? OutboxMessageId, bool AlreadyQueued, string Message);
+public sealed record ShippingQueueResult(
+    long? OutboxMessageId,
+    bool AlreadyQueued,
+    string Message);

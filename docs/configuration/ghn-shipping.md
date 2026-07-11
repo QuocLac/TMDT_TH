@@ -62,3 +62,24 @@ queue, manual provider reconciliation and inbox/outbox diagnostics.
 Once `CarrierHandoffAt` exists or shipment status is `Picking`/`InTransit`, the
 cancellation flow is rejected. If a GHN order code exists, stock compensation
 and cancellation approval wait for provider status `Cancelled`.
+
+## Return shipments
+
+Phase 6 also creates GHN reverse-logistics orders. The sender is the customer
+address snapshot from the original order; the recipient and fallback return
+address are taken from the configured FastBuy shop address.
+
+Return shipment rules:
+
+- `Direction = Return`
+- `ReturnRequestId` and `ParentShipmentId` are required
+- COD is always zero
+- the return request must be approved
+- a GHN `Delivered` event means the parcel reached the FastBuy warehouse
+- outbound order fulfillment is never overwritten by a return shipment event
+
+Return create requests use a separate outbox message type:
+
+```text
+ReturnShipmentCreateRequested
+```

@@ -18,6 +18,12 @@ public sealed class GhnShippingGateway : IShippingGateway
         CancellationToken cancellationToken) =>
         _client.GetAvailableServicesAsync(toDistrictId, cancellationToken);
 
+    public Task<ShippingOperationResult<IReadOnlyList<ShippingServiceOption>>> GetAvailableServicesAsync(
+        int fromDistrictId,
+        int toDistrictId,
+        CancellationToken cancellationToken) =>
+        _client.GetAvailableServicesAsync(fromDistrictId, toDistrictId, cancellationToken);
+
     public Task<ShippingOperationResult<ShippingQuote>> QuoteAsync(
         ShippingQuoteRequest request,
         CancellationToken cancellationToken) =>

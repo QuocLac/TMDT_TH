@@ -72,6 +72,7 @@ public enum InventoryMovementType
     ReservationExpired,
     ManualIncrease,
     ManualDecrease,
+    ReturnReceived,
     ReturnRestocked,
     ReturnWriteOff
 }

@@ -66,6 +66,12 @@
                     <i class="fa-solid fa-truck-fast" aria-hidden="true"></i>
                     <span>Vận chuyển GHN</span>
                 </a>
+                <a asp-area="Admin" asp-controller="Returns" asp-action="Index"
+                   class="admin-nav__link @(currentController == "Returns" ? "is-active" : null)"
+                   aria-current="@(currentController == "Returns" ? "page" : null)">
+                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                    <span>Hoàn trả</span>
+                </a>
 
                 <p class="admin-nav__label">Giá bán</p>
                 <a asp-area="Admin" asp-controller="PriceCampaigns" asp-action="Index"

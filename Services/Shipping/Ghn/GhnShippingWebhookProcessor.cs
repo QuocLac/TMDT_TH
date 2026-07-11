@@ -102,6 +102,9 @@ public sealed class GhnShippingWebhookProcessor : IGhnShippingWebhookProcessor
                             .ThenInclude(order => order.StatusHistory)
                         .Include(item => item.Order)
                             .ThenInclude(order => order.CancellationRequests)
+                        .Include(item => item.ReturnRequest)
+                            .ThenInclude(returnRequest => returnRequest!.Order)
+                                .ThenInclude(order => order.StatusHistory)
                         .SingleOrDefaultAsync(
                             item => item.Provider == "GHN"
                                 && (item.ExternalOrderCode == webhook.OrderCode
@@ -127,22 +130,6 @@ public sealed class GhnShippingWebhookProcessor : IGhnShippingWebhookProcessor
                         .AddMetadata("ShipmentDirection", shipment.Direction)
                         .AddMetadata("CurrentShipmentStatus", shipment.Status);
 
-                    if (shipment.Direction != ShipmentDirection.Outbound)
-                    {
-                        inbox.Status = IntegrationEventStatus.Ignored;
-                        inbox.LastError =
-                            "RETURN_SHIPMENT_DEFERRED_TO_RETURN_FLOW: Vận đơn chiều về sẽ được xử lý bởi return workflow ở Phase 6.";
-                        inbox.ProcessedAt = _timeProvider.GetUtcNow().UtcDateTime;
-
-                        tracker.MoveTo(CommerceFlowStage.SaveChanges);
-                        await _context.SaveChangesAsync(token);
-                        return new WebhookProcessResult(
-                            true,
-                            false,
-                            true,
-                            inbox.LastError);
-                    }
-
                     var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
                     var detail = new ShippingDetail(
                         webhook.OrderCode,
@@ -165,13 +152,32 @@ public sealed class GhnShippingWebhookProcessor : IGhnShippingWebhookProcessor
                     ShipmentTransitionDecision decision;
                     try
                     {
-                        decision = OutboundShipmentAggregateUpdater.ApplyProviderUpdate(
-                            shipment.Order,
-                            shipment,
-                            detail,
-                            "GHN Webhook",
-                            nowUtc,
-                            tracker);
+                        if (shipment.Direction == ShipmentDirection.Return)
+                        {
+                            var returnRequest = shipment.ReturnRequest
+                                ?? throw new BusinessRuleViolationException(
+                                    "RETURN_REQUEST_NOT_FOUND_FOR_SHIPMENT",
+                                    "Return shipment không liên kết tới return request.",
+                                    tracker.Snapshot());
+
+                            decision = ReturnShipmentAggregateUpdater.ApplyProviderUpdate(
+                                returnRequest,
+                                shipment,
+                                detail,
+                                "GHN Webhook",
+                                nowUtc,
+                                tracker);
+                        }
+                        else
+                        {
+                            decision = OutboundShipmentAggregateUpdater.ApplyProviderUpdate(
+                                shipment.Order,
+                                shipment,
+                                detail,
+                                "GHN Webhook",
+                                nowUtc,
+                                tracker);
+                        }
                     }
                     catch (ProviderEventOrderException exception)
                     {
@@ -213,7 +219,9 @@ public sealed class GhnShippingWebhookProcessor : IGhnShippingWebhookProcessor
                         true,
                         false,
                         false,
-                        "Webhook GHN đã được áp dụng vào outbound shipment lifecycle.");
+                        shipment.Direction == ShipmentDirection.Return
+                            ? "Webhook GHN đã được áp dụng vào return shipment lifecycle."
+                            : "Webhook GHN đã được áp dụng vào outbound shipment lifecycle.");
                 },
                 cancellationToken);
         }

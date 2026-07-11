@@ -8,6 +8,11 @@ public interface IGhnShippingClient
         int toDistrictId,
         CancellationToken cancellationToken);
 
+    Task<ShippingOperationResult<IReadOnlyList<ShippingServiceOption>>> GetAvailableServicesAsync(
+        int fromDistrictId,
+        int toDistrictId,
+        CancellationToken cancellationToken);
+
     Task<ShippingOperationResult<ShippingQuote>> QuoteAsync(
         ShippingQuoteRequest request,
         CancellationToken cancellationToken);

@@ -168,7 +168,11 @@
         </div>
 
         <div class="order-safety-note">
-            Hủy đơn, trả hàng và hoàn tiền chưa được mở tại đây. Các thao tác đó phải đi qua workflow riêng ở những phase tiếp theo để tránh hoàn kho hoặc hoàn tiền hai lần.
+            Hủy đơn đi qua cancellation workflow; hoàn trả đi qua return workflow riêng và chỉ mở
+            sau khi GHN xác nhận giao thành công trong thời hạn 7 ngày. Hoàn tiền thật được xử lý ở
+            refund workflow để tránh hoàn kho hoặc hoàn tiền hai lần.
+            <a asp-area="Admin" asp-controller="Returns" asp-action="Index"
+               asp-route-search="@Model.Code">Mở các yêu cầu hoàn trả của đơn</a>
         </div>
     </section>
 
