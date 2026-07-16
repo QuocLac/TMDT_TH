@@ -1,47 +1,310 @@
-.shipping-page { display: grid; gap: 1.25rem; }
-.shipping-header-actions { display: flex; flex-wrap: wrap; gap: .7rem; }
-.shipping-filter { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(12rem, .4fr) auto auto; align-items: end; gap: .8rem; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface); }
-.shipping-filter label, .shipping-execution-form label { display: grid; gap: .4rem; }
-.shipping-filter span, .shipping-execution-form span { color: var(--text-soft); font-size: .72rem; font-weight: 800; }
-.shipping-filter input, .shipping-filter select, .shipping-execution-form input, .shipping-execution-form select, .shipping-execution-form textarea, .shipping-cancel-row textarea { width: 100%; min-height: 2.8rem; padding: .7rem .8rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-solid); color: var(--text-strong); }
-.shipping-table td strong, .shipping-table td small { display: block; }
-.shipping-table td small { margin-top: .25rem; color: var(--text-soft); font-size: .68rem; }
-.shipping-status { display: inline-flex; padding: .35rem .6rem; border-radius: 999px; background: var(--bg-soft); font-size: .68rem; font-weight: 850; }
-.shipping-status--created, .shipping-status--picking, .shipping-status--intransit { color: var(--brand-800); }
-.shipping-status--delivered { color: var(--success); background: var(--success-soft); }
-.shipping-status--deliveryfailed, .shipping-status--exception { color: var(--danger); background: var(--danger-soft); }
-.shipping-status--cancelled, .shipping-status--returned { color: var(--text-soft); }
-.shipping-metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
-.shipping-metric-grid article { padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-surface); }
-.shipping-metric-grid span, .shipping-metric-grid strong { display: block; }
-.shipping-metric-grid span { color: var(--text-soft); font-size: .7rem; }
-.shipping-metric-grid strong { margin-top: .35rem; color: var(--text-strong); overflow-wrap: anywhere; }
-.shipping-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(18rem, .7fr); align-items: start; gap: 1rem; }
-.shipping-main, .shipping-side { display: grid; gap: 1rem; }
-.shipping-section { padding: 1.2rem; }
-.shipping-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
-.shipping-section-heading h3 { margin: .2rem 0 0; }
-.shipping-execution-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem; }
-.shipping-field-wide { grid-column: 1 / -1; }
-.shipping-actions { display: flex; flex-wrap: wrap; gap: .7rem; }
-.shipping-result { margin-top: 1rem; padding: .8rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-soft); }
-.shipping-result[data-type="success"] { border-color: color-mix(in srgb, var(--success) 40%, var(--border)); color: var(--success); }
-.shipping-result[data-type="error"] { border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); color: var(--danger); }
-.shipping-cancel-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: .8rem; }
-.shipping-snapshot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin: 0; }
-.shipping-snapshot div { padding: .75rem; border-radius: var(--radius-md); background: var(--bg-soft); }
-.shipping-snapshot dt { color: var(--text-soft); font-size: .68rem; }
-.shipping-snapshot dd { margin: .25rem 0 0; color: var(--text-strong); font-weight: 750; overflow-wrap: anywhere; }
-.shipping-snapshot-wide { grid-column: 1 / -1; }
-.shipping-event-list { display: grid; gap: .65rem; }
-.shipping-event-list > p { margin: 0; color: var(--text-soft); font-size: .75rem; }
-.shipping-event-list article { padding: .75rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-soft); }
-.shipping-event-list header { display: flex; justify-content: space-between; gap: .5rem; }
-.shipping-event-list header span { color: var(--text-soft); font-size: .65rem; }
-.shipping-event-list small, .shipping-event-list p { display: block; margin: .3rem 0 0; font-size: .67rem; overflow-wrap: anywhere; }
-@media (max-width: 70rem) { .shipping-layout { grid-template-columns: 1fr; } }
-@media (max-width: 54rem) { .shipping-filter { grid-template-columns: 1fr 1fr; } .shipping-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .shipping-execution-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 38rem) { .shipping-filter, .shipping-metric-grid, .shipping-execution-form, .shipping-snapshot, .shipping-cancel-row { grid-template-columns: 1fr; } .shipping-field-wide, .shipping-snapshot-wide { grid-column: auto; } }
+.shipping-page {
+    gap: var(--space-5);
+}
 
-.shipping-safety-note { margin-top: 1rem; padding: .85rem 1rem; border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border)); border-radius: var(--radius-md); background: color-mix(in srgb, var(--warning) 10%, var(--bg-surface)); color: var(--text-strong); font-size: .76rem; line-height: 1.55; }
-.shipping-status--cancelrequested { color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, var(--bg-surface)); }
+.shipping-table {
+    min-width: 76rem;
+}
+
+.shipping-header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+}
+
+.shipping-filter {
+    display: grid;
+    grid-template-columns: minmax(16rem, 1fr) minmax(12rem, 0.4fr) auto auto;
+    align-items: end;
+    gap: 0.8rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.shipping-filter label,
+.shipping-execution-form label {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.shipping-filter span,
+.shipping-execution-form span {
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+}
+
+.shipping-filter input,
+.shipping-filter select,
+.shipping-execution-form input,
+.shipping-execution-form select,
+.shipping-execution-form textarea,
+.shipping-cancel-row textarea {
+    width: 100%;
+    min-height: 2.8rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+}
+
+.shipping-table td strong,
+.shipping-table td small {
+    display: block;
+}
+
+.shipping-table td small {
+    margin-top: 0.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+}
+
+.shipping-status {
+    display: inline-flex;
+    padding: 0.35rem 0.6rem;
+    border-radius: var(--radius-pill);
+    background: var(--color-bg-subtle);
+    font-size: 0.68rem;
+    font-weight: 850;
+}
+
+.shipping-status--created,
+.shipping-status--picking,
+.shipping-status--intransit {
+    color: var(--color-accent-strong);
+}
+
+.shipping-status--delivered {
+    background: var(--color-success-surface);
+    color: var(--color-success-text);
+}
+
+.shipping-status--deliveryfailed,
+.shipping-status--exception {
+    background: var(--color-danger-surface);
+    color: var(--color-danger-text);
+}
+
+.shipping-status--cancelled,
+.shipping-status--returned {
+    color: var(--color-text-muted);
+}
+
+.shipping-status--cancelrequested {
+    background: color-mix(in srgb, #f59e0b 12%, var(--color-bg-surface));
+    color: var(--color-warning-text);
+}
+
+.shipping-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.8rem;
+}
+
+.shipping-metric-grid article {
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.shipping-metric-grid span,
+.shipping-metric-grid strong {
+    display: block;
+}
+
+.shipping-metric-grid span {
+    color: var(--color-text-muted);
+    font-size: 0.7rem;
+}
+
+.shipping-metric-grid strong {
+    margin-top: 0.35rem;
+    overflow-wrap: anywhere;
+    color: var(--color-text-primary);
+}
+
+.shipping-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(18rem, 0.7fr);
+    align-items: start;
+    gap: 1rem;
+}
+
+.shipping-main,
+.shipping-side {
+    display: grid;
+    gap: 1rem;
+}
+
+.shipping-section {
+    padding: 1.2rem;
+}
+
+.shipping-section-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.shipping-section-heading h3 {
+    margin: 0.2rem 0 0;
+}
+
+.shipping-execution-form {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+}
+
+.shipping-field-wide {
+    grid-column: 1 / -1;
+}
+
+.shipping-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+}
+
+.shipping-result {
+    margin-top: 1rem;
+    padding: 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-subtle);
+}
+
+.shipping-result[data-type="success"] {
+    border-color: color-mix(in srgb, var(--color-success-text) 40%, var(--color-border));
+    color: var(--color-success-text);
+}
+
+.shipping-result[data-type="error"] {
+    border-color: color-mix(in srgb, var(--color-danger-text) 40%, var(--color-border));
+    color: var(--color-danger-text);
+}
+
+.shipping-cancel-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.8rem;
+}
+
+.shipping-snapshot {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+    margin: 0;
+}
+
+.shipping-snapshot div {
+    padding: 0.75rem;
+    border-radius: var(--radius-md);
+    background: var(--color-bg-subtle);
+}
+
+.shipping-snapshot dt {
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+}
+
+.shipping-snapshot dd {
+    margin: 0.25rem 0 0;
+    overflow-wrap: anywhere;
+    color: var(--color-text-primary);
+    font-weight: 750;
+}
+
+.shipping-snapshot-wide {
+    grid-column: 1 / -1;
+}
+
+.shipping-event-list {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.shipping-event-list > p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.75rem;
+}
+
+.shipping-event-list article {
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-subtle);
+}
+
+.shipping-event-list header {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.shipping-event-list header span {
+    color: var(--color-text-muted);
+    font-size: 0.65rem;
+}
+
+.shipping-event-list small,
+.shipping-event-list p {
+    display: block;
+    margin: 0.3rem 0 0;
+    overflow-wrap: anywhere;
+    font-size: 0.67rem;
+}
+
+.shipping-safety-note {
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid color-mix(in srgb, #b7791f 45%, var(--color-border));
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, #f59e0b 10%, var(--color-bg-surface));
+    color: var(--color-text-primary);
+    font-size: 0.76rem;
+    line-height: 1.55;
+}
+
+@media (max-width: 70rem) {
+    .shipping-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 54rem) {
+    .shipping-filter {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .shipping-metric-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .shipping-execution-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 38rem) {
+    .shipping-filter,
+    .shipping-metric-grid,
+    .shipping-execution-form,
+    .shipping-snapshot,
+    .shipping-cancel-row {
+        grid-template-columns: 1fr;
+    }
+
+    .shipping-field-wide,
+    .shipping-snapshot-wide {
+        grid-column: auto;
+    }
+}

@@ -1,126 +1,299 @@
+@using System.Globalization
+@using WebApplication2.Areas.Admin.Presentation
 @model WebApplication2.Areas.Admin.ViewModels.Home.AdminDashboardViewModel
 
 @{
-    ViewData["Title"] = "Tổng quan";
+    ViewData["Title"] = "Tổng quan vận hành";
+    var culture = CultureInfo.GetCultureInfo("vi-VN");
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/admin/dashboard.css" asp-append-version="true" />
 }
 
-<div class="admin-dashboard">
-    <section class="dashboard-hero" aria-labelledby="dashboard-heading">
-        <div>
-            <p class="eyebrow">Trung tâm vận hành</p>
-            <h2 id="dashboard-heading">Tổng quan cửa hàng</h2>
-            <p>
-                Theo dõi nhanh danh mục sản phẩm, tồn kho biến thể và các chiến dịch giá
-                đang tác động tới storefront.
+<section class="admin-page admin-dashboard">
+    <header class="admin-page-header admin-page-header--hero">
+        <div class="admin-page-header__copy">
+            <p class="admin-page-kicker">Trung tâm điều hành</p>
+            <h2>Hoạt động kinh doanh hôm nay</h2>
+            <p class="admin-page-lead">
+                Theo dõi đơn hàng, doanh thu đã thanh toán, giao vận, hoàn trả và tồn kho
+                trong một màn hình vận hành thống nhất.
             </p>
+            <span class="admin-page-meta">
+                Cập nhật lúc @Model.GeneratedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+            </span>
         </div>
 
-        <div class="dashboard-hero__actions" aria-label="Thao tác nhanh">
+        <div class="admin-page-header__actions">
+            <a asp-area="Admin"
+               asp-controller="Orders"
+               asp-action="Index"
+               class="button button--primary">
+                <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+                Xử lý đơn hàng
+            </a>
             <a asp-area="Admin"
                asp-controller="Products"
                asp-action="Create"
-               class="button button--primary">
+               class="button button--secondary">
                 <i class="fa-solid fa-plus" aria-hidden="true"></i>
                 Thêm sản phẩm
             </a>
-            <a asp-area="Admin"
-               asp-controller="PriceCampaigns"
-               asp-action="Create"
-               class="button button--secondary">
-                <i class="fa-solid fa-tags" aria-hidden="true"></i>
-                Tạo chiến dịch giá
-            </a>
         </div>
-    </section>
+    </header>
 
-    <section class="dashboard-stats" aria-label="Chỉ số vận hành">
-        <article class="dashboard-stat-card">
-            <span class="dashboard-stat-card__icon" aria-hidden="true">
+    <section class="admin-metric-grid admin-metric-grid--six" aria-label="Chỉ số bán hàng">
+        <article class="admin-metric-card admin-metric-card--info">
+            <span class="admin-metric-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-bag-shopping"></i>
+            </span>
+            <div>
+                <span class="admin-metric-card__label">Đơn phát sinh hôm nay</span>
+                <strong class="admin-metric-card__value">@Model.OrdersTodayCount</strong>
+                <small class="admin-metric-card__meta">Tính theo thời điểm tạo đơn</small>
+            </div>
+        </article>
+
+        <article class="admin-metric-card admin-metric-card--success">
+            <span class="admin-metric-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-coins"></i>
+            </span>
+            <div>
+                <span class="admin-metric-card__label">Doanh thu đã thanh toán</span>
+                <strong class="admin-metric-card__value admin-metric-card__value--money">
+                    @Model.PaidRevenueToday.ToString("N0", culture) ₫
+                </strong>
+                <small class="admin-metric-card__meta">Không tính giao dịch đang chờ</small>
+            </div>
+        </article>
+
+        <article class="admin-metric-card admin-metric-card--warning">
+            <span class="admin-metric-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-clock"></i>
+            </span>
+            <div>
+                <span class="admin-metric-card__label">Chờ xác nhận</span>
+                <strong class="admin-metric-card__value">@Model.AwaitingConfirmationCount</strong>
+                <small class="admin-metric-card__meta">Cần kiểm tra và tiếp nhận</small>
+            </div>
+        </article>
+
+        <article class="admin-metric-card admin-metric-card--info">
+            <span class="admin-metric-card__icon" aria-hidden="true">
                 <i class="fa-solid fa-box"></i>
             </span>
             <div>
-                <p>Sản phẩm đang hoạt động</p>
-                <strong>@Model.ActiveProductCount</strong>
+                <span class="admin-metric-card__label">Sẵn sàng bàn giao</span>
+                <strong class="admin-metric-card__value">@Model.ReadyToShipCount</strong>
+                <small class="admin-metric-card__meta">Có thể tạo hoặc bàn giao vận đơn</small>
             </div>
         </article>
 
-        <article class="dashboard-stat-card">
-            <span class="dashboard-stat-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-barcode"></i>
-            </span>
-            <div>
-                <p>Biến thể đang bán</p>
-                <strong>@Model.ActiveVariantCount</strong>
-            </div>
-        </article>
-
-        <article class="dashboard-stat-card dashboard-stat-card--warning">
-            <span class="dashboard-stat-card__icon" aria-hidden="true">
+        <article class="admin-metric-card admin-metric-card--danger">
+            <span class="admin-metric-card__icon" aria-hidden="true">
                 <i class="fa-solid fa-triangle-exclamation"></i>
             </span>
             <div>
-                <p>Sắp hết hàng</p>
-                <strong>@Model.LowStockVariantCount</strong>
+                <span class="admin-metric-card__label">Vận chuyển cần kiểm tra</span>
+                <strong class="admin-metric-card__value">@Model.ShippingExceptionCount</strong>
+                <small class="admin-metric-card__meta">Giao chưa thành công hoặc có ngoại lệ</small>
             </div>
         </article>
 
-        <article class="dashboard-stat-card dashboard-stat-card--danger">
-            <span class="dashboard-stat-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-box-open"></i>
+        <article class="admin-metric-card admin-metric-card--warning">
+            <span class="admin-metric-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-rotate-left"></i>
             </span>
             <div>
-                <p>Đã hết hàng</p>
-                <strong>@Model.OutOfStockVariantCount</strong>
-            </div>
-        </article>
-
-        <article class="dashboard-stat-card dashboard-stat-card--success">
-            <span class="dashboard-stat-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-bolt"></i>
-            </span>
-            <div>
-                <p>Chiến dịch đang chạy</p>
-                <strong>@Model.RunningCampaignCount</strong>
-            </div>
-        </article>
-
-        <article class="dashboard-stat-card">
-            <span class="dashboard-stat-card__icon" aria-hidden="true">
-                <i class="fa-regular fa-calendar"></i>
-            </span>
-            <div>
-                <p>Chiến dịch sắp diễn ra</p>
-                <strong>@Model.UpcomingCampaignCount</strong>
+                <span class="admin-metric-card__label">Hoàn trả đang xử lý</span>
+                <strong class="admin-metric-card__value">@Model.OpenReturnCount</strong>
+                <small class="admin-metric-card__meta">Từ tiếp nhận đến chờ hoàn tiền</small>
             </div>
         </article>
     </section>
 
+    <section class="dashboard-work-queue" aria-label="Hàng đợi công việc">
+        <a asp-area="Admin"
+           asp-controller="Orders"
+           asp-action="Index"
+           asp-route-orderStatus="Placed"
+           class="dashboard-work-card">
+            <span class="dashboard-work-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-clipboard-check"></i>
+            </span>
+            <div>
+                <strong>Xác nhận đơn mới</strong>
+                <span>@Model.AwaitingConfirmationCount đơn đang chờ</span>
+            </div>
+            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        </a>
+
+        <a asp-area="Admin"
+           asp-controller="Shipping"
+           asp-action="Index"
+           class="dashboard-work-card">
+            <span class="dashboard-work-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-truck-fast"></i>
+            </span>
+            <div>
+                <strong>Điều phối giao hàng</strong>
+                <span>@Model.ReadyToShipCount đơn sẵn sàng bàn giao</span>
+            </div>
+            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        </a>
+
+        <a asp-area="Admin"
+           asp-controller="Returns"
+           asp-action="Index"
+           class="dashboard-work-card">
+            <span class="dashboard-work-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-box-archive"></i>
+            </span>
+            <div>
+                <strong>Xử lý hoàn trả</strong>
+                <span>@Model.OpenReturnCount yêu cầu đang mở</span>
+            </div>
+            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        </a>
+
+        <a asp-area="Admin"
+           asp-controller="Products"
+           asp-action="Index"
+           class="dashboard-work-card">
+            <span class="dashboard-work-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-boxes-stacked"></i>
+            </span>
+            <div>
+                <strong>Kiểm tra tồn kho</strong>
+                <span>@(Model.LowStockVariantCount + Model.OutOfStockVariantCount) biến thể cần chú ý</span>
+            </div>
+            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+        </a>
+    </section>
+
+    <section class="admin-panel dashboard-orders-panel" aria-labelledby="recent-orders-heading">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">Bán hàng gần đây</p>
+                <h3 id="recent-orders-heading">Đơn hàng mới nhất</h3>
+                <p>Theo dõi nhanh tình trạng đơn, thanh toán và giao hàng.</p>
+            </div>
+            <a asp-area="Admin"
+               asp-controller="Orders"
+               asp-action="Index"
+               class="admin-text-link">
+                Xem tất cả đơn
+                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+            </a>
+        </header>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table">
+                <thead>
+                    <tr>
+                        <th>Đơn hàng</th>
+                        <th>Khách hàng</th>
+                        <th>Trạng thái đơn</th>
+                        <th>Thanh toán</th>
+                        <th>Giao hàng</th>
+                        <th class="text-end">Tổng tiền</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.RecentOrders.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7">
+                                <div class="admin-empty-state admin-empty-state--compact">
+                                    <i class="fa-regular fa-rectangle-list" aria-hidden="true"></i>
+                                    <div>
+                                        <strong>Chưa có đơn hàng</strong>
+                                        <span>Đơn mới sẽ xuất hiện tại đây sau khi khách đặt hàng.</span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var order in Model.RecentOrders)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="admin-cell-primary">@order.Code</span>
+                                    <span class="admin-cell-secondary">
+                                        @order.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="admin-cell-primary">@order.CustomerName</span>
+                                </td>
+                                <td>
+                                    <span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(order.OrderStatus)">
+                                        @AdminCommerceDisplay.OrderStatusText(order.OrderStatus)
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(order.PaymentStatus)">
+                                        @AdminCommerceDisplay.PaymentStatusText(order.PaymentStatus)
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(order.FulfillmentStatus)">
+                                        @AdminCommerceDisplay.FulfillmentStatusText(order.FulfillmentStatus)
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="admin-cell-money">
+                                        @order.GrandTotal.ToString("N0", culture) ₫
+                                    </span>
+                                </td>
+                                <td class="text-end">
+                                    <a asp-area="Admin"
+                                       asp-controller="Orders"
+                                       asp-action="Details"
+                                       asp-route-id="@order.OrderId"
+                                       class="admin-row-action"
+                                       aria-label="Mở đơn @order.Code">
+                                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
     <div class="dashboard-grid">
-        <section class="dashboard-panel" aria-labelledby="low-stock-heading">
-            <header class="dashboard-panel__header">
+        <section class="admin-panel" aria-labelledby="inventory-heading">
+            <header class="admin-panel__header">
                 <div>
-                    <p class="eyebrow">Tồn kho</p>
-                    <h2 id="low-stock-heading">Biến thể cần chú ý</h2>
+                    <p class="admin-page-kicker">Tồn kho</p>
+                    <h3 id="inventory-heading">Biến thể cần chú ý</h3>
+                    <p>
+                        @Model.ActiveProductCount sản phẩm đang hoạt động ·
+                        @Model.OutOfStockVariantCount biến thể đã hết hàng
+                    </p>
                 </div>
                 <a asp-area="Admin"
                    asp-controller="Products"
                    asp-action="Index"
-                   class="text-link">
-                    Xem sản phẩm
+                   class="admin-text-link">
+                    Quản lý kho
                 </a>
             </header>
 
             @if (Model.LowStockItems.Count == 0)
             {
-                <div class="dashboard-empty-state">
+                <div class="admin-empty-state">
                     <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
                     <div>
-                        <h3>Chưa có cảnh báo tồn kho</h3>
-                        <p>Các biến thể đang hoạt động đều còn trên 5 sản phẩm.</p>
+                        <strong>Tồn kho đang ổn định</strong>
+                        <span>Chưa có biến thể nào dưới ngưỡng cảnh báo.</span>
                     </div>
                 </div>
             }
@@ -142,11 +315,10 @@
                                        class="dashboard-list-item__title">
                                         @item.ProductName
                                     </a>
-                                    <p>SKU: @item.SKU · @item.CurrentPrice.ToString("N0") ₫</p>
+                                    <p>@item.SKU · @item.CurrentPrice.ToString("N0", culture) ₫</p>
                                 </div>
                             </div>
-
-                            <span class="dashboard-stock-badge @(item.StockQuantity == 0 ? "is-empty" : null)">
+                            <span class="admin-badge @(item.StockQuantity == 0 ? "admin-badge--danger" : "admin-badge--warning")">
                                 @(item.StockQuantity == 0 ? "Hết hàng" : $"Còn {item.StockQuantity}")
                             </span>
                         </article>
@@ -155,27 +327,28 @@
             }
         </section>
 
-        <section class="dashboard-panel" aria-labelledby="campaign-heading">
-            <header class="dashboard-panel__header">
+        <section class="admin-panel" aria-labelledby="campaign-heading">
+            <header class="admin-panel__header">
                 <div>
-                    <p class="eyebrow">Giá bán</p>
-                    <h2 id="campaign-heading">Chiến dịch gần nhất</h2>
+                    <p class="admin-page-kicker">Giá bán</p>
+                    <h3 id="campaign-heading">Chiến dịch đang hiệu lực</h3>
+                    <p>@Model.RunningCampaignCount chiến dịch hiện đang chạy.</p>
                 </div>
                 <a asp-area="Admin"
                    asp-controller="PriceCampaigns"
                    asp-action="Index"
-                   class="text-link">
-                    Quản lý chiến dịch
+                   class="admin-text-link">
+                    Quản lý giá
                 </a>
             </header>
 
             @if (Model.Campaigns.Count == 0)
             {
-                <div class="dashboard-empty-state">
+                <div class="admin-empty-state">
                     <i class="fa-solid fa-tags" aria-hidden="true"></i>
                     <div>
-                        <h3>Chưa có chiến dịch hiệu lực</h3>
-                        <p>Tạo chiến dịch giá để lên lịch điều chỉnh giá cho từng biến thể.</p>
+                        <strong>Chưa có chiến dịch gần đây</strong>
+                        <span>Tạo chiến dịch để lên lịch điều chỉnh giá bán.</span>
                     </div>
                 </div>
             }
@@ -184,7 +357,7 @@
                 <div class="dashboard-list">
                     @foreach (var campaign in Model.Campaigns)
                     {
-                        <article class="dashboard-list-item dashboard-list-item--campaign">
+                        <article class="dashboard-list-item">
                             <div>
                                 <a asp-area="Admin"
                                    asp-controller="PriceCampaigns"
@@ -194,14 +367,13 @@
                                     @campaign.Name
                                 </a>
                                 <p>
-                                    @campaign.StartDate.ToString("dd/MM/yyyy HH:mm")
+                                    @campaign.StartDate.ToLocalTime().ToString("dd/MM HH:mm")
                                     –
-                                    @campaign.EndDate.ToString("dd/MM/yyyy HH:mm")
+                                    @campaign.EndDate.ToLocalTime().ToString("dd/MM HH:mm")
                                 </p>
                                 <small>@campaign.VariantCount biến thể</small>
                             </div>
-
-                            <span class="dashboard-campaign-badge @(campaign.IsRunning ? "is-running" : null)">
+                            <span class="admin-badge @(campaign.IsRunning ? "admin-badge--success" : "admin-badge--info")">
                                 @(campaign.IsRunning ? "Đang chạy" : "Sắp diễn ra")
                             </span>
                         </article>
@@ -210,4 +382,4 @@
             }
         </section>
     </div>
-</div>
+</section>

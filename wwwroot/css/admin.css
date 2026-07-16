@@ -4,4 +4,5 @@
 @import url("./themes/events.css");
 @import url("./foundation/base.css");
 @import url("./components/primitives.css");
+@import url("./components/admin-commercial.css");
 @import url("./layouts/admin-shell.css");
