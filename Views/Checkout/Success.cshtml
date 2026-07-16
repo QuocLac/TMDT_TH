@@ -1,31 +1,127 @@
 @using System.Globalization
 @using WebApplication2.Models.Enums
 @model WebApplication2.ViewModels.Storefront.Checkout.CheckoutSuccessViewModel
+
 @{
-    ViewData["Title"] = "Kết quả đặt hàng";
+    ViewData["Title"] = "Trạng thái đơn hàng";
     var culture = CultureInfo.GetCultureInfo("vi-VN");
-    var isSuccessful = Model.OrderStatus == OrderStatus.Placed;
+
+    var isPendingPayment =
+        Model.OrderStatus == OrderStatus.PendingPayment
+        && Model.PaymentStatus == PaymentStatus.Pending;
+
+    var isSuccessful =
+        Model.OrderStatus is OrderStatus.Placed
+            or OrderStatus.Confirmed
+            or OrderStatus.Processing
+            or OrderStatus.Completed
+            or OrderStatus.Closed;
+
+    var heroClass = isPendingPayment
+        ? "is-pending"
+        : isSuccessful
+            ? "is-success"
+            : "is-failed";
+
+    var orderStatusText = Model.OrderStatus switch
+    {
+        OrderStatus.PendingPayment => "Chờ thanh toán",
+        OrderStatus.Placed => "Đã tiếp nhận",
+        OrderStatus.Confirmed => "Đã xác nhận",
+        OrderStatus.Processing => "Đang chuẩn bị",
+        OrderStatus.Completed => "Hoàn tất",
+        OrderStatus.Cancelled => "Đã hủy",
+        OrderStatus.Closed => "Đã đóng",
+        _ => Model.OrderStatus.ToString()
+    };
+
+    var paymentStatusText = Model.PaymentStatus switch
+    {
+        PaymentStatus.Pending => "Chờ thanh toán",
+        PaymentStatus.CodPending => "Thanh toán khi nhận hàng",
+        PaymentStatus.Paid => "Đã thanh toán",
+        PaymentStatus.Failed => "Thanh toán chưa thành công",
+        PaymentStatus.Cancelled => "Đã hủy thanh toán",
+        PaymentStatus.PartiallyRefunded => "Đã hoàn một phần",
+        PaymentStatus.Refunded => "Đã hoàn tiền",
+        _ => Model.PaymentStatus.ToString()
+    };
+
+    var statusTone = isPendingPayment
+        ? "warning"
+        : isSuccessful
+            ? "success"
+            : "danger";
 }
 
 <section class="checkout-page shell-container checkout-success-page">
-    <header class="checkout-success-hero @(isSuccessful ? "is-success" : "is-failed")">
-        <span class="checkout-success-icon" aria-hidden="true">@(isSuccessful ? "✓" : "!")</span>
+    <header class="checkout-success-hero @heroClass">
+        <span class="checkout-success-icon" aria-hidden="true">
+            <i class="fa-solid @(isPendingPayment
+                ? "fa-hourglass-half"
+                : isSuccessful
+                    ? "fa-check"
+                    : "fa-xmark")"></i>
+        </span>
+
         <p class="eyebrow">Mã đơn @Model.OrderCode</p>
-        <h1>@(isSuccessful ? "Đơn hàng đã được ghi nhận" : "Giao dịch chưa thành công")</h1>
+
+        <h1>
+            @(isPendingPayment
+                ? "Đơn hàng đang chờ thanh toán"
+                : isSuccessful
+                    ? "Đơn hàng đã được ghi nhận"
+                    : "Đơn hàng chưa thể tiếp tục")
+        </h1>
+
         <p>
-            @(isSuccessful
-                ? "Đơn đã được lưu, giá và tồn kho đã được xác nhận trên server."
-                : "Đơn thất bại được lưu để theo dõi lần thanh toán. Sản phẩm vẫn còn trong giỏ hàng.")
+            @(isPendingPayment
+                ? "Tồn kho đang được giữ tạm thời. Hãy hoàn tất thanh toán VNPay để FastBuy tiếp nhận đơn."
+                : isSuccessful
+                    ? "FastBuy đã xác nhận giá, tồn kho và phí giao hàng của đơn."
+                    : "Giao dịch chưa thành công. Sản phẩm vẫn được giữ trong giỏ hàng để bạn kiểm tra và thử lại.")
         </p>
+
         <div class="checkout-success-actions">
-            <a asp-controller="Home" asp-action="Index" class="button button--primary">Tiếp tục mua sắm</a>
-            <a asp-controller="Cart" asp-action="Index" class="button button--glass">Mở giỏ hàng</a>
+            @if (isPendingPayment)
+            {
+                <form asp-controller="Checkout"
+                      asp-action="RetryPayment"
+                      asp-route-publicToken="@Model.PublicToken"
+                      method="post">
+                    @Html.AntiForgeryToken()
+                    <button type="submit"
+                            class="button button--primary">
+                        <i class="fa-solid fa-building-columns"
+                           aria-hidden="true"></i>
+                        Thanh toán qua VNPay
+                    </button>
+                </form>
+            }
+            else
+            {
+                <a asp-controller="Home"
+                   asp-action="Index"
+                   class="button button--primary">
+                    Tiếp tục mua sắm
+                </a>
+            }
+
+            <a asp-controller="Cart"
+               asp-action="Index"
+               class="button button--glass">
+                Mở giỏ hàng
+            </a>
+
             @if (Model.OrderStatus == OrderStatus.Completed
                 && Model.FulfillmentStatus == FulfillmentStatus.Delivered)
             {
-                <a asp-controller="Returns" asp-action="RequestReturn"
+                <a asp-controller="Returns"
+                   asp-action="RequestReturn"
                    asp-route-publicToken="@Model.PublicToken"
-                   class="button button--glass">Yêu cầu hoàn trả</a>
+                   class="button button--glass">
+                    Yêu cầu hoàn trả
+                </a>
             }
         </div>
     </header>
@@ -34,19 +130,29 @@
         <section class="checkout-card">
             <div class="checkout-card__heading">
                 <div>
-                    <p class="eyebrow">Sản phẩm</p>
-                    <h2>@Model.Items.Count dòng sản phẩm</h2>
+                    <p class="eyebrow">Sản phẩm đã đặt</p>
+                    <h2>
+                        @Model.Items.Sum(item => item.Quantity) sản phẩm
+                    </h2>
                 </div>
             </div>
+
             <div class="checkout-items checkout-items--receipt">
                 @foreach (var item in Model.Items)
                 {
                     <article class="checkout-item">
-                        <img src="@(string.IsNullOrWhiteSpace(item.ImageUrl) ? "/images/no-image.png" : item.ImageUrl)"
-                             alt="@item.ProductName" width="64" height="64" />
+                        <img src="@(string.IsNullOrWhiteSpace(item.ImageUrl)
+                                      ? "/images/no-image.png"
+                                      : item.ImageUrl)"
+                             alt="@item.ProductName"
+                             width="64"
+                             height="64" />
                         <div>
                             <strong>@item.ProductName</strong>
-                            <span>@item.VariantDescription · @item.Sku · SL @item.Quantity</span>
+                            <span>
+                                @item.VariantDescription · @item.Sku ·
+                                Số lượng @item.Quantity
+                            </span>
                         </div>
                         <b>@item.LineTotal.ToString("N0", culture) ₫</b>
                     </article>
@@ -57,29 +163,66 @@
         <aside class="checkout-card checkout-summary-card">
             <div class="checkout-card__heading">
                 <div>
-                    <p class="eyebrow">Thông tin đơn</p>
+                    <p class="eyebrow">Thông tin đơn hàng</p>
                     <h2>@Model.OrderCode</h2>
                 </div>
             </div>
 
             <dl class="checkout-receipt-info">
-                <div><dt>Người nhận</dt><dd>@Model.CustomerName</dd></div>
-                <div><dt>Điện thoại</dt><dd>@Model.CustomerPhone</dd></div>
-                <div><dt>Email</dt><dd>@Model.CustomerEmail</dd></div>
-                <div><dt>Địa chỉ</dt><dd>@Model.ShippingAddress</dd></div>
-                <div><dt>Trạng thái đơn</dt><dd>@Model.OrderStatus</dd></div>
-                <div><dt>Thanh toán</dt><dd>@Model.PaymentStatus</dd></div>
+                <div>
+                    <dt>Người nhận</dt>
+                    <dd>@Model.CustomerName</dd>
+                </div>
+                <div>
+                    <dt>Điện thoại</dt>
+                    <dd>@Model.CustomerPhone</dd>
+                </div>
+                <div>
+                    <dt>Email</dt>
+                    <dd>@Model.CustomerEmail</dd>
+                </div>
+                <div>
+                    <dt>Địa chỉ</dt>
+                    <dd>@Model.ShippingAddress</dd>
+                </div>
+                <div>
+                    <dt>Trạng thái đơn</dt>
+                    <dd>
+                        <span class="checkout-receipt-status checkout-receipt-status--@statusTone">
+                            @orderStatusText
+                        </span>
+                    </dd>
+                </div>
+                <div>
+                    <dt>Thanh toán</dt>
+                    <dd>
+                        <span class="checkout-receipt-status checkout-receipt-status--@statusTone">
+                            @paymentStatusText
+                        </span>
+                    </dd>
+                </div>
             </dl>
 
             <dl class="checkout-totals">
-                <div><dt>Tạm tính</dt><dd>@Model.Subtotal.ToString("N0", culture) ₫</dd></div>
-                <div><dt>Phí vận chuyển</dt><dd>@Model.ShippingFee.ToString("N0", culture) ₫</dd></div>
-                <div class="checkout-totals__grand"><dt>Tổng cộng</dt><dd>@Model.GrandTotal.ToString("N0", culture) ₫</dd></div>
+                <div>
+                    <dt>Tạm tính</dt>
+                    <dd>@Model.Subtotal.ToString("N0", culture) ₫</dd>
+                </div>
+                <div>
+                    <dt>Phí giao hàng</dt>
+                    <dd>@Model.ShippingFee.ToString("N0", culture) ₫</dd>
+                </div>
+                <div class="checkout-totals__grand">
+                    <dt>Tổng cộng</dt>
+                    <dd>@Model.GrandTotal.ToString("N0", culture) ₫</dd>
+                </div>
             </dl>
         </aside>
     </div>
 </section>
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/pages/storefront/checkout.css" asp-append-version="true" />
+    <link rel="stylesheet"
+          href="~/css/pages/storefront/checkout.css"
+          asp-append-version="true" />
 }

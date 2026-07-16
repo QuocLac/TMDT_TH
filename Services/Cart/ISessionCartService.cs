@@ -16,7 +16,10 @@ public interface ISessionCartService
         IReadOnlyCollection<int> purchasedVariantIds,
         string clientRequestId);
 
-    Task<CartPageViewModel> GetCartAsync(CancellationToken cancellationToken);
+    void ResetCheckoutClientRequestId(string? clientRequestId = null);
+
+    Task<CartPageViewModel> GetCartAsync(
+        CancellationToken cancellationToken);
 
     Task<ProductOptionPickerViewModel?> GetProductOptionsAsync(
         int productId,

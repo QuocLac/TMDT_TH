@@ -107,6 +107,7 @@ builder.Services.AddScoped<IReturnCodeGenerator, ReturnCodeGenerator>();
 builder.Services.AddScoped<IReturnWorkflowService, ReturnWorkflowService>();
 
 builder.Services.AddScoped<IShippingFeeCalculator, StandardShippingFeeCalculator>();
+builder.Services.AddScoped<ICheckoutShippingQuoteService, CheckoutShippingQuoteService>();
 builder.Services.AddScoped<IOrderApplicationService, OrderApplicationService>();
 builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
 builder.Services.AddScoped<IOrderWorkflowService, OrderWorkflowService>();
@@ -157,9 +158,13 @@ builder.Services
     .Validate(
         options => !options.Enabled || options.IsConfigured,
         $"Configuration section '{VnPayOptions.SectionName}' is invalid. "
-        + "When VNPay is enabled, configure HTTPS BaseUrl, TmnCode, HashSecret, "
-        + "ReturnUrl and IpnUrl.")
+        + "When VNPay is enabled, configure HTTPS BaseUrl, PaymentPath, TmnCode, "
+        + "HashSecret, ReturnUrl, IpnUrl, payment timeout and expiration worker limits.")
     .ValidateOnStart();
+
+builder.Services.AddSingleton<IVnPayGateway, VnPayGateway>();
+builder.Services.AddScoped<IVnPayPaymentService, VnPayPaymentService>();
+builder.Services.AddHostedService<VnPayPaymentExpirationWorker>();
 
 builder.Services.AddScoped<EffectivePriceService>();
 builder.Services.AddScoped<IEffectivePriceService, ReliableEffectivePriceService>();

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using WebApplication2.Models.Enums;
+using WebApplication2.Services.Commerce.Checkout;
 using WebApplication2.Services.Commerce.Orders;
 using WebApplication2.ViewModels.Storefront.Cart;
 
@@ -12,9 +13,11 @@ public sealed class CheckoutPageViewModel
     public MockCustomerViewModel Customer { get; init; } = new();
     public IReadOnlyList<CheckoutLineViewModel> Items { get; init; } = [];
     public decimal Subtotal { get; init; }
-    public decimal ShippingFee { get; init; }
-    public decimal GrandTotal => Subtotal + ShippingFee;
+    public CheckoutShippingQuoteViewModel ShippingQuote { get; init; } = new();
+    public decimal GrandTotal =>
+        Subtotal + (ShippingQuote.IsAvailable ? ShippingQuote.Fee : 0m);
     public IReadOnlyList<CheckoutProvinceOption> Provinces { get; init; } = [];
+    public bool VnPayAvailable { get; init; }
     public string? AddressLookupError { get; init; }
     public string? ErrorMessage { get; init; }
     public CheckoutPlaceOrderRequest Form { get; init; } = new();
@@ -23,8 +26,9 @@ public sealed class CheckoutPageViewModel
         CartPageViewModel cart,
         long cartVersion,
         string clientRequestId,
-        decimal shippingFee,
+        CheckoutShippingQuoteResult? shippingQuote,
         IReadOnlyList<CheckoutProvinceOption> provinces,
+        bool vnPayAvailable,
         CheckoutPlaceOrderRequest? form = null,
         string? addressLookupError = null,
         string? errorMessage = null)
@@ -45,6 +49,9 @@ public sealed class CheckoutPageViewModel
             })
             .ToArray();
 
+        var quoteViewModel = CheckoutShippingQuoteViewModel.FromResult(
+            shippingQuote);
+
         var checkoutForm = form ?? new CheckoutPlaceOrderRequest
         {
             ClientRequestId = clientRequestId,
@@ -54,14 +61,19 @@ public sealed class CheckoutPageViewModel
             Phone = cart.Customer.Phone,
             AddressLine = cart.Customer.AddressLine,
             PaymentMethod = OrderApplicationService.CodPaymentMethod,
-            MockPaymentOutcome = OrderApplicationService.MockSuccessOutcome,
-            Items = items.Select(item => new CheckoutItemConfirmationRequest
-            {
-                VariantId = item.VariantId,
-                Quantity = item.Quantity,
-                ExpectedUnitPrice = item.UnitPrice
-            }).ToList()
+            Items = items.Select(item =>
+                new CheckoutItemConfirmationRequest
+                {
+                    VariantId = item.VariantId,
+                    Quantity = item.Quantity,
+                    ExpectedUnitPrice = item.UnitPrice
+                })
+                .ToList()
         };
+
+        checkoutForm.ExpectedShippingFee = quoteViewModel.Fee;
+        checkoutForm.ShippingServiceId = quoteViewModel.ServiceId;
+        checkoutForm.ShippingServiceTypeId = quoteViewModel.ServiceTypeId;
 
         return new CheckoutPageViewModel
         {
@@ -70,11 +82,48 @@ public sealed class CheckoutPageViewModel
             Customer = cart.Customer,
             Items = items,
             Subtotal = items.Sum(item => item.LineTotal),
-            ShippingFee = shippingFee,
+            ShippingQuote = quoteViewModel,
             Provinces = provinces,
+            VnPayAvailable = vnPayAvailable,
             AddressLookupError = addressLookupError,
             ErrorMessage = errorMessage,
             Form = checkoutForm
+        };
+    }
+}
+
+public sealed class CheckoutShippingQuoteViewModel
+{
+    public bool IsAvailable { get; init; }
+    public decimal Fee { get; init; }
+    public int ServiceId { get; init; }
+    public int ServiceTypeId { get; init; }
+    public string ServiceName { get; init; } = string.Empty;
+    public bool IsFallback { get; init; }
+    public string Message { get; init; } =
+        "Chọn địa chỉ để tính phí giao hàng.";
+
+    public static CheckoutShippingQuoteViewModel FromResult(
+        CheckoutShippingQuoteResult? result)
+    {
+        if (result is null || !result.Success)
+        {
+            return new CheckoutShippingQuoteViewModel
+            {
+                Message = result?.Message
+                    ?? "Chọn địa chỉ để tính phí giao hàng."
+            };
+        }
+
+        return new CheckoutShippingQuoteViewModel
+        {
+            IsAvailable = true,
+            Fee = result.Fee,
+            ServiceId = result.ServiceId,
+            ServiceTypeId = result.ServiceTypeId,
+            ServiceName = result.ServiceName,
+            IsFallback = result.IsFallback,
+            Message = result.Message
         };
     }
 }
@@ -126,6 +175,35 @@ public sealed class CheckoutAddressValidationViewModel
     public string? WardName { get; init; }
 }
 
+public sealed class CheckoutShippingQuoteRequest
+{
+    [Range(0, long.MaxValue)]
+    public long CartVersion { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int DistrictId { get; set; }
+
+    [Required, StringLength(30)]
+    [RegularExpression("^[A-Za-z0-9]+$")]
+    public string WardCode { get; set; } = string.Empty;
+
+    [Required]
+    [RegularExpression("^(COD|VNPAY)$")]
+    public string PaymentMethod { get; set; } =
+        OrderApplicationService.CodPaymentMethod;
+}
+
+public sealed class CheckoutShippingQuoteResponseViewModel
+{
+    public decimal Fee { get; init; }
+    public decimal GrandTotal { get; init; }
+    public int ServiceId { get; init; }
+    public int ServiceTypeId { get; init; }
+    public string ServiceName { get; init; } = string.Empty;
+    public bool IsFallback { get; init; }
+    public string Message { get; init; } = string.Empty;
+}
+
 public sealed class CheckoutPlaceOrderRequest
 {
     [Required, StringLength(32, MinimumLength = 32)]
@@ -159,12 +237,18 @@ public sealed class CheckoutPlaceOrderRequest
     public string WardCode { get; set; } = string.Empty;
 
     [Required]
-    [RegularExpression("^(COD|MockOnline)$")]
-    public string PaymentMethod { get; set; } = OrderApplicationService.CodPaymentMethod;
+    [RegularExpression("^(COD|VNPAY)$")]
+    public string PaymentMethod { get; set; } =
+        OrderApplicationService.CodPaymentMethod;
 
-    [Required]
-    [RegularExpression("^(Success|Failure)$")]
-    public string MockPaymentOutcome { get; set; } = OrderApplicationService.MockSuccessOutcome;
+    [Range(typeof(decimal), "0", "9999999999999999")]
+    public decimal ExpectedShippingFee { get; set; }
+
+    [Range(0, int.MaxValue)]
+    public int ShippingServiceId { get; set; }
+
+    [Range(0, int.MaxValue)]
+    public int ShippingServiceTypeId { get; set; }
 
     [MinLength(1)]
     public List<CheckoutItemConfirmationRequest> Items { get; set; } = [];

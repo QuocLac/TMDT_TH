@@ -15,9 +15,12 @@ public sealed class CartController : Controller
     }
 
     [HttpGet("")]
-    public async Task<IActionResult> Index(CancellationToken cancellationToken)
+    public async Task<IActionResult> Index(
+        CancellationToken cancellationToken)
     {
-        var model = await _cartService.GetCartAsync(cancellationToken);
+        var model = await _cartService.GetCartAsync(
+            cancellationToken);
+
         return View(model);
     }
 
@@ -62,7 +65,10 @@ public sealed class CartController : Controller
         [FromBody] AddCartItemRequest request,
         CancellationToken cancellationToken)
     {
-        return Json(await _cartService.AddAsync(request, cancellationToken));
+        return Json(
+            await _cartService.AddAsync(
+                request,
+                cancellationToken));
     }
 
     [HttpPost("quantity")]
@@ -70,7 +76,10 @@ public sealed class CartController : Controller
         [FromBody] UpdateCartQuantityRequest request,
         CancellationToken cancellationToken)
     {
-        return Json(await _cartService.UpdateQuantityAsync(request, cancellationToken));
+        return Json(
+            await _cartService.UpdateQuantityAsync(
+                request,
+                cancellationToken));
     }
 
     [HttpPost("selection")]
@@ -78,7 +87,10 @@ public sealed class CartController : Controller
         [FromBody] SetCartSelectionRequest request,
         CancellationToken cancellationToken)
     {
-        return Json(await _cartService.SetSelectionAsync(request, cancellationToken));
+        return Json(
+            await _cartService.SetSelectionAsync(
+                request,
+                cancellationToken));
     }
 
     [HttpPost("selection/all")]
@@ -86,7 +98,10 @@ public sealed class CartController : Controller
         [FromBody] SetAllCartSelectionRequest request,
         CancellationToken cancellationToken)
     {
-        return Json(await _cartService.SetAllSelectionAsync(request, cancellationToken));
+        return Json(
+            await _cartService.SetAllSelectionAsync(
+                request,
+                cancellationToken));
     }
 
     [HttpPost("remove")]
@@ -94,20 +109,52 @@ public sealed class CartController : Controller
         [FromBody] RemoveCartItemRequest request,
         CancellationToken cancellationToken)
     {
-        return Json(await _cartService.RemoveAsync(request, cancellationToken));
-    }
-
-    [HttpPost("mock-customer")]
-    public async Task<IActionResult> UpdateMockCustomer(
-        [FromBody] UpdateMockCustomerRequest request,
-        CancellationToken cancellationToken)
-    {
-        return Json(await _cartService.UpdateMockCustomerAsync(request, cancellationToken));
+        return Json(
+            await _cartService.RemoveAsync(
+                request,
+                cancellationToken));
     }
 
     [HttpPost("prepare-checkout")]
-    public async Task<IActionResult> PrepareCheckout(CancellationToken cancellationToken)
+    public async Task<IActionResult> PrepareCheckout(
+        CancellationToken cancellationToken)
     {
-        return Json(await _cartService.PrepareCheckoutAsync(cancellationToken));
+        var cart = await _cartService.GetCartAsync(
+            cancellationToken);
+
+        if (!cart.HasSelectedItems)
+        {
+            return Json(
+                CartOperationResult.Failure(
+                    "Hãy chọn ít nhất một sản phẩm còn hàng trước khi thanh toán.",
+                    "NO_SELECTED_ITEMS",
+                    cart));
+        }
+
+        if (cart.Items.Any(item =>
+                item.IsSelected
+                && !item.CanSelect))
+        {
+            return Json(
+                CartOperationResult.Failure(
+                    "Có sản phẩm không còn đủ điều kiện mua. Hãy kiểm tra lại giỏ hàng.",
+                    "SELECTED_ITEM_INVALID",
+                    cart));
+        }
+
+        if (User.Identity?.IsAuthenticated != true)
+        {
+            return Json(
+                CartOperationResult.Ok(
+                    "Đăng nhập để tiếp tục thanh toán và theo dõi đơn hàng.",
+                    cart,
+                    "/account/login?returnUrl=%2Fcheckout"));
+        }
+
+        return Json(
+            CartOperationResult.Ok(
+                "Giỏ hàng đã sẵn sàng để thanh toán.",
+                cart,
+                "/checkout"));
     }
 }

@@ -1,112 +1,218 @@
 @using System.Globalization
 @using WebApplication2.Services.Commerce.Orders
 @model WebApplication2.ViewModels.Storefront.Checkout.CheckoutPageViewModel
+
 @{
-    ViewData["Title"] = "Đặt hàng";
+    ViewData["Title"] = "Thanh toán";
     var culture = CultureInfo.GetCultureInfo("vi-VN");
 }
 
-<section class="checkout-page shell-container" data-checkout-page
+<section class="checkout-page shell-container"
+         data-checkout-page
+         data-quote-url="@Url.Action("ShippingQuote", "Checkout")"
+         data-cart-version="@Model.CartVersion"
+         data-subtotal="@Model.Subtotal.ToString(CultureInfo.InvariantCulture)"
          data-initial-province="@Model.Form.ProvinceId"
          data-initial-district="@Model.Form.DistrictId"
          data-initial-ward="@Model.Form.WardCode">
     <header class="checkout-hero" data-reveal>
         <div>
-            <span class="hero-pill"><i aria-hidden="true"></i>Thanh toán an toàn</span>
-            <h1>Xác nhận đơn hàng</h1>
-            <p>Giá, tồn kho, địa chỉ và tổng tiền sẽ được hệ thống kiểm tra lại trước khi tạo đơn.</p>
+            <span class="hero-pill">
+                <i aria-hidden="true"></i>
+                Thanh toán bảo mật
+            </span>
+            <h1>Hoàn tất đơn hàng</h1>
+            <p>
+                Xác nhận người nhận, địa chỉ giao hàng và phương thức thanh toán.
+                Giá sản phẩm, tồn kho và phí GHN được kiểm tra lại trước khi tạo đơn.
+            </p>
         </div>
-        <a asp-controller="Cart" asp-action="Index" class="button button--glass">Quay lại giỏ hàng</a>
+
+        <a asp-controller="Cart"
+           asp-action="Index"
+           class="button button--glass">
+            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+            Quay lại giỏ hàng
+        </a>
     </header>
+
+    <ol class="checkout-progress" aria-label="Các bước thanh toán">
+        <li class="is-complete">
+            <span><i class="fa-solid fa-check" aria-hidden="true"></i></span>
+            <div><strong>Giỏ hàng</strong><small>Đã chọn sản phẩm</small></div>
+        </li>
+        <li class="is-current">
+            <span>2</span>
+            <div><strong>Giao hàng và thanh toán</strong><small>Đang xác nhận</small></div>
+        </li>
+        <li>
+            <span>3</span>
+            <div><strong>Hoàn tất</strong><small>Nhận mã đơn hàng</small></div>
+        </li>
+    </ol>
 
     @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
     {
-        <div class="checkout-alert checkout-alert--danger checkout-page-error" role="alert">
-            <strong>Chưa thể đặt hàng.</strong>
-            <span>@Model.ErrorMessage</span>
+        <div class="checkout-alert checkout-alert--danger checkout-page-error"
+             role="alert">
+            <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+            <div>
+                <strong>Chưa thể hoàn tất đơn hàng</strong>
+                <span>@Model.ErrorMessage</span>
+            </div>
         </div>
     }
 
-    <form id="checkout-order-form" asp-controller="Checkout" asp-action="PlaceOrder" method="post"
-          data-checkout-form novalidate>
+    <form id="checkout-order-form"
+          asp-controller="Checkout"
+          asp-action="PlaceOrder"
+          method="post"
+          data-checkout-form
+          novalidate>
         @Html.AntiForgeryToken()
-        <input type="hidden" name="ClientRequestId" value="@Model.ClientRequestId" />
-        <input type="hidden" name="CartVersion" value="@Model.CartVersion" />
+
+        <input type="hidden"
+               name="ClientRequestId"
+               value="@Model.ClientRequestId" />
+        <input type="hidden"
+               name="CartVersion"
+               value="@Model.CartVersion" />
+        <input type="hidden"
+               name="ExpectedShippingFee"
+               value="@Model.Form.ExpectedShippingFee.ToString(CultureInfo.InvariantCulture)"
+               data-expected-shipping-fee />
+        <input type="hidden"
+               name="ShippingServiceId"
+               value="@Model.Form.ShippingServiceId"
+               data-shipping-service-id />
+        <input type="hidden"
+               name="ShippingServiceTypeId"
+               value="@Model.Form.ShippingServiceTypeId"
+               data-shipping-service-type-id />
 
         @for (var index = 0; index < Model.Items.Count; index++)
         {
-            <input type="hidden" name="Items[@index].VariantId" value="@Model.Items[index].VariantId" />
-            <input type="hidden" name="Items[@index].Quantity" value="@Model.Items[index].Quantity" />
-            <input type="hidden" name="Items[@index].ExpectedUnitPrice"
+            <input type="hidden"
+                   name="Items[@index].VariantId"
+                   value="@Model.Items[index].VariantId" />
+            <input type="hidden"
+                   name="Items[@index].Quantity"
+                   value="@Model.Items[index].Quantity" />
+            <input type="hidden"
+                   name="Items[@index].ExpectedUnitPrice"
                    value="@Model.Items[index].UnitPrice.ToString(CultureInfo.InvariantCulture)" />
         }
 
         <div class="checkout-layout" data-reveal>
             <div class="checkout-main-column">
-                <section class="checkout-card checkout-address-card" aria-labelledby="checkout-recipient-heading">
+                <section class="checkout-card"
+                         aria-labelledby="checkout-recipient-heading">
                     <div class="checkout-card__heading">
-                        <div>
-                            <p class="eyebrow">Thông tin người nhận</p>
-                            <h2 id="checkout-recipient-heading">Liên hệ giao hàng</h2>
+                        <div class="checkout-heading-copy">
+                            <span class="checkout-heading-icon" aria-hidden="true">
+                                <i class="fa-regular fa-user"></i>
+                            </span>
+                            <div>
+                                <p class="eyebrow">Người nhận</p>
+                                <h2 id="checkout-recipient-heading">
+                                    Thông tin liên hệ
+                                </h2>
+                            </div>
                         </div>
-                        <span class="checkout-provider-badge"><i aria-hidden="true"></i>Server verified</span>
+                        <span class="checkout-section-number">01</span>
                     </div>
 
                     <div class="checkout-form-grid">
                         <label class="checkout-field checkout-field--wide">
                             <span>Họ và tên <b>*</b></span>
-                            <input name="FullName" maxlength="100" minlength="2" required
-                                   value="@Model.Form.FullName" autocomplete="name" />
+                            <input name="FullName"
+                                   maxlength="100"
+                                   minlength="2"
+                                   required
+                                   value="@Model.Form.FullName"
+                                   autocomplete="name" />
                         </label>
 
                         <label class="checkout-field">
                             <span>Email <b>*</b></span>
-                            <input type="email" name="Email" maxlength="150" required
-                                   value="@Model.Form.Email" autocomplete="email" />
+                            <input type="email"
+                                   name="Email"
+                                   maxlength="150"
+                                   required
+                                   value="@Model.Form.Email"
+                                   autocomplete="email" />
                         </label>
 
                         <label class="checkout-field">
                             <span>Số điện thoại <b>*</b></span>
-                            <input type="tel" name="Phone" maxlength="15" minlength="9" required
-                                   value="@Model.Form.Phone" autocomplete="tel" inputmode="numeric" />
+                            <input type="tel"
+                                   name="Phone"
+                                   maxlength="15"
+                                   minlength="9"
+                                   required
+                                   value="@Model.Form.Phone"
+                                   autocomplete="tel"
+                                   inputmode="numeric" />
                         </label>
                     </div>
                 </section>
 
-                <section class="checkout-card checkout-address-card" aria-labelledby="checkout-address-heading">
+                <section class="checkout-card"
+                         aria-labelledby="checkout-address-heading">
                     <div class="checkout-card__heading">
-                        <div>
-                            <p class="eyebrow">Địa chỉ nhận hàng</p>
-                            <h2 id="checkout-address-heading">Chọn theo dữ liệu GHN</h2>
+                        <div class="checkout-heading-copy">
+                            <span class="checkout-heading-icon" aria-hidden="true">
+                                <i class="fa-solid fa-location-dot"></i>
+                            </span>
+                            <div>
+                                <p class="eyebrow">Giao hàng</p>
+                                <h2 id="checkout-address-heading">
+                                    Địa chỉ nhận hàng
+                                </h2>
+                            </div>
                         </div>
-                        <span class="checkout-provider-badge"><i aria-hidden="true"></i>GHN address</span>
+                        <span class="checkout-provider-badge">
+                            <i aria-hidden="true"></i>
+                            Dữ liệu địa chỉ GHN
+                        </span>
                     </div>
 
                     @if (!string.IsNullOrWhiteSpace(Model.AddressLookupError))
                     {
-                        <div class="checkout-alert checkout-alert--warning" role="alert">
-                            @Model.AddressLookupError
-                            <small>Cần cấu hình GHN trên server để xác minh và đặt hàng.</small>
+                        <div class="checkout-alert checkout-alert--warning"
+                             role="alert">
+                            <i class="fa-solid fa-triangle-exclamation"
+                               aria-hidden="true"></i>
+                            <div>
+                                <strong>Chưa thể tải danh sách địa chỉ</strong>
+                                <span>@Model.AddressLookupError</span>
+                            </div>
                         </div>
                     }
 
                     <div class="checkout-form-grid">
                         <label class="checkout-field checkout-field--wide">
                             <span>Địa chỉ cụ thể <b>*</b></span>
-                            <input name="AddressLine" maxlength="200" minlength="3" required
+                            <input name="AddressLine"
+                                   maxlength="200"
+                                   minlength="3"
+                                   required
                                    value="@Model.Form.AddressLine"
-                                   placeholder="Số nhà, tên đường, tòa nhà..." autocomplete="street-address" />
+                                   placeholder="Số nhà, tên đường, tòa nhà..."
+                                   autocomplete="street-address" />
                         </label>
 
                         <label class="checkout-field checkout-field--wide">
                             <span>Tỉnh/thành phố <b>*</b></span>
-                            <select name="ProvinceId" required data-province-select
-                                    @(Model.Provinces.Count == 0 ? "disabled" : null)>
+                            <select name="ProvinceId"
+                                    required
+                                    data-province-select
+                                    disabled="@(Model.Provinces.Count == 0 ? "disabled" : null)">
                                 <option value="">Chọn tỉnh/thành phố</option>
                                 @foreach (var province in Model.Provinces)
                                 {
                                     <option value="@province.ProvinceId"
-                                            selected="@(province.ProvinceId == Model.Form.ProvinceId)">
+                                            selected="@(province.ProvinceId == Model.Form.ProvinceId ? "selected" : null)">
                                         @province.ProvinceName
                                     </option>
                                 }
@@ -115,124 +221,238 @@
 
                         <label class="checkout-field">
                             <span>Quận/huyện <b>*</b></span>
-                            <select name="DistrictId" required data-district-select disabled>
+                            <select name="DistrictId"
+                                    required
+                                    data-district-select
+                                    disabled>
                                 <option value="">Chọn quận/huyện</option>
                             </select>
                         </label>
 
                         <label class="checkout-field">
                             <span>Phường/xã <b>*</b></span>
-                            <select name="WardCode" required data-ward-select disabled>
+                            <select name="WardCode"
+                                    required
+                                    data-ward-select
+                                    disabled>
                                 <option value="">Chọn phường/xã</option>
                             </select>
                         </label>
                     </div>
 
                     <div class="checkout-address-actions">
-                        <button type="button" class="button button--secondary" data-validate-address>
-                            Kiểm tra địa chỉ
+                        <button type="button"
+                                class="button button--secondary"
+                                data-validate-address>
+                            <i class="fa-solid fa-location-crosshairs"
+                               aria-hidden="true"></i>
+                            Xác minh địa chỉ
                         </button>
-                        <span class="checkout-validation-state" data-address-validation-state role="status">
-                            Chưa kiểm tra
+                        <span class="checkout-validation-state"
+                              data-address-validation-state
+                              role="status">
+                            Chưa xác minh
                         </span>
                     </div>
-                    <div class="checkout-alert" data-checkout-message role="status" hidden></div>
 
-                    <div class="checkout-canonical-address" data-canonical-address hidden>
-                        <span class="checkout-canonical-address__icon" aria-hidden="true">✓</span>
+                    <div class="checkout-alert"
+                         data-checkout-message
+                         role="status"
+                         hidden></div>
+
+                    <div class="checkout-canonical-address"
+                         data-canonical-address
+                         hidden>
+                        <span class="checkout-canonical-address__icon"
+                              aria-hidden="true">
+                            <i class="fa-solid fa-check"></i>
+                        </span>
                         <div>
                             <strong data-canonical-address-text></strong>
-                            <small>Server vẫn xác minh lại địa chỉ khi tạo đơn.</small>
+                            <small>
+                                Địa chỉ sẽ được kiểm tra lại khi tạo đơn.
+                            </small>
                         </div>
                     </div>
                 </section>
 
-                <section class="checkout-card checkout-payment-card" aria-labelledby="checkout-payment-heading">
+                <section class="checkout-card"
+                         aria-labelledby="checkout-payment-heading">
                     <div class="checkout-card__heading">
-                        <div>
-                            <p class="eyebrow">Phương thức thanh toán</p>
-                            <h2 id="checkout-payment-heading">Chọn cách thanh toán</h2>
+                        <div class="checkout-heading-copy">
+                            <span class="checkout-heading-icon" aria-hidden="true">
+                                <i class="fa-regular fa-credit-card"></i>
+                            </span>
+                            <div>
+                                <p class="eyebrow">Thanh toán</p>
+                                <h2 id="checkout-payment-heading">
+                                    Chọn phương thức thanh toán
+                                </h2>
+                            </div>
                         </div>
+                        <span class="checkout-section-number">03</span>
                     </div>
 
                     <div class="checkout-payment-options">
                         <label class="checkout-payment-option">
-                            <input type="radio" name="PaymentMethod"
+                            <input type="radio"
+                                   name="PaymentMethod"
                                    value="@OrderApplicationService.CodPaymentMethod"
-                                   checked="@(Model.Form.PaymentMethod != OrderApplicationService.MockOnlinePaymentMethod)" />
-                            <span>
+                                   checked="@(Model.Form.PaymentMethod != OrderApplicationService.VnPayPaymentMethod ? "checked" : null)" />
+                            <span class="checkout-payment-option__icon"
+                                  aria-hidden="true">
+                                <i class="fa-solid fa-money-bill-wave"></i>
+                            </span>
+                            <span class="checkout-payment-option__copy">
                                 <strong>Thanh toán khi nhận hàng</strong>
-                                <small>Thanh toán cho đơn vị vận chuyển khi giao thành công.</small>
+                                <small>
+                                    Thanh toán cho nhân viên giao hàng sau khi nhận đơn.
+                                </small>
+                            </span>
+                            <span class="checkout-payment-option__check"
+                                  aria-hidden="true">
+                                <i class="fa-solid fa-check"></i>
                             </span>
                         </label>
 
-                        <label class="checkout-payment-option">
-                            <input type="radio" name="PaymentMethod"
-                                   value="@OrderApplicationService.MockOnlinePaymentMethod"
-                                   checked="@(Model.Form.PaymentMethod == OrderApplicationService.MockOnlinePaymentMethod)" />
-                            <span>
-                                <strong>Thanh toán trực tuyến</strong>
-                                <small>Adapter thử nghiệm trước khi tích hợp VNPay Sandbox.</small>
+                        <label class="checkout-payment-option @(Model.VnPayAvailable ? null : "is-disabled")">
+                            <input type="radio"
+                                   name="PaymentMethod"
+                                   value="@OrderApplicationService.VnPayPaymentMethod"
+                                   checked="@(Model.Form.PaymentMethod == OrderApplicationService.VnPayPaymentMethod ? "checked" : null)"
+                                   disabled="@(!Model.VnPayAvailable ? "disabled" : null)" />
+                            <span class="checkout-payment-option__icon checkout-payment-option__icon--vnpay"
+                                  aria-hidden="true">
+                                <i class="fa-solid fa-building-columns"></i>
+                            </span>
+                            <span class="checkout-payment-option__copy">
+                                <strong>Thanh toán trực tuyến qua VNPay</strong>
+                                <small>
+                                    Thanh toán trên cổng VNPay bằng ngân hàng hoặc phương thức được hỗ trợ.
+                                </small>
+                                @if (!Model.VnPayAvailable)
+                                {
+                                    <em>Phương thức này hiện chưa khả dụng.</em>
+                                }
+                            </span>
+                            <span class="checkout-payment-option__check"
+                                  aria-hidden="true">
+                                <i class="fa-solid fa-check"></i>
                             </span>
                         </label>
                     </div>
 
-                    <label class="checkout-field checkout-mock-outcome" data-online-outcome>
-                        <span>Kết quả giao dịch trong môi trường phát triển</span>
-                        <select name="MockPaymentOutcome">
-                            <option value="@OrderApplicationService.MockSuccessOutcome"
-                                    selected="@(Model.Form.MockPaymentOutcome != OrderApplicationService.MockFailureOutcome)">
-                                Thành công
-                            </option>
-                            <option value="@OrderApplicationService.MockFailureOutcome"
-                                    selected="@(Model.Form.MockPaymentOutcome == OrderApplicationService.MockFailureOutcome)">
-                                Thất bại
-                            </option>
-                        </select>
-                    </label>
+                    <div class="checkout-payment-security">
+                        <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                        <p>
+                            <strong>FastBuy không lưu thông tin ngân hàng.</strong>
+                            Với VNPay, bạn sẽ được chuyển tới cổng thanh toán để hoàn tất giao dịch.
+                        </p>
+                    </div>
                 </section>
             </div>
 
-            <aside class="checkout-card checkout-summary-card" aria-labelledby="checkout-summary-heading">
+            <aside class="checkout-card checkout-summary-card"
+                   aria-labelledby="checkout-summary-heading">
                 <div class="checkout-card__heading">
                     <div>
-                        <p class="eyebrow">Tóm tắt đơn hàng</p>
-                        <h2 id="checkout-summary-heading">@Model.Items.Count dòng sản phẩm</h2>
+                        <p class="eyebrow">Đơn hàng của bạn</p>
+                        <h2 id="checkout-summary-heading">
+                            @Model.Items.Sum(item => item.Quantity) sản phẩm
+                        </h2>
                     </div>
-                    <span class="checkout-summary-card__step">FINAL</span>
+                    <span class="checkout-summary-card__secure"
+                          title="Thông tin được kiểm tra trên server">
+                        <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                    </span>
                 </div>
 
                 <div class="checkout-items">
                     @foreach (var item in Model.Items)
                     {
                         <article class="checkout-item">
-                            <img src="@item.ImageUrl" alt="@item.ProductName" width="64" height="64" loading="lazy" />
+                            <img src="@(string.IsNullOrWhiteSpace(item.ImageUrl)
+                                          ? "/images/no-image.png"
+                                          : item.ImageUrl)"
+                                 alt="@item.ProductName"
+                                 width="64"
+                                 height="64"
+                                 loading="lazy" />
                             <div>
                                 <strong>@item.ProductName</strong>
-                                <span>@item.VariantDescription · SL @item.Quantity</span>
+                                <span>
+                                    @item.VariantDescription · Số lượng @item.Quantity
+                                </span>
                             </div>
                             <b>@item.LineTotal.ToString("N0", culture) ₫</b>
                         </article>
                     }
                 </div>
 
+                <div class="checkout-shipping-quote @(Model.ShippingQuote.IsAvailable ? "is-ready" : null)"
+                     data-shipping-quote>
+                    <span class="checkout-shipping-quote__icon"
+                          aria-hidden="true">
+                        <i class="fa-solid fa-truck-fast"></i>
+                    </span>
+                    <div>
+                        <span>Gói giao hàng</span>
+                        <strong data-shipping-service-name>
+                            @(Model.ShippingQuote.IsAvailable
+                                ? Model.ShippingQuote.ServiceName
+                                : "Chưa xác định")
+                        </strong>
+                        <small data-shipping-message>
+                            @Model.ShippingQuote.Message
+                        </small>
+                    </div>
+                    <span class="checkout-shipping-quote__status"
+                          data-shipping-status>
+                        @(Model.ShippingQuote.IsAvailable ? "Đã tính phí" : "Chờ địa chỉ")
+                    </span>
+                </div>
+
                 <dl class="checkout-totals">
-                    <div><dt>Tạm tính</dt><dd>@Model.Subtotal.ToString("N0", culture) ₫</dd></div>
-                    <div><dt>Phí vận chuyển</dt><dd>@Model.ShippingFee.ToString("N0", culture) ₫</dd></div>
+                    <div>
+                        <dt>Tạm tính</dt>
+                        <dd>@Model.Subtotal.ToString("N0", culture) ₫</dd>
+                    </div>
+                    <div>
+                        <dt>Phí giao hàng</dt>
+                        <dd data-shipping-fee>
+                            @(Model.ShippingQuote.IsAvailable
+                                ? $"{Model.ShippingQuote.Fee.ToString("N0", culture)} ₫"
+                                : "Chờ tính phí")
+                        </dd>
+                    </div>
                     <div class="checkout-totals__grand">
                         <dt>Tổng thanh toán</dt>
-                        <dd>@Model.GrandTotal.ToString("N0", culture) ₫</dd>
+                        <dd data-grand-total>
+                            @(Model.ShippingQuote.IsAvailable
+                                ? $"{Model.GrandTotal.ToString("N0", culture)} ₫"
+                                : "—")
+                        </dd>
                     </div>
                 </dl>
 
-                <button type="submit" class="button button--primary checkout-submit"
-                        data-place-order @(Model.Provinces.Count == 0 ? "disabled" : null)>
-                    Đặt hàng
+                <button type="submit"
+                        class="button button--primary checkout-submit"
+                        data-place-order
+                        disabled="@(!Model.ShippingQuote.IsAvailable || Model.Provinces.Count == 0 ? "disabled" : null)">
+                    <span data-submit-label>
+                        @(Model.Form.PaymentMethod == OrderApplicationService.VnPayPaymentMethod
+                            ? "Thanh toán qua VNPay"
+                            : "Đặt hàng")
+                    </span>
+                    <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
                 </button>
 
                 <div class="checkout-next-step">
                     <span class="checkout-next-step__dot" aria-hidden="true"></span>
-                    <p><strong>Không tin dữ liệu từ trình duyệt.</strong> Hệ thống sẽ tải lại giá, tồn kho và tính lại tổng tiền trong transaction.</p>
+                    <p>
+                        Khi xác nhận, FastBuy sẽ kiểm tra lại giá, tồn kho,
+                        địa chỉ và phí giao hàng trước khi ghi nhận đơn.
+                    </p>
                 </div>
             </aside>
         </div>
@@ -240,9 +460,12 @@
 </section>
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/pages/storefront/checkout.css" asp-append-version="true" />
+    <link rel="stylesheet"
+          href="~/css/pages/storefront/checkout.css"
+          asp-append-version="true" />
 }
 
 @section Scripts {
-    <script src="~/js/pages/storefront/checkout-address.js" asp-append-version="true"></script>
+    <script src="~/js/pages/storefront/checkout-address.js"
+            asp-append-version="true"></script>
 }

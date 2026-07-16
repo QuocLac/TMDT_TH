@@ -13,14 +13,13 @@ namespace WebApplication2.Services.Commerce.Orders;
 public sealed class OrderApplicationService : IOrderApplicationService
 {
     public const string CodPaymentMethod = "COD";
-    public const string MockOnlinePaymentMethod = "MockOnline";
-    public const string MockSuccessOutcome = "Success";
-    public const string MockFailureOutcome = "Failure";
+    public const string VnPayPaymentMethod = "VNPAY";
+
+    private const int OnlinePaymentReservationMinutes = 65;
 
     private readonly ApplicationDbContext _context;
     private readonly IInventoryService _inventoryService;
     private readonly IOrderNumberGenerator _orderNumberGenerator;
-    private readonly IShippingFeeCalculator _shippingFeeCalculator;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<OrderApplicationService> _logger;
 
@@ -28,14 +27,12 @@ public sealed class OrderApplicationService : IOrderApplicationService
         ApplicationDbContext context,
         IInventoryService inventoryService,
         IOrderNumberGenerator orderNumberGenerator,
-        IShippingFeeCalculator shippingFeeCalculator,
         TimeProvider timeProvider,
         ILogger<OrderApplicationService> logger)
     {
         _context = context;
         _inventoryService = inventoryService;
         _orderNumberGenerator = orderNumberGenerator;
-        _shippingFeeCalculator = shippingFeeCalculator;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -65,7 +62,15 @@ public sealed class OrderApplicationService : IOrderApplicationService
                 item.Code,
                 item.PublicToken,
                 item.OrderStatus,
-                item.PaymentStatus
+                item.PaymentStatus,
+                PaymentTransactionId = item.PaymentTransactions
+                    .Where(transaction =>
+                        transaction.Provider == "VNPAY"
+                        && transaction.Status == PaymentStatus.Pending)
+                    .OrderByDescending(transaction => transaction.AttemptNumber)
+                    .ThenByDescending(transaction => transaction.Id)
+                    .Select(transaction => (long?)transaction.Id)
+                    .FirstOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -88,8 +93,18 @@ public sealed class OrderApplicationService : IOrderApplicationService
             order.OrderStatus,
             order.PaymentStatus,
             true,
-            order.OrderStatus == OrderStatus.Placed
-                && order.PaymentStatus != PaymentStatus.Failed,
+            order.OrderStatus is (
+                    OrderStatus.Placed
+                    or OrderStatus.Confirmed
+                    or OrderStatus.Processing
+                    or OrderStatus.Completed
+                    or OrderStatus.Closed)
+                && order.PaymentStatus is (
+                    PaymentStatus.CodPending
+                    or PaymentStatus.Paid),
+            order.OrderStatus == OrderStatus.PendingPayment
+                && order.PaymentStatus == PaymentStatus.Pending,
+            order.PaymentTransactionId,
             variantIds);
     }
 
@@ -191,13 +206,9 @@ public sealed class OrderApplicationService : IOrderApplicationService
 
             var subtotal = normalized.Lines.Sum(line =>
                 variants[line.VariantId].CurrentPrice * line.Quantity);
-            var totalQuantity = normalized.Lines.Sum(line => line.Quantity);
-            var shippingFee = _shippingFeeCalculator.Calculate(subtotal, totalQuantity);
+            var shippingFee = normalized.ShippingFee;
             var grandTotal = subtotal + shippingFee;
-
             var isCod = normalized.PaymentMethod == CodPaymentMethod;
-            var paymentSucceeded = isCod
-                || normalized.MockPaymentOutcome == MockSuccessOutcome;
 
             var order = new Order
             {
@@ -221,20 +232,16 @@ public sealed class OrderApplicationService : IOrderApplicationService
                 TaxTotal = 0m,
                 GrandTotal = grandTotal,
                 Currency = "VND",
-                OrderStatus = paymentSucceeded ? OrderStatus.Placed : OrderStatus.Cancelled,
+                OrderStatus = isCod
+                    ? OrderStatus.Placed
+                    : OrderStatus.PendingPayment,
                 PaymentStatus = isCod
                     ? PaymentStatus.CodPending
-                    : paymentSucceeded
-                        ? PaymentStatus.Paid
-                        : PaymentStatus.Failed,
-                FulfillmentStatus = paymentSucceeded
-                    ? FulfillmentStatus.Unfulfilled
-                    : FulfillmentStatus.Cancelled,
-                PlacedAt = paymentSucceeded ? nowUtc : null,
-                CancelledAt = paymentSucceeded ? null : nowUtc,
-                CancelReason = paymentSucceeded
-                    ? null
-                    : "Thanh toán trực tuyến thử nghiệm không thành công.",
+                    : PaymentStatus.Pending,
+                FulfillmentStatus = FulfillmentStatus.Unfulfilled,
+                PlacedAt = isCod ? nowUtc : null,
+                CancelledAt = null,
+                CancelReason = null,
                 CreatedAt = nowUtc
             };
 
@@ -256,8 +263,9 @@ public sealed class OrderApplicationService : IOrderApplicationService
                     ImageUrl = variant.ImageUrl,
                     ListPrice = variant.Price,
                     UnitPrice = variant.CurrentPrice,
-                    DiscountAmount = Math.Max(0m, variant.Price - variant.CurrentPrice)
-                        * line.Quantity,
+                    DiscountAmount = Math.Max(
+                        0m,
+                        variant.Price - variant.CurrentPrice) * line.Quantity,
                     TaxAmount = 0m,
                     Quantity = line.Quantity,
                     LineTotal = variant.CurrentPrice * line.Quantity,
@@ -265,53 +273,58 @@ public sealed class OrderApplicationService : IOrderApplicationService
                 });
             }
 
-            order.PaymentTransactions.Add(new PaymentTransaction
+            var paymentTransaction = new PaymentTransaction
             {
-                Provider = isCod ? "Internal" : "Mock",
-                Method = isCod ? CodPaymentMethod : "Online",
+                Provider = isCod ? "Internal" : "VNPAY",
+                Method = normalized.PaymentMethod,
                 Status = order.PaymentStatus,
                 AttemptNumber = 1,
                 Amount = grandTotal,
                 Currency = "VND",
                 MerchantReference = order.Code,
-                ProviderTransactionId = !isCod && paymentSucceeded
-                    ? $"MOCK-{Guid.NewGuid():N}"
-                    : null,
+                ProviderTransactionId = null,
                 IdempotencyKey = $"{scopedClientRequestId}:payment:1",
-                FailureCode = !isCod && !paymentSucceeded
-                    ? "MOCK_PAYMENT_FAILED"
-                    : null,
-                FailureMessage = !isCod && !paymentSucceeded
-                    ? "Giao dịch trực tuyến thử nghiệm được đặt ở trạng thái thất bại."
-                    : null,
-                CompletedAt = isCod ? null : nowUtc,
+                FailureCode = null,
+                FailureMessage = null,
+                CompletedAt = null,
+                CreatedAt = nowUtc,
+                UpdatedAt = nowUtc
+            };
+            order.PaymentTransactions.Add(paymentTransaction);
+
+            order.Shipments.Add(new Shipment
+            {
+                Provider = "GHN",
+                Direction = ShipmentDirection.Outbound,
+                Status = ShipmentStatus.Draft,
+                ServiceCode = normalized.ShippingServiceId > 0
+                    ? $"{normalized.ShippingServiceTypeId}:{normalized.ShippingServiceId}"
+                    : normalized.ShippingServiceTypeId.ToString(),
+                ServiceName = normalized.ShippingServiceName,
+                Fee = shippingFee,
+                CodAmount = isCod ? grandTotal : 0m,
+                WeightGram = normalized.ShippingWeightGram,
+                LengthCm = normalized.ShippingLengthCm,
+                WidthCm = normalized.ShippingWidthCm,
+                HeightCm = normalized.ShippingHeightCm,
                 CreatedAt = nowUtc,
                 UpdatedAt = nowUtc
             });
-
-            if (paymentSucceeded)
-            {
-                order.Shipments.Add(new Shipment
-                {
-                    Provider = "GHN",
-                    Status = ShipmentStatus.Draft,
-                    Fee = shippingFee,
-                    CodAmount = isCod ? grandTotal : 0m,
-                    CreatedAt = nowUtc,
-                    UpdatedAt = nowUtc
-                });
-            }
 
             order.StatusHistory.Add(new OrderStatusHistory
             {
                 Category = OrderHistoryCategory.Order,
                 FromStatus = null,
                 ToStatus = order.OrderStatus.ToString(),
-                Code = paymentSucceeded ? "ORDER_PLACED" : "ORDER_PAYMENT_FAILED",
-                Title = paymentSucceeded ? "Đã đặt hàng" : "Đặt hàng chưa thành công",
-                Description = paymentSucceeded
-                    ? "Đơn hàng đã được tạo và giá đã được xác nhận."
-                    : order.CancelReason,
+                Code = isCod
+                    ? "ORDER_PLACED"
+                    : "ORDER_PENDING_VNPAY",
+                Title = isCod
+                    ? "Đơn hàng đã được ghi nhận"
+                    : "Đơn hàng đang chờ thanh toán",
+                Description = isCod
+                    ? "Giá, tồn kho và phí giao hàng đã được xác nhận."
+                    : "Tồn kho đang được giữ trong thời gian khách hàng thanh toán qua VNPay.",
                 ChangedBy = "Checkout",
                 CustomerVisible = true,
                 OccurredAt = nowUtc,
@@ -323,12 +336,15 @@ public sealed class OrderApplicationService : IOrderApplicationService
                 Category = OrderHistoryCategory.Payment,
                 FromStatus = null,
                 ToStatus = order.PaymentStatus.ToString(),
-                Code = $"PAYMENT_{order.PaymentStatus.ToString().ToUpperInvariant()}",
+                Code = isCod
+                    ? "PAYMENT_COD_PENDING"
+                    : "PAYMENT_VNPAY_PENDING",
                 Title = isCod
                     ? "Thanh toán khi nhận hàng"
-                    : paymentSucceeded
-                        ? "Thanh toán thành công"
-                        : "Thanh toán thất bại",
+                    : "Chờ thanh toán qua VNPay",
+                Description = isCod
+                    ? "Số tiền sẽ được thu khi giao hàng."
+                    : "FastBuy đang chờ VNPay xác nhận kết quả giao dịch.",
                 ChangedBy = "Checkout",
                 CustomerVisible = true,
                 OccurredAt = nowUtc,
@@ -338,23 +354,26 @@ public sealed class OrderApplicationService : IOrderApplicationService
             _context.Orders.Add(order);
             await _context.SaveChangesAsync(cancellationToken);
 
-            if (paymentSucceeded)
+            var reservationLines = order.Items
+                .Select(item => new InventoryReservationLine(
+                    item.Id,
+                    item.ProductVariantId,
+                    item.Quantity))
+                .ToArray();
+
+            await _inventoryService.ReserveAsync(
+                order.Id,
+                reservationLines,
+                nowUtc.AddMinutes(
+                    isCod
+                        ? 30
+                        : OnlinePaymentReservationMinutes),
+                $"{scopedClientRequestId}:inventory",
+                "Checkout",
+                cancellationToken);
+
+            if (isCod)
             {
-                var reservationLines = order.Items
-                    .Select(item => new InventoryReservationLine(
-                        item.Id,
-                        item.ProductVariantId,
-                        item.Quantity))
-                    .ToArray();
-
-                await _inventoryService.ReserveAsync(
-                    order.Id,
-                    reservationLines,
-                    nowUtc.AddMinutes(30),
-                    $"{scopedClientRequestId}:inventory",
-                    "Checkout",
-                    cancellationToken);
-
                 await _inventoryService.CommitAsync(
                     order.Id,
                     scopedClientRequestId,
@@ -371,8 +390,12 @@ public sealed class OrderApplicationService : IOrderApplicationService
                 order.OrderStatus,
                 order.PaymentStatus,
                 false,
-                paymentSucceeded,
-                normalized.Lines.Select(line => line.VariantId).ToArray());
+                isCod,
+                !isCod,
+                isCod ? null : paymentTransaction.Id,
+                normalized.Lines
+                    .Select(line => line.VariantId)
+                    .ToArray());
         }
         catch (DbUpdateConcurrencyException exception)
         {
@@ -556,20 +579,29 @@ public sealed class OrderApplicationService : IOrderApplicationService
         }
 
         var paymentMethod = command.PaymentMethod?.Trim() ?? string.Empty;
-        if (paymentMethod is not CodPaymentMethod and not MockOnlinePaymentMethod)
+        if (paymentMethod is not CodPaymentMethod and not VnPayPaymentMethod)
         {
-            throw new CheckoutValidationException("Phương thức thanh toán không được hỗ trợ.");
+            throw new CheckoutValidationException(
+                "Phương thức thanh toán không được hỗ trợ.");
         }
 
-        var outcome = command.MockPaymentOutcome?.Trim() ?? MockSuccessOutcome;
-        if (outcome is not MockSuccessOutcome and not MockFailureOutcome)
+        if (command.ShippingProvinceId <= 0
+            || command.ShippingDistrictId <= 0)
         {
-            throw new CheckoutValidationException("Kết quả thanh toán thử nghiệm không hợp lệ.");
+            throw new CheckoutValidationException(
+                "Mã địa chỉ giao hàng không hợp lệ.");
         }
 
-        if (command.ShippingProvinceId <= 0 || command.ShippingDistrictId <= 0)
+        if (command.ShippingFee < 0m
+            || command.ShippingServiceId < 0
+            || command.ShippingServiceTypeId <= 0
+            || command.ShippingWeightGram <= 0
+            || command.ShippingLengthCm <= 0
+            || command.ShippingWidthCm <= 0
+            || command.ShippingHeightCm <= 0)
         {
-            throw new CheckoutValidationException("Mã địa chỉ giao hàng không hợp lệ.");
+            throw new CheckoutValidationException(
+                "Thông tin phí và gói giao hàng không hợp lệ.");
         }
 
         var email = Required(command.CustomerEmail, 150, "Email");
@@ -606,7 +638,10 @@ public sealed class OrderApplicationService : IOrderApplicationService
             ShippingWardCode = Required(command.ShippingWardCode, 30, "Mã phường/xã"),
             ShippingWardName = Required(command.ShippingWardName, 100, "Phường/xã"),
             PaymentMethod = paymentMethod,
-            MockPaymentOutcome = outcome,
+            ShippingServiceName = Required(
+                command.ShippingServiceName,
+                100,
+                "Tên gói giao hàng"),
             Lines = lines
         };
     }

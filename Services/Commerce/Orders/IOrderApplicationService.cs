@@ -21,7 +21,14 @@ public sealed record PlaceOrderCommand(
     string ShippingWardCode,
     string ShippingWardName,
     string PaymentMethod,
-    string MockPaymentOutcome,
+    decimal ShippingFee,
+    int ShippingServiceId,
+    int ShippingServiceTypeId,
+    string ShippingServiceName,
+    int ShippingWeightGram,
+    int ShippingLengthCm,
+    int ShippingWidthCm,
+    int ShippingHeightCm,
     IReadOnlyCollection<PlaceOrderLine> Lines);
 
 public sealed record PlaceOrderResult(
@@ -32,6 +39,8 @@ public sealed record PlaceOrderResult(
     PaymentStatus PaymentStatus,
     bool WasExisting,
     bool ShouldClearPurchasedItems,
+    bool RequiresPaymentRedirect,
+    long? PaymentTransactionId,
     IReadOnlyList<int> PurchasedVariantIds);
 
 public sealed record OrderReceiptLine(
