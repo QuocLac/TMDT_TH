@@ -1,0 +1,121 @@
+@model WebApplication2.ViewModels.Storefront.Account.AddressBookPageViewModel
+@{
+    ViewData["Title"] = "Sổ địa chỉ";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/account.css" asp-append-version="true" />
+}
+
+<section class="account-dashboard shell-container"
+         data-address-book
+         data-initial-province="@Model.Form.ProvinceId"
+         data-initial-district="@Model.Form.DistrictId"
+         data-initial-ward="@Model.Form.WardCode">
+    <aside class="account-sidebar">
+        <nav>
+            <a asp-action="Profile">Thông tin cá nhân</a>
+            <a asp-action="Addresses" class="is-active">Sổ địa chỉ</a>
+            <a asp-action="ChangePassword">Đổi mật khẩu</a>
+        </nav>
+    </aside>
+
+    <div class="account-panel">
+        <header>
+            <span class="account-card__eyebrow">Giao hàng</span>
+            <h1>Sổ địa chỉ</h1>
+            <p>Địa chỉ được đối chiếu với dữ liệu GHN trước khi lưu.</p>
+        </header>
+
+        <div class="address-grid">
+            @foreach (var address in Model.Addresses)
+            {
+                <article class="address-card"
+                         data-address
+                         data-id="@address.Id"
+                         data-recipient="@address.RecipientName"
+                         data-phone="@address.PhoneNumber"
+                         data-street="@address.Street"
+                         data-province-id="@address.ProvinceId"
+                         data-district-id="@address.DistrictId"
+                         data-ward-code="@address.WardCode">
+                    <div>
+                        <strong>@address.RecipientName</strong>
+                        @if (address.IsDefault)
+                        {
+                            <span class="address-card__badge">Mặc định</span>
+                        }
+                    </div>
+                    <p>@address.PhoneNumber</p>
+                    <p>@address.Street, @address.Ward, @address.District, @address.City</p>
+                    <div class="address-card__actions">
+                        <button type="button" data-address-edit>Chỉnh sửa</button>
+                        @if (!address.IsDefault)
+                        {
+                            <form asp-action="SetDefaultAddress" asp-route-id="@address.Id" method="post">
+                                <button type="submit">Đặt mặc định</button>
+                            </form>
+                        }
+                        <form asp-action="DeleteAddress" asp-route-id="@address.Id" method="post"
+                              onsubmit="return confirm('Xóa địa chỉ này?');">
+                            <button type="submit" class="is-danger">Xóa</button>
+                        </form>
+                    </div>
+                </article>
+            }
+        </div>
+
+        <form asp-action="SaveAddress" method="post" class="account-form address-form" data-address-form>
+            <input asp-for="Form.AddressId" type="hidden" data-address-id />
+            <div asp-validation-summary="ModelOnly" class="account-validation account-field--wide"></div>
+
+            <label>
+                <span>Tên người nhận</span>
+                <input asp-for="Form.RecipientName" autocomplete="name" data-recipient />
+                <span asp-validation-for="Form.RecipientName"></span>
+            </label>
+            <label>
+                <span>Số điện thoại</span>
+                <input asp-for="Form.PhoneNumber" autocomplete="tel" inputmode="numeric" data-phone />
+                <span asp-validation-for="Form.PhoneNumber"></span>
+            </label>
+            <label class="account-field--wide">
+                <span>Địa chỉ cụ thể</span>
+                <input asp-for="Form.Street" autocomplete="street-address" data-street />
+                <span asp-validation-for="Form.Street"></span>
+            </label>
+            <label class="account-field--wide">
+                <span>Tỉnh/thành phố</span>
+                <select asp-for="Form.ProvinceId" data-province>
+                    <option value="">Đang tải danh sách...</option>
+                </select>
+                <span asp-validation-for="Form.ProvinceId"></span>
+            </label>
+            <label>
+                <span>Quận/huyện</span>
+                <select asp-for="Form.DistrictId" data-district disabled>
+                    <option value="">Chọn quận/huyện</option>
+                </select>
+                <span asp-validation-for="Form.DistrictId"></span>
+            </label>
+            <label>
+                <span>Phường/xã</span>
+                <select asp-for="Form.WardCode" data-ward disabled>
+                    <option value="">Chọn phường/xã</option>
+                </select>
+                <span asp-validation-for="Form.WardCode"></span>
+            </label>
+            <label class="account-check account-field--wide">
+                <input asp-for="Form.IsDefault" data-default />
+                <span>Đặt làm địa chỉ giao hàng mặc định</span>
+            </label>
+            <div class="address-form__actions account-field--wide">
+                <button type="submit" class="button button--primary">Lưu địa chỉ</button>
+                <button type="button" class="button button--ghost" data-address-reset>Nhập địa chỉ mới</button>
+            </div>
+        </form>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="~/js/pages/storefront/account-addresses.js" asp-append-version="true"></script>
+}

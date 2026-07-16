@@ -784,20 +784,32 @@ public sealed class ReturnWorkflowService : IReturnWorkflowService
                     }
 
                     if (line.ConditionCode == ReturnItemCondition.Restockable
-                        && line.WriteOffQuantity > 0)
+                        && (line.RestockQuantity != line.AcceptedQuantity
+                            || line.WriteOffQuantity != 0))
                     {
                         throw new BusinessRuleViolationException(
-                            "RETURN_RESTOCKABLE_CANNOT_WRITE_OFF",
-                            $"Dòng {item.OrderItem.Sku} được đánh dấu Restockable nhưng có số lượng write-off.",
+                            "RETURN_RESTOCKABLE_REQUIRES_FULL_RESTOCK",
+                            $"Dòng {item.OrderItem.Sku} được đánh dấu đủ điều kiện bán lại nên toàn bộ số lượng chấp nhận phải được nhập kho.",
                             tracker.Snapshot());
                     }
 
-                    if (line.ConditionCode != ReturnItemCondition.Restockable
-                        && line.RestockQuantity > 0)
+                    if (line.ConditionCode == ReturnItemCondition.Mixed
+                        && (line.RestockQuantity <= 0 || line.WriteOffQuantity <= 0))
                     {
                         throw new BusinessRuleViolationException(
-                            "RETURN_NON_RESTOCKABLE_CANNOT_RESTOCK",
-                            $"Dòng {item.OrderItem.Sku} có tình trạng {line.ConditionCode} nên không được cộng tồn bán.",
+                            "RETURN_MIXED_CONDITION_REQUIRES_SPLIT_DISPOSITION",
+                            $"Dòng {item.OrderItem.Sku} chỉ được chọn Mixed khi có cả số lượng nhập lại kho và số lượng loại bỏ.",
+                            tracker.Snapshot());
+                    }
+
+                    if (line.ConditionCode is not ReturnItemCondition.Restockable
+                        and not ReturnItemCondition.Mixed
+                        && (line.RestockQuantity != 0
+                            || line.WriteOffQuantity != line.AcceptedQuantity))
+                    {
+                        throw new BusinessRuleViolationException(
+                            "RETURN_NON_RESTOCKABLE_REQUIRES_FULL_WRITE_OFF",
+                            $"Dòng {item.OrderItem.Sku} có tình trạng {line.ConditionCode} nên toàn bộ số lượng chấp nhận phải được loại khỏi tồn bán.",
                             tracker.Snapshot());
                     }
 

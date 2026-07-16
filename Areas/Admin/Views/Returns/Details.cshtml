@@ -256,7 +256,7 @@
                 <section class="data-panel return-section">
                     <h3>Hoàn tất kiểm định</h3>
                     <p class="return-rule">
-                        Accepted + Rejected = Received; Restock + Write-off = Accepted.
+                        Chấp nhận + Từ chối = Số lượng kho nhận; Nhập lại kho + Loại bỏ = Số lượng chấp nhận.
                     </p>
                     <form asp-action="CompleteInspection" asp-route-id="@Model.Id" method="post"
                           class="return-action-form">
@@ -269,21 +269,31 @@
                             @for (var index = 0; index < receivedItems.Length; index++)
                             {
                                 var item = receivedItems[index];
-                                <article>
+                                <article data-return-inspection-row>
                                     <strong>@item.ProductName · @item.Sku</strong>
                                     <small>Kho nhận @item.ReceivedQuantity</small>
                                     <input type="hidden" name="Items[@index].ReturnItemId" value="@item.Id" />
                                     <div class="return-inspection-grid">
-                                        <label><span>Accepted</span><input type="number" name="Items[@index].AcceptedQuantity" min="0" max="@item.ReceivedQuantity" value="@item.ReceivedQuantity" /></label>
-                                        <label><span>Rejected</span><input type="number" name="Items[@index].RejectedQuantity" min="0" max="@item.ReceivedQuantity" value="0" /></label>
-                                        <label><span>Restock</span><input type="number" name="Items[@index].RestockQuantity" min="0" max="@item.ReceivedQuantity" value="@item.ReceivedQuantity" /></label>
-                                        <label><span>Write-off</span><input type="number" name="Items[@index].WriteOffQuantity" min="0" max="@item.ReceivedQuantity" value="0" /></label>
+                                        <label><span>Chấp nhận</span><input type="number" name="Items[@index].AcceptedQuantity" min="0" max="@item.ReceivedQuantity" value="@item.ReceivedQuantity" data-return-accepted /></label>
+                                        <label><span>Từ chối</span><input type="number" name="Items[@index].RejectedQuantity" min="0" max="@item.ReceivedQuantity" value="0" data-return-rejected /></label>
+                                        <label><span>Nhập lại kho</span><input type="number" name="Items[@index].RestockQuantity" min="0" max="@item.ReceivedQuantity" value="@item.ReceivedQuantity" data-return-restock /></label>
+                                        <label><span>Loại bỏ</span><input type="number" name="Items[@index].WriteOffQuantity" min="0" max="@item.ReceivedQuantity" value="0" data-return-writeoff /></label>
                                         <label>
                                             <span>Tình trạng</span>
-                                            <select name="Items[@index].ConditionCode">
+                                            <select name="Items[@index].ConditionCode" data-return-condition>
                                                 @foreach (var condition in Enum.GetValues<ReturnItemCondition>())
                                                 {
-                                                    <option value="@condition">@condition</option>
+                                                    var conditionLabel = condition switch
+                                                    {
+                                                        ReturnItemCondition.Restockable => "Đủ điều kiện bán lại",
+                                                        ReturnItemCondition.Damaged => "Hư hỏng",
+                                                        ReturnItemCondition.MissingParts => "Thiếu bộ phận/phụ kiện",
+                                                        ReturnItemCondition.WrongItem => "Sai sản phẩm",
+                                                        ReturnItemCondition.Mixed => "Một phần nhập kho, một phần loại bỏ",
+                                                        ReturnItemCondition.WriteOff => "Loại bỏ toàn bộ",
+                                                        _ => condition.ToString()
+                                                    };
+                                                    <option value="@condition">@conditionLabel</option>
                                                 }
                                             </select>
                                         </label>
@@ -294,7 +304,7 @@
                         </div>
                         <textarea name="Note" rows="3" maxlength="1000" required
                                   placeholder="Kết luận kiểm định tổng thể..."></textarea>
-                        <button class="btn btn-primary" type="submit">Hoàn tất và chuyển RefundPending</button>
+                        <button class="btn btn-primary" type="submit">Hoàn tất kiểm định</button>
                     </form>
                 </section>
             }
@@ -304,7 +314,7 @@
             <section class="data-panel return-section">
                 <div class="return-section-heading">
                     <div>
-                        <p class="eyebrow">Return shipment</p>
+                        <p class="eyebrow">Vận chuyển hoàn trả</p>
                         <h3>GHN chiều về</h3>
                     </div>
                     @if (Model.Shipment?.TrackingCode is not null)
@@ -321,13 +331,13 @@
                 else
                 {
                     <dl class="return-summary-list">
-                        <div><dt>Shipment</dt><dd>#@Model.Shipment.Id</dd></div>
-                        <div><dt>Status</dt><dd>@Model.Shipment.Status</dd></div>
-                        <div><dt>Provider</dt><dd>@(Model.Shipment.ProviderStatus ?? "—")</dd></div>
-                        <div><dt>Tracking</dt><dd>@(Model.Shipment.TrackingCode ?? "—")</dd></div>
+                        <div><dt>Mã nội bộ</dt><dd>#@Model.Shipment.Id</dd></div>
+                        <div><dt>Trạng thái</dt><dd>@Model.Shipment.Status</dd></div>
+                        <div><dt>Trạng thái GHN</dt><dd>@(Model.Shipment.ProviderStatus ?? "—")</dd></div>
+                        <div><dt>Mã vận đơn</dt><dd>@(Model.Shipment.TrackingCode ?? "—")</dd></div>
                         <div><dt>Phí</dt><dd>@Model.Shipment.Fee.ToString("N0") ₫</dd></div>
-                        <div><dt>Delivered kho</dt><dd>@(Model.Shipment.DeliveredAt?.ToLocalTime().ToString("dd/MM HH:mm") ?? "—")</dd></div>
-                        <div><dt>Lý do provider</dt><dd>@(Model.Shipment.ProviderReason ?? "—")</dd></div>
+                        <div><dt>Kho nhận lúc</dt><dd>@(Model.Shipment.DeliveredAt?.ToLocalTime().ToString("dd/MM HH:mm") ?? "—")</dd></div>
+                        <div><dt>Ghi chú GHN</dt><dd>@(Model.Shipment.ProviderReason ?? "—")</dd></div>
                     </dl>
                 }
             </section>

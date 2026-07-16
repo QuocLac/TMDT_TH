@@ -42,16 +42,23 @@ public sealed class OrderApplicationService : IOrderApplicationService
 
     public async Task<PlaceOrderResult?> FindByClientRequestIdAsync(
         string clientRequestId,
+        int customerId,
         CancellationToken cancellationToken)
     {
-        if (!IsValidClientRequestId(clientRequestId))
+        if (!IsValidClientRequestId(clientRequestId) || customerId <= 0)
         {
             return null;
         }
 
+        var scopedClientRequestId = BuildScopedClientRequestId(
+            customerId,
+            clientRequestId);
+
         var order = await _context.Orders
             .AsNoTracking()
-            .Where(item => item.ClientRequestId == clientRequestId)
+            .Where(item =>
+                item.ClientRequestId == scopedClientRequestId
+                && item.CustomerId == customerId)
             .Select(item => new
             {
                 item.Id,
@@ -61,6 +68,7 @@ public sealed class OrderApplicationService : IOrderApplicationService
                 item.PaymentStatus
             })
             .SingleOrDefaultAsync(cancellationToken);
+
         if (order is null)
         {
             return null;
@@ -90,10 +98,15 @@ public sealed class OrderApplicationService : IOrderApplicationService
         CancellationToken cancellationToken)
     {
         var normalized = Normalize(command);
+        var scopedClientRequestId = BuildScopedClientRequestId(
+            normalized.CustomerId,
+            normalized.ClientRequestId);
 
         var existing = await FindByClientRequestIdAsync(
             normalized.ClientRequestId,
+            normalized.CustomerId,
             cancellationToken);
+
         if (existing is not null)
         {
             return existing;
@@ -108,11 +121,26 @@ public sealed class OrderApplicationService : IOrderApplicationService
 
             existing = await FindByClientRequestIdAsync(
                 normalized.ClientRequestId,
+                normalized.CustomerId,
                 cancellationToken);
+
             if (existing is not null)
             {
                 await transaction.CommitAsync(cancellationToken);
                 return existing;
+            }
+
+            var customerIsAvailable = await _context.Customers
+                .AsNoTracking()
+                .AnyAsync(item =>
+                    item.Id == normalized.CustomerId
+                    && item.Account.IsActive,
+                    cancellationToken);
+
+            if (!customerIsAvailable)
+            {
+                throw new CheckoutValidationException(
+                    "Tài khoản khách hàng không còn khả dụng để đặt hàng.");
             }
 
             var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
@@ -175,7 +203,8 @@ public sealed class OrderApplicationService : IOrderApplicationService
             {
                 Code = await _orderNumberGenerator.GenerateAsync(cancellationToken),
                 PublicToken = Guid.NewGuid(),
-                ClientRequestId = normalized.ClientRequestId,
+                ClientRequestId = scopedClientRequestId,
+                CustomerId = normalized.CustomerId,
                 CustomerName = normalized.CustomerName,
                 CustomerEmail = normalized.CustomerEmail,
                 CustomerPhone = normalized.CustomerPhone,
@@ -248,7 +277,7 @@ public sealed class OrderApplicationService : IOrderApplicationService
                 ProviderTransactionId = !isCod && paymentSucceeded
                     ? $"MOCK-{Guid.NewGuid():N}"
                     : null,
-                IdempotencyKey = $"{normalized.ClientRequestId}:payment:1",
+                IdempotencyKey = $"{scopedClientRequestId}:payment:1",
                 FailureCode = !isCod && !paymentSucceeded
                     ? "MOCK_PAYMENT_FAILED"
                     : null,
@@ -281,12 +310,12 @@ public sealed class OrderApplicationService : IOrderApplicationService
                 Code = paymentSucceeded ? "ORDER_PLACED" : "ORDER_PAYMENT_FAILED",
                 Title = paymentSucceeded ? "Đã đặt hàng" : "Đặt hàng chưa thành công",
                 Description = paymentSucceeded
-                    ? "Đơn hàng đã được tạo từ checkout và giá đã được xác minh trên server."
+                    ? "Đơn hàng đã được tạo và giá đã được xác nhận."
                     : order.CancelReason,
                 ChangedBy = "Checkout",
                 CustomerVisible = true,
                 OccurredAt = nowUtc,
-                CorrelationId = normalized.ClientRequestId
+                CorrelationId = scopedClientRequestId
             });
 
             order.StatusHistory.Add(new OrderStatusHistory
@@ -303,7 +332,7 @@ public sealed class OrderApplicationService : IOrderApplicationService
                 ChangedBy = "Checkout",
                 CustomerVisible = true,
                 OccurredAt = nowUtc,
-                CorrelationId = normalized.ClientRequestId
+                CorrelationId = scopedClientRequestId
             });
 
             _context.Orders.Add(order);
@@ -322,13 +351,13 @@ public sealed class OrderApplicationService : IOrderApplicationService
                     order.Id,
                     reservationLines,
                     nowUtc.AddMinutes(30),
-                    $"{normalized.ClientRequestId}:inventory",
+                    $"{scopedClientRequestId}:inventory",
                     "Checkout",
                     cancellationToken);
 
                 await _inventoryService.CommitAsync(
                     order.Id,
-                    normalized.ClientRequestId,
+                    scopedClientRequestId,
                     "Checkout",
                     cancellationToken);
             }
@@ -368,7 +397,9 @@ public sealed class OrderApplicationService : IOrderApplicationService
             _context.ChangeTracker.Clear();
             var duplicate = await FindByClientRequestIdAsync(
                 normalized.ClientRequestId,
+                normalized.CustomerId,
                 cancellationToken);
+
             if (duplicate is not null)
             {
                 return duplicate;
@@ -400,16 +431,19 @@ public sealed class OrderApplicationService : IOrderApplicationService
 
     public async Task<OrderReceipt?> GetReceiptAsync(
         Guid publicToken,
+        int customerId,
         CancellationToken cancellationToken)
     {
-        if (publicToken == Guid.Empty)
+        if (publicToken == Guid.Empty || customerId <= 0)
         {
             return null;
         }
 
         var order = await _context.Orders
             .AsNoTracking()
-            .Where(item => item.PublicToken == publicToken)
+            .Where(item =>
+                item.PublicToken == publicToken
+                && item.CustomerId == customerId)
             .Select(item => new
             {
                 item.Id,
@@ -434,6 +468,7 @@ public sealed class OrderApplicationService : IOrderApplicationService
                 item.CreatedAt
             })
             .SingleOrDefaultAsync(cancellationToken);
+
         if (order is null)
         {
             return null;
@@ -480,6 +515,11 @@ public sealed class OrderApplicationService : IOrderApplicationService
     {
         ArgumentNullException.ThrowIfNull(command);
 
+        if (command.CustomerId <= 0)
+        {
+            throw new CheckoutValidationException("Tài khoản khách hàng không hợp lệ.");
+        }
+
         if (!IsValidClientRequestId(command.ClientRequestId))
         {
             throw new CheckoutValidationException("ClientRequestId không hợp lệ.");
@@ -493,6 +533,7 @@ public sealed class OrderApplicationService : IOrderApplicationService
         var groupedLines = command.Lines
             .GroupBy(line => line.VariantId)
             .ToArray();
+
         if (groupedLines.Any(group => group.Key <= 0 || group.Count() != 1))
         {
             throw new CheckoutValidationException(
@@ -534,7 +575,10 @@ public sealed class OrderApplicationService : IOrderApplicationService
         var email = Required(command.CustomerEmail, 150, "Email");
         try
         {
-            if (!string.Equals(new MailAddress(email).Address, email, StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(
+                    new MailAddress(email).Address,
+                    email,
+                    StringComparison.OrdinalIgnoreCase))
             {
                 throw new CheckoutValidationException("Email người nhận không hợp lệ.");
             }
@@ -565,6 +609,19 @@ public sealed class OrderApplicationService : IOrderApplicationService
             MockPaymentOutcome = outcome,
             Lines = lines
         };
+    }
+
+    private static string BuildScopedClientRequestId(
+        int customerId,
+        string clientRequestId)
+    {
+        if (customerId <= 0 || !IsValidClientRequestId(clientRequestId))
+        {
+            throw new CheckoutValidationException(
+                "Định danh chống trùng của checkout không hợp lệ.");
+        }
+
+        return $"{customerId}:{clientRequestId}";
     }
 
     private static bool IsValidClientRequestId(string? value)
@@ -600,6 +657,7 @@ public sealed class OrderApplicationService : IOrderApplicationService
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Select(value => value!.Trim())
             .ToArray();
+
         return parts.Length == 0 ? sku : string.Join(" · ", parts);
     }
 }

@@ -1,0 +1,53 @@
+@model WebApplication2.ViewModels.Storefront.Account.ProfilePageViewModel
+@{
+    ViewData["Title"] = "Tài khoản của tôi";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/account.css" asp-append-version="true" />
+}
+
+<section class="account-dashboard shell-container">
+    <aside class="account-sidebar">
+        <div class="account-profile-summary">
+            <img src="@Model.AvatarUrl" alt="" width="72" height="72" />
+            <strong>@Model.Form.FullName</strong>
+            <span>@Model.Email</span>
+        </div>
+        <nav>
+            <a asp-action="Profile" class="is-active">Thông tin cá nhân</a>
+            <a asp-action="Addresses">Sổ địa chỉ</a>
+            <a asp-action="ChangePassword">Đổi mật khẩu</a>
+        </nav>
+        <form asp-action="Logout" method="post">
+            <button type="submit">Đăng xuất</button>
+        </form>
+    </aside>
+
+    <div class="account-panel">
+        <header>
+            <span class="account-card__eyebrow">Hồ sơ khách hàng</span>
+            <h1>Thông tin cá nhân</h1>
+            <p>Tên đăng nhập: <strong>@Model.Username</strong></p>
+        </header>
+
+        <form asp-action="Profile" method="post" class="account-form">
+            <div asp-validation-summary="ModelOnly" class="account-validation"></div>
+            <label>
+                <span>Họ và tên</span>
+                <input asp-for="Form.FullName" autocomplete="name" />
+                <span asp-validation-for="Form.FullName"></span>
+            </label>
+            <label>
+                <span>Số điện thoại</span>
+                <input asp-for="Form.PhoneNumber" autocomplete="tel" inputmode="numeric" />
+                <span asp-validation-for="Form.PhoneNumber"></span>
+            </label>
+            <label>
+                <span>Email đăng nhập</span>
+                <input value="@Model.Email" disabled />
+                <small>Email sẽ được dùng để nhận thông tin đơn hàng.</small>
+            </label>
+            <button type="submit" class="button button--primary">Lưu thay đổi</button>
+        </form>
+    </div>
+</section>

@@ -76,5 +76,97 @@
         }
     });
 
+
+    const toNonNegativeInt = (value) => {
+        const parsed = Number.parseInt(value ?? "0", 10);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    };
+
+    const synchronizeInspectionRow = (row, source) => {
+        const accepted = row.querySelector("[data-return-accepted]");
+        const rejected = row.querySelector("[data-return-rejected]");
+        const restock = row.querySelector("[data-return-restock]");
+        const writeOff = row.querySelector("[data-return-writeoff]");
+        const condition = row.querySelector("[data-return-condition]");
+        if (!accepted || !rejected || !restock || !writeOff || !condition) return;
+
+        const received = toNonNegativeInt(accepted.max);
+        let acceptedQuantity = Math.min(received, toNonNegativeInt(accepted.value));
+        let rejectedQuantity = Math.min(received, toNonNegativeInt(rejected.value));
+
+        if (source === accepted) {
+            rejectedQuantity = received - acceptedQuantity;
+        } else if (source === rejected) {
+            acceptedQuantity = received - rejectedQuantity;
+        } else if (acceptedQuantity + rejectedQuantity !== received) {
+            rejectedQuantity = received - acceptedQuantity;
+        }
+
+        accepted.value = String(acceptedQuantity);
+        rejected.value = String(rejectedQuantity);
+
+        switch (condition.value) {
+            case "Restockable":
+                condition.setCustomValidity("");
+                restock.value = String(acceptedQuantity);
+                writeOff.value = "0";
+                restock.readOnly = true;
+                writeOff.readOnly = true;
+                break;
+            case "Mixed": {
+                condition.setCustomValidity(
+                    acceptedQuantity < 2
+                        ? "Tình trạng hỗn hợp cần ít nhất 2 sản phẩm được chấp nhận."
+                        : ""
+                );
+                restock.readOnly = false;
+                writeOff.readOnly = false;
+                let restockQuantity = Math.min(
+                    acceptedQuantity,
+                    toNonNegativeInt(restock.value)
+                );
+                let writeOffQuantity = Math.min(
+                    acceptedQuantity,
+                    toNonNegativeInt(writeOff.value)
+                );
+
+                if (source === restock) {
+                    writeOffQuantity = acceptedQuantity - restockQuantity;
+                } else if (source === writeOff) {
+                    restockQuantity = acceptedQuantity - writeOffQuantity;
+                } else if (restockQuantity <= 0 || writeOffQuantity <= 0
+                    || restockQuantity + writeOffQuantity !== acceptedQuantity) {
+                    restockQuantity = acceptedQuantity > 1
+                        ? Math.max(1, acceptedQuantity - 1)
+                        : acceptedQuantity;
+                    writeOffQuantity = acceptedQuantity - restockQuantity;
+                }
+
+                restock.value = String(restockQuantity);
+                writeOff.value = String(writeOffQuantity);
+                break;
+            }
+            default:
+                condition.setCustomValidity("");
+                restock.value = "0";
+                writeOff.value = String(acceptedQuantity);
+                restock.readOnly = true;
+                writeOff.readOnly = true;
+                break;
+        }
+    };
+
+    page.querySelectorAll("[data-return-inspection-row]").forEach((row) => {
+        const controls = row.querySelectorAll(
+            "[data-return-accepted], [data-return-rejected], [data-return-restock], "
+            + "[data-return-writeoff], [data-return-condition]"
+        );
+        controls.forEach((control) => {
+            control.addEventListener("input", () => synchronizeInspectionRow(row, control));
+            control.addEventListener("change", () => synchronizeInspectionRow(row, control));
+        });
+        synchronizeInspectionRow(row, null);
+    });
+
     if (form) loadServices();
 })();

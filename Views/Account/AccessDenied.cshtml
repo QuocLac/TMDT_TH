@@ -1,0 +1,16 @@
+@{
+    ViewData["Title"] = "Không có quyền truy cập";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/account.css" asp-append-version="true" />
+}
+<section class="account-page shell-container">
+    <div class="account-card">
+        <header>
+            <span class="account-card__eyebrow">Quyền truy cập</span>
+            <h1>Bạn không có quyền mở trang này</h1>
+            <p>Tài khoản hiện tại không được cấp quyền quản trị FastBuy.</p>
+        </header>
+        <a asp-controller="Home" asp-action="Index" class="button button--primary">Quay lại trang chủ</a>
+    </div>
+</section>

@@ -271,12 +271,54 @@ public sealed class ApplicationDbContext : DbContext
 
     private static void ConfigureCustomers(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Account>().HasIndex(item => item.Email).IsUnique();
+        modelBuilder.Entity<Account>(entity =>
+        {
+            entity.Property(item => item.Role)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .HasDefaultValue(AccountRole.Customer);
+            entity.Property(item => item.SecurityStamp).HasMaxLength(64);
+            entity.Property(item => item.RowVersion).IsRowVersion();
 
-        modelBuilder.Entity<Customer>()
-            .HasOne(item => item.Account)
-            .WithOne(item => item.Customer)
-            .HasForeignKey<Customer>(item => item.AccountId)
-            .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(item => item.Email).IsUnique();
+            entity.HasIndex(item => item.NormalizedUsername)
+                .IsUnique()
+                .HasFilter("[NormalizedUsername] IS NOT NULL");
+            entity.HasIndex(item => item.NormalizedEmail)
+                .IsUnique()
+                .HasFilter("[NormalizedEmail] IS NOT NULL");
+            entity.HasIndex(item => new { item.Role, item.IsActive });
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_Account_Role",
+                    "[Role] IN ('Customer','Admin')");
+                table.HasCheckConstraint(
+                    "CK_Account_FailedAccessCount",
+                    "[FailedAccessCount] >= 0");
+            });
+        });
+
+        modelBuilder.Entity<Customer>(entity =>
+        {
+            entity.HasOne(item => item.Account)
+                .WithOne(item => item.Customer)
+                .HasForeignKey<Customer>(item => item.AccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Address>(entity =>
+        {
+            entity.HasIndex(item => item.CustomerId);
+            entity.HasIndex(item => new { item.CustomerId, item.IsDefault })
+                .IsUnique()
+                .HasFilter("[IsDefault] = 1");
+
+            entity.HasOne(item => item.Customer)
+                .WithMany(item => item.Addresses)
+                .HasForeignKey(item => item.CustomerId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

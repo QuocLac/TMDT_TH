@@ -1,0 +1,222 @@
+.account-page,
+.account-dashboard {
+    padding-block: clamp(2rem, 5vw, 5rem);
+}
+
+.account-page {
+    display: grid;
+    place-items: center;
+}
+
+.account-card,
+.account-panel,
+.account-sidebar {
+    border: 1px solid rgba(112, 132, 104, .24);
+    background: color-mix(in srgb, var(--surface, #fff) 92%, transparent);
+    box-shadow: 0 24px 60px rgba(21, 40, 17, .12);
+    backdrop-filter: blur(18px);
+}
+
+.account-card {
+    width: min(100%, 560px);
+    border-radius: 28px;
+    padding: clamp(1.4rem, 4vw, 2.5rem);
+}
+
+.account-card--wide {
+    width: min(100%, 820px);
+}
+
+.account-card header,
+.account-panel header {
+    margin-bottom: 1.5rem;
+}
+
+.account-card h1,
+.account-panel h1 {
+    margin: .35rem 0 .55rem;
+}
+
+.account-card__eyebrow {
+    color: var(--accent, #3e6f2b);
+    font-size: .78rem;
+    font-weight: 800;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+}
+
+.account-form {
+    display: grid;
+    gap: 1rem;
+}
+
+.account-form--grid,
+.address-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.account-form label {
+    display: grid;
+    gap: .45rem;
+    font-weight: 700;
+}
+
+.account-form input,
+.account-form select {
+    min-height: 48px;
+    width: 100%;
+    border: 1px solid rgba(87, 109, 78, .28);
+    border-radius: 14px;
+    background: var(--surface, #fff);
+    color: inherit;
+    padding: .75rem .9rem;
+}
+
+.account-form label > span:last-child:not(:first-child) {
+    color: #b3261e;
+    font-size: .8rem;
+    font-weight: 600;
+}
+
+.account-validation {
+    color: #b3261e;
+    font-weight: 700;
+}
+
+.account-validation:empty {
+    display: none;
+}
+
+.account-field--wide {
+    grid-column: 1 / -1;
+}
+
+.account-check {
+    display: flex !important;
+    align-items: center;
+    gap: .65rem;
+}
+
+.account-check input {
+    min-height: auto;
+    width: auto;
+}
+
+.account-card footer {
+    margin-top: 1.25rem;
+    text-align: center;
+}
+
+.account-dashboard {
+    display: grid;
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.account-sidebar,
+.account-panel {
+    border-radius: 24px;
+    padding: 1.25rem;
+}
+
+.account-profile-summary {
+    display: grid;
+    justify-items: center;
+    gap: .4rem;
+    padding: 1rem;
+    text-align: center;
+}
+
+.account-profile-summary img {
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.account-sidebar nav {
+    display: grid;
+    gap: .35rem;
+    margin-block: 1rem;
+}
+
+.account-sidebar nav a,
+.account-sidebar form button {
+    width: 100%;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: inherit;
+    padding: .75rem .9rem;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.account-sidebar nav a:hover,
+.account-sidebar nav a.is-active {
+    background: rgba(68, 111, 48, .12);
+    color: var(--accent, #3e6f2b);
+}
+
+.address-grid {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.address-card {
+    border: 1px solid rgba(87, 109, 78, .2);
+    border-radius: 18px;
+    padding: 1rem;
+}
+
+.address-card p {
+    margin: .35rem 0;
+}
+
+.address-card__badge {
+    display: inline-flex;
+    margin-left: .5rem;
+    border-radius: 999px;
+    background: rgba(55, 128, 45, .12);
+    color: #2f6e28;
+    padding: .2rem .55rem;
+    font-size: .75rem;
+    font-weight: 800;
+}
+
+.address-card__actions,
+.address-form__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .6rem;
+    margin-top: .8rem;
+}
+
+.address-card__actions form {
+    display: inline;
+}
+
+.address-card__actions button {
+    border: 0;
+    background: transparent;
+    color: var(--accent, #3e6f2b);
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.address-card__actions .is-danger {
+    color: #b3261e;
+}
+
+@media (max-width: 760px) {
+    .account-dashboard,
+    .account-form--grid,
+    .address-form {
+        grid-template-columns: 1fr;
+    }
+
+    .account-field--wide {
+        grid-column: auto;
+    }
+}

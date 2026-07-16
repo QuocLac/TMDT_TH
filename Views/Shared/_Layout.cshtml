@@ -1,5 +1,7 @@
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @inject WebApplication2.Services.Cart.ISessionCartService CartService
+@using System.Security.Claims
+@using WebApplication2.Models.Enums
 @{
     var currentQuery = Context.Request.Query["query"].ToString();
     var requestedEventTheme = ViewData["EventTheme"]?.ToString();
@@ -8,10 +10,13 @@
         : "default";
     var antiforgeryTokens = Antiforgery.GetAndStoreTokens(Context);
     var cartHeader = CartService.GetHeaderSnapshot();
-    var mockCustomer = CartService.GetMockCustomer();
-    var mockInitial = string.IsNullOrWhiteSpace(mockCustomer.FullName)
-        ? "K"
-        : mockCustomer.FullName.Trim()[0].ToString().ToUpperInvariant();
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
+    var displayName = isAuthenticated
+        ? User.Identity?.Name ?? User.FindFirstValue(ClaimTypes.Email) ?? "Tài khoản"
+        : "Tài khoản";
+    var accountInitial = string.IsNullOrWhiteSpace(displayName)
+        ? "F"
+        : displayName.Trim()[0].ToString().ToUpperInvariant();
 }
 <!DOCTYPE html>
 <html lang="vi" data-theme="light" data-event-theme="@eventTheme">
@@ -48,13 +53,13 @@
 
     <div class="announcement-bar" aria-label="Thông báo mua sắm">
         <div class="announcement-bar__track">
-            <span>Giá bán theo đúng biến thể</span>
-            <span>Tồn kho được kiểm tra trực tiếp</span>
-            <span>Giỏ hàng Session không cần đăng nhập</span>
+            <span>Giá bán minh bạch theo từng biến thể</span>
+            <span>Tồn kho được xác nhận trước khi đặt hàng</span>
+            <span>Địa chỉ giao hàng được đối chiếu với GHN</span>
             <span>FastBuy Marketplace đa ngành hàng</span>
-            <span aria-hidden="true">Giá bán theo đúng biến thể</span>
-            <span aria-hidden="true">Tồn kho được kiểm tra trực tiếp</span>
-            <span aria-hidden="true">Giỏ hàng Session không cần đăng nhập</span>
+            <span aria-hidden="true">Giá bán minh bạch theo từng biến thể</span>
+            <span aria-hidden="true">Tồn kho được xác nhận trước khi đặt hàng</span>
+            <span aria-hidden="true">Địa chỉ giao hàng được đối chiếu với GHN</span>
             <span aria-hidden="true">FastBuy Marketplace đa ngành hàng</span>
         </div>
     </div>
@@ -87,15 +92,30 @@
             </form>
 
             <div class="storefront-header__actions">
-                <a asp-area="" asp-controller="Cart" asp-action="Index"
-                   class="header-action mock-account-chip"
-                   title="Tài khoản thử nghiệm chưa có đăng nhập">
-                    <span class="mock-account-chip__avatar" aria-hidden="true">@mockInitial</span>
-                    <span class="mock-account-chip__copy">
-                        <strong data-mock-account-name>@mockCustomer.FullName</strong>
-                        <small>Khách thử nghiệm</small>
-                    </span>
-                </a>
+                @if (isAuthenticated)
+                {
+                    <a asp-area="" asp-controller="Account" asp-action="Profile"
+                       class="header-action mock-account-chip"
+                       title="Tài khoản của tôi">
+                        <span class="mock-account-chip__avatar" aria-hidden="true">@accountInitial</span>
+                        <span class="mock-account-chip__copy">
+                            <strong>@displayName</strong>
+                            <small>Tài khoản của tôi</small>
+                        </span>
+                    </a>
+                }
+                else
+                {
+                    <a asp-area="" asp-controller="Account" asp-action="Login"
+                       class="header-action mock-account-chip"
+                       title="Đăng nhập hoặc đăng ký">
+                        <span class="mock-account-chip__avatar" aria-hidden="true">@accountInitial</span>
+                        <span class="mock-account-chip__copy">
+                            <strong>Đăng nhập</strong>
+                            <small>Hoặc đăng ký</small>
+                        </span>
+                    </a>
+                }
 
                 <a asp-area="" asp-controller="Cart" asp-action="Index"
                    class="header-action cart-link"
@@ -126,8 +146,15 @@
                 <a href="/#categories"><span>Danh mục</span></a>
                 <a href="/#products"><span>Sản phẩm</span></a>
                 <a asp-area="" asp-controller="Cart" asp-action="Index"><span>Giỏ hàng</span></a>
-                <a asp-area="Admin" asp-controller="Home" asp-action="Index"
-                   class="storefront-nav__admin"><span>Quản trị</span><small>Dev</small></a>
+                @if (isAuthenticated)
+                {
+                    <a asp-area="" asp-controller="Account" asp-action="Profile"><span>Tài khoản</span></a>
+                }
+                @if (User.IsInRole(nameof(AccountRole.Admin)))
+                {
+                    <a asp-area="Admin" asp-controller="Home" asp-action="Index"
+                       class="storefront-nav__admin"><span>Quản trị</span></a>
+                }
             </div>
         </nav>
     </header>
@@ -155,7 +182,7 @@
                 <span class="brand__mark" aria-hidden="true"><span>FB</span><i></i></span>
                 <div>
                     <h2>FastBuy Marketplace</h2>
-                    <p>Mua sắm đa ngành hàng với dữ liệu giá và tồn kho theo đúng biến thể.</p>
+                    <p>Mua sắm đa ngành hàng với giá, tồn kho và địa chỉ giao hàng được xác nhận rõ ràng.</p>
                 </div>
             </section>
             <nav aria-label="Liên kết mua sắm">
@@ -166,14 +193,14 @@
                 <a asp-area="" asp-controller="Cart" asp-action="Index">Giỏ hàng</a>
             </nav>
             <section>
-                <h2>Trạng thái thử nghiệm</h2>
-                <p>Tài khoản khách hàng đang dùng dữ liệu mock trong Session, chưa có đăng nhập.</p>
-                <span class="storefront-footer__status"><i aria-hidden="true"></i>Session cart đang hoạt động</span>
+                <h2>Hỗ trợ mua sắm</h2>
+                <p>Đăng nhập để lưu địa chỉ, thanh toán và theo dõi đơn hàng thuận tiện hơn.</p>
+                <span class="storefront-footer__status"><i aria-hidden="true"></i>Tài khoản khách hàng đang hoạt động</span>
             </section>
         </div>
         <div class="shell-container storefront-footer__bottom">
             <span>&copy; @DateTime.UtcNow.Year FastBuy.</span>
-            <span>Custom storefront UI · No Bootstrap</span>
+            <span>Marketplace đa ngành hàng</span>
         </div>
     </footer>
 

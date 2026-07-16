@@ -37,61 +37,47 @@
             <nav class="admin-nav">
                 <p class="admin-nav__label">Vận hành</p>
                 <a asp-area="Admin" asp-controller="Home" asp-action="Index"
-                   class="admin-nav__link @(currentController == "Home" ? "is-active" : null)"
-                   aria-current="@(currentController == "Home" ? "page" : null)">
+                   class="admin-nav__link @(currentController == "Home" ? "is-active" : null)">
                     <i class="fa-solid fa-house" aria-hidden="true"></i>
                     <span>Tổng quan</span>
                 </a>
                 <a asp-area="Admin" asp-controller="Categories" asp-action="Index"
-                   class="admin-nav__link @(currentController == "Categories" ? "is-active" : null)"
-                   aria-current="@(currentController == "Categories" ? "page" : null)">
+                   class="admin-nav__link @(currentController == "Categories" ? "is-active" : null)">
                     <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
                     <span>Danh mục</span>
                 </a>
                 <a asp-area="Admin" asp-controller="Products" asp-action="Index"
-                   class="admin-nav__link @(currentController == "Products" ? "is-active" : null)"
-                   aria-current="@(currentController == "Products" ? "page" : null)">
+                   class="admin-nav__link @(currentController == "Products" ? "is-active" : null)">
                     <i class="fa-solid fa-box-open" aria-hidden="true"></i>
                     <span>Sản phẩm và biến thể</span>
                 </a>
                 <a asp-area="Admin" asp-controller="Orders" asp-action="Index"
-                   class="admin-nav__link @(currentController == "Orders" ? "is-active" : null)"
-                   aria-current="@(currentController == "Orders" ? "page" : null)">
+                   class="admin-nav__link @(currentController == "Orders" ? "is-active" : null)">
                     <i class="fa-solid fa-cart-shopping" aria-hidden="true"></i>
                     <span>Đơn hàng</span>
                 </a>
                 <a asp-area="Admin" asp-controller="Shipping" asp-action="Index"
-                   class="admin-nav__link @(currentController == "Shipping" ? "is-active" : null)"
-                   aria-current="@(currentController == "Shipping" ? "page" : null)">
+                   class="admin-nav__link @(currentController == "Shipping" ? "is-active" : null)">
                     <i class="fa-solid fa-truck-fast" aria-hidden="true"></i>
                     <span>Vận chuyển GHN</span>
                 </a>
                 <a asp-area="Admin" asp-controller="Returns" asp-action="Index"
-                   class="admin-nav__link @(currentController == "Returns" ? "is-active" : null)"
-                   aria-current="@(currentController == "Returns" ? "page" : null)">
+                   class="admin-nav__link @(currentController == "Returns" ? "is-active" : null)">
                     <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
                     <span>Hoàn trả</span>
                 </a>
 
                 <p class="admin-nav__label">Giá bán</p>
                 <a asp-area="Admin" asp-controller="PriceCampaigns" asp-action="Index"
-                   class="admin-nav__link @(currentController == "PriceCampaigns" ? "is-active" : null)"
-                   aria-current="@(currentController == "PriceCampaigns" ? "page" : null)">
+                   class="admin-nav__link @(currentController == "PriceCampaigns" ? "is-active" : null)">
                     <i class="fa-solid fa-tags" aria-hidden="true"></i>
                     <span>Chiến dịch giá</span>
                 </a>
                 <a asp-area="Admin" asp-controller="PriceHistories" asp-action="Index"
-                   class="admin-nav__link @(currentController == "PriceHistories" ? "is-active" : null)"
-                   aria-current="@(currentController == "PriceHistories" ? "page" : null)">
+                   class="admin-nav__link @(currentController == "PriceHistories" ? "is-active" : null)">
                     <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
                     <span>Lịch sử giá</span>
                 </a>
-
-                <p class="admin-nav__label">Roadmap</p>
-                <span class="admin-nav__link is-disabled" aria-disabled="true">
-                    <i class="fa-solid fa-ticket" aria-hidden="true"></i>
-                    <span>Khuyến mãi <small>Đang phát triển</small></span>
-                </span>
             </nav>
         </aside>
 
@@ -119,6 +105,7 @@
                 </div>
 
                 <div class="admin-topbar__actions">
+                    <span class="small text-secondary">@User.Identity?.Name</span>
                     <a asp-area="" asp-controller="Home" asp-action="Index"
                        target="_blank"
                        rel="noopener noreferrer"
@@ -126,6 +113,12 @@
                         <i class="fa-solid fa-globe" aria-hidden="true"></i>
                         <span class="admin-action-label">Xem website</span>
                     </a>
+                    <form asp-area="" asp-controller="Account" asp-action="Logout" method="post">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                            <span class="admin-action-label">Đăng xuất</span>
+                        </button>
+                    </form>
                     <button type="button"
                             class="theme-toggle"
                             data-theme-toggle

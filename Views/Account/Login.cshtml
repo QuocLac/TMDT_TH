@@ -1,0 +1,46 @@
+@model WebApplication2.ViewModels.Storefront.Account.LoginViewModel
+@{
+    ViewData["Title"] = "Đăng nhập";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/account.css" asp-append-version="true" />
+}
+
+<section class="account-page shell-container">
+    <div class="account-card">
+        <header>
+            <span class="account-card__eyebrow">Tài khoản FastBuy</span>
+            <h1>Đăng nhập</h1>
+            <p>Tiếp tục thanh toán, quản lý địa chỉ và theo dõi đơn hàng của bạn.</p>
+        </header>
+
+        <form asp-action="Login" method="post" class="account-form">
+            <input asp-for="ReturnUrl" type="hidden" />
+            <div asp-validation-summary="ModelOnly" class="account-validation"></div>
+
+            <label>
+                <span>Tên đăng nhập hoặc email</span>
+                <input asp-for="Identity" autocomplete="username" />
+                <span asp-validation-for="Identity"></span>
+            </label>
+
+            <label>
+                <span>Mật khẩu</span>
+                <input asp-for="Password" autocomplete="current-password" />
+                <span asp-validation-for="Password"></span>
+            </label>
+
+            <label class="account-check">
+                <input asp-for="RememberMe" />
+                <span>Giữ đăng nhập trên thiết bị này</span>
+            </label>
+
+            <button type="submit" class="button button--primary">Đăng nhập</button>
+        </form>
+
+        <footer>
+            Chưa có tài khoản?
+            <a asp-action="Register" asp-route-returnUrl="@Model.ReturnUrl">Đăng ký ngay</a>
+        </footer>
+    </div>
+</section>

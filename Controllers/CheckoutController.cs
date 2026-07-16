@@ -1,17 +1,23 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using WebApplication2.Models;
 using WebApplication2.Services.Cart;
 using WebApplication2.Services.Commerce.Checkout;
 using WebApplication2.Services.Commerce.Inventory;
 using WebApplication2.Services.Commerce.Orders;
+using WebApplication2.Services.Identity;
 using WebApplication2.Services.Shipping.Ghn;
 using WebApplication2.ViewModels.Storefront.Cart;
 using WebApplication2.ViewModels.Storefront.Checkout;
 
 namespace WebApplication2.Controllers;
 
+[Authorize]
 [Route("checkout")]
 public sealed class CheckoutController : Controller
 {
+    private readonly ApplicationDbContext _context;
     private readonly ISessionCartService _cartService;
     private readonly IGhnAddressClient _addressClient;
     private readonly IShippingFeeCalculator _shippingFeeCalculator;
@@ -19,12 +25,14 @@ public sealed class CheckoutController : Controller
     private readonly ILogger<CheckoutController> _logger;
 
     public CheckoutController(
+        ApplicationDbContext context,
         ISessionCartService cartService,
         IGhnAddressClient addressClient,
         IShippingFeeCalculator shippingFeeCalculator,
         IOrderApplicationService orderApplicationService,
         ILogger<CheckoutController> logger)
     {
+        _context = context;
         _cartService = cartService;
         _addressClient = addressClient;
         _shippingFeeCalculator = shippingFeeCalculator;
@@ -59,9 +67,12 @@ public sealed class CheckoutController : Controller
         CheckoutPlaceOrderRequest request,
         CancellationToken cancellationToken)
     {
+        var customerId = RequireCustomerId();
         var existing = await _orderApplicationService.FindByClientRequestIdAsync(
             request.ClientRequestId,
+            customerId,
             cancellationToken);
+
         if (existing is not null)
         {
             return RedirectToAction(nameof(Success), new { publicToken = existing.PublicToken });
@@ -83,7 +94,7 @@ public sealed class CheckoutController : Controller
         {
             ModelState.AddModelError(
                 string.Empty,
-                "Giỏ hàng đã thay đổi sau khi mở trang checkout. Vui lòng kiểm tra lại.");
+                "Giỏ hàng đã thay đổi sau khi mở trang thanh toán. Vui lòng kiểm tra lại.");
         }
 
         if (!MatchesCart(request.Items, selectedItems))
@@ -126,6 +137,7 @@ public sealed class CheckoutController : Controller
         {
             var result = await _orderApplicationService.PlaceOrderAsync(
                 new PlaceOrderCommand(
+                    customerId,
                     request.ClientRequestId,
                     request.FullName,
                     request.Email,
@@ -189,7 +201,9 @@ public sealed class CheckoutController : Controller
     {
         var receipt = await _orderApplicationService.GetReceiptAsync(
             publicToken,
+            RequireCustomerId(),
             cancellationToken);
+
         if (receipt is null)
         {
             return NotFound();
@@ -285,7 +299,7 @@ public sealed class CheckoutController : Controller
             data = new CheckoutAddressValidationViewModel
             {
                 IsValid = true,
-                Message = "Địa chỉ đã được đối chiếu với dữ liệu GHN.",
+                Message = "Địa chỉ giao hàng hợp lệ.",
                 ProvinceId = validation.Province!.ProvinceId,
                 ProvinceName = validation.Province.ProvinceName,
                 DistrictId = validation.District!.DistrictId,
@@ -319,9 +333,16 @@ public sealed class CheckoutController : Controller
         var selectedQuantity = cart.Items
             .Where(item => item.IsSelected && item.CanSelect)
             .Sum(item => item.Quantity);
+
         var shippingFee = selectedQuantity > 0
             ? _shippingFeeCalculator.Calculate(cart.SelectedSubtotal, selectedQuantity)
             : 0m;
+
+        form ??= await BuildCustomerPrefillAsync(
+            cart,
+            cartVersion,
+            clientRequestId,
+            cancellationToken);
 
         return CheckoutPageViewModel.FromCart(
             cart,
@@ -332,6 +353,60 @@ public sealed class CheckoutController : Controller
             form,
             provinces.Success ? null : provinces.Message,
             errorMessage);
+    }
+
+    private async Task<CheckoutPlaceOrderRequest> BuildCustomerPrefillAsync(
+        CartPageViewModel cart,
+        long cartVersion,
+        string clientRequestId,
+        CancellationToken cancellationToken)
+    {
+        var customerId = RequireCustomerId();
+        var customer = await _context.Customers
+            .AsNoTracking()
+            .Include(item => item.Account)
+            .Include(item => item.Addresses)
+            .SingleOrDefaultAsync(
+                item => item.Id == customerId && item.Account.IsActive,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                "Không tìm thấy hồ sơ khách hàng hợp lệ.");
+
+        var address = customer.Addresses
+            .OrderByDescending(item => item.IsDefault)
+            .ThenByDescending(item => item.UpdatedAt ?? item.CreatedAt)
+            .FirstOrDefault();
+
+        return new CheckoutPlaceOrderRequest
+        {
+            ClientRequestId = clientRequestId,
+            CartVersion = cartVersion,
+            FullName = address?.RecipientName ?? customer.FullName,
+            Email = customer.Account.Email,
+            Phone = address?.PhoneNumber ?? customer.PhoneNumber,
+            AddressLine = address?.Street ?? string.Empty,
+            ProvinceId = address?.ProvinceId ?? 0,
+            DistrictId = address?.DistrictId ?? 0,
+            WardCode = address?.WardCode ?? string.Empty,
+            PaymentMethod = OrderApplicationService.CodPaymentMethod,
+            MockPaymentOutcome = OrderApplicationService.MockSuccessOutcome,
+            Items = cart.Items
+                .Where(item => item.IsSelected && item.CanSelect)
+                .Select(item => new CheckoutItemConfirmationRequest
+                {
+                    VariantId = item.VariantId,
+                    Quantity = item.Quantity,
+                    ExpectedUnitPrice = item.EffectivePrice
+                })
+                .ToList()
+        };
+    }
+
+    private int RequireCustomerId()
+    {
+        return User.GetCustomerId()
+            ?? throw new InvalidOperationException(
+                "Authenticated account has no CustomerId claim.");
     }
 
     private static bool MatchesCart(
@@ -346,6 +421,7 @@ public sealed class CheckoutController : Controller
         var requestedByVariant = requested
             .GroupBy(item => item.VariantId)
             .ToDictionary(group => group.Key, group => group.ToArray());
+
         if (requestedByVariant.Values.Any(group => group.Length != 1))
         {
             return false;
@@ -375,7 +451,7 @@ public sealed class CheckoutController : Controller
             .SelectMany(value => value.Errors)
             .Select(error => error.ErrorMessage)
             .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message))
-            ?? "Thông tin checkout chưa hợp lệ.";
+            ?? "Thông tin thanh toán chưa hợp lệ.";
     }
 
     private IActionResult LookupResponse<T>(

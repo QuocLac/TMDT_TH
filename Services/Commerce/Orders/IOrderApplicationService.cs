@@ -8,6 +8,7 @@ public sealed record PlaceOrderLine(
     decimal ExpectedUnitPrice);
 
 public sealed record PlaceOrderCommand(
+    int CustomerId,
     string ClientRequestId,
     string CustomerName,
     string CustomerEmail,
@@ -65,6 +66,7 @@ public interface IOrderApplicationService
 {
     Task<PlaceOrderResult?> FindByClientRequestIdAsync(
         string clientRequestId,
+        int customerId,
         CancellationToken cancellationToken);
 
     Task<PlaceOrderResult> PlaceOrderAsync(
@@ -73,5 +75,6 @@ public interface IOrderApplicationService
 
     Task<OrderReceipt?> GetReceiptAsync(
         Guid publicToken,
+        int customerId,
         CancellationToken cancellationToken);
 }

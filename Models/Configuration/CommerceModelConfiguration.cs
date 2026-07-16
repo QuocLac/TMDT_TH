@@ -418,7 +418,7 @@ public static class CommerceModelConfiguration
                     "[RefundAmount] >= 0");
                 table.HasCheckConstraint(
                     "CK_ReturnItem_ConditionCode",
-                    "[ConditionCode] IS NULL OR [ConditionCode] IN ('Restockable','Damaged','MissingParts','WrongItem','WriteOff')");
+                    "[ConditionCode] IS NULL OR [ConditionCode] IN ('Restockable','Damaged','MissingParts','WrongItem','Mixed','WriteOff')");
             });
         });
 

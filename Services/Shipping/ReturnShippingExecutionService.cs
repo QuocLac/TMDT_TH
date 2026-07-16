@@ -39,11 +39,26 @@ public sealed class ReturnShippingExecutionService : IReturnShippingService
             .Where(item => item.Id == returnRequestId)
             .Select(item => new
             {
+                item.Status,
                 FromDistrictId = item.Order.ShippingDistrictId
             })
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (route?.FromDistrictId is not > 0)
+        if (route is null)
+        {
+            return ShippingOperationResult<IReadOnlyList<ShippingServiceOption>>.Failure(
+                "RETURN_REQUEST_NOT_FOUND",
+                "Không tìm thấy yêu cầu hoàn trả.");
+        }
+
+        if (!CanPrepareReturnShipment(route.Status))
+        {
+            return ShippingOperationResult<IReadOnlyList<ShippingServiceOption>>.Failure(
+                "RETURN_SHIPPING_STATE_INVALID",
+                $"Chỉ được chọn dịch vụ vận chuyển khi yêu cầu ở Approved hoặc AwaitingReturnShipment; hiện tại {route.Status}.");
+        }
+
+        if (route.FromDistrictId is not > 0)
         {
             return ShippingOperationResult<IReadOnlyList<ShippingServiceOption>>.Failure(
                 "RETURN_ADDRESS_INVALID",
@@ -70,6 +85,13 @@ public sealed class ReturnShippingExecutionService : IReturnShippingService
             return ShippingOperationResult<ShippingQuote>.Failure(
                 "RETURN_REQUEST_NOT_FOUND",
                 "Không tìm thấy yêu cầu hoàn trả.");
+        }
+
+        if (!CanPrepareReturnShipment(request.Status))
+        {
+            return ShippingOperationResult<ShippingQuote>.Failure(
+                "RETURN_SHIPPING_STATE_INVALID",
+                $"Chỉ được báo giá vận chuyển khi yêu cầu ở Approved hoặc AwaitingReturnShipment; hiện tại {request.Status}.");
         }
 
         var error = ValidateInput(request, input);
@@ -117,8 +139,7 @@ public sealed class ReturnShippingExecutionService : IReturnShippingService
                 tracker.MoveTo(
                     CommerceFlowStage.ValidateStateTransition,
                     request.Status.ToString());
-                if (request.Status is not ReturnRequestStatus.Approved
-                    and not ReturnRequestStatus.AwaitingReturnShipment)
+                if (!CanPrepareReturnShipment(request.Status))
                 {
                     throw new InvalidStateTransitionException(
                         "RETURN_SHIPMENT_REQUIRES_APPROVED_REQUEST",
@@ -203,6 +224,7 @@ public sealed class ReturnShippingExecutionService : IReturnShippingService
                     shipment.UpdatedAt = nowUtc;
                 }
 
+                var previousReturnStatus = request.Status;
                 request.Status = ReturnRequestStatus.AwaitingReturnShipment;
                 request.UpdatedAt = nowUtc;
 
@@ -226,9 +248,16 @@ public sealed class ReturnShippingExecutionService : IReturnShippingService
 
                 if (outbox is not null)
                 {
+                    if (outbox.Status == IntegrationOutboxStatus.Completed)
+                    {
+                        throw new IdempotencyConflictException(
+                            "RETURN_SHIPMENT_OUTBOX_COMPLETED_WITHOUT_TRACKING",
+                            "Outbox tạo vận đơn đã Completed nhưng shipment chưa có mã GHN. Cần kiểm tra provider trước khi retry để tránh tạo vận đơn trùng.",
+                            tracker.Snapshot());
+                    }
+
                     if (outbox.Status is IntegrationOutboxStatus.Pending
-                        or IntegrationOutboxStatus.Processing
-                        or IntegrationOutboxStatus.Completed)
+                        or IntegrationOutboxStatus.Processing)
                     {
                         return new ShippingQueueResult(
                             outbox.Id,
@@ -264,7 +293,7 @@ public sealed class ReturnShippingExecutionService : IReturnShippingService
                 request.Order.StatusHistory.Add(new OrderStatusHistory
                 {
                     Category = OrderHistoryCategory.Return,
-                    FromStatus = ReturnRequestStatus.Approved.ToString(),
+                    FromStatus = previousReturnStatus.ToString(),
                     ToStatus = ReturnRequestStatus.AwaitingReturnShipment.ToString(),
                     Code = "RETURN_SHIPMENT_CREATE_QUEUED",
                     Title = "Đã xếp hàng tạo vận đơn hoàn trả",
@@ -516,6 +545,11 @@ public sealed class ReturnShippingExecutionService : IReturnShippingService
             .Include(item => item.Shipments)
             .SingleOrDefaultAsync(item => item.Id == returnRequestId, cancellationToken);
     }
+
+
+    private static bool CanPrepareReturnShipment(ReturnRequestStatus status) =>
+        status is ReturnRequestStatus.Approved
+            or ReturnRequestStatus.AwaitingReturnShipment;
 
     private static string? ValidateInput(
         ReturnRequest request,

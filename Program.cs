@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -9,6 +11,7 @@ using WebApplication2.Services.Commerce.Checkout;
 using WebApplication2.Services.Commerce.Inventory;
 using WebApplication2.Services.Commerce.Orders;
 using WebApplication2.Services.Commerce.Returns;
+using WebApplication2.Services.Identity;
 using WebApplication2.Services.Media;
 using WebApplication2.Services.Payments.VnPay;
 using WebApplication2.Services.Pricing;
@@ -27,10 +30,52 @@ builder.Services.AddAntiforgery(options =>
     options.HeaderName = "RequestVerificationToken");
 
 builder.Services.AddControllersWithViews(options =>
-    options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute()));
-
+{
+    options.Filters.Add(new AutoValidateAntiforgeryTokenAttribute());
+    options.Filters.Add<AdminAreaAuthorizationFilter>();
+});
 builder.Services.AddRazorPages();
 builder.Services.AddSingleton(TimeProvider.System);
+
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = ".FastBuy.Authentication";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.IsEssential = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.LoginPath = "/account/login";
+        options.AccessDeniedPath = "/account/access-denied";
+        options.SlidingExpiration = true;
+        options.ExpireTimeSpan = AccountSecurity.AuthenticationLifetime;
+        options.EventsType = typeof(AccountCookieEvents);
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(
+        "AdminOnly",
+        policy => policy.RequireRole(nameof(WebApplication2.Models.Enums.AccountRole.Admin)));
+});
+
+builder.Services.AddScoped<AdminAreaAuthorizationFilter>();
+builder.Services.AddScoped<AccountCookieEvents>();
+builder.Services.AddScoped<IPasswordHasher<Account>, PasswordHasher<Account>>();
+builder.Services.AddScoped<IAccountAuthenticationService, AccountAuthenticationService>();
+builder.Services.AddScoped<ICustomerAccountService, CustomerAccountService>();
+
+builder.Services
+    .AddOptions<AdminBootstrapOptions>()
+    .Bind(builder.Configuration.GetSection(AdminBootstrapOptions.SectionName))
+    .Validate(
+        options => options.IsConfigured,
+        $"Configuration section '{AdminBootstrapOptions.SectionName}' is invalid. "
+        + "When enabled, provide Username, Email, FullName, PhoneNumber and a Password of at least 12 characters.")
+    .ValidateOnStart();
+builder.Services.AddHostedService<AdminAccountBootstrapper>();
+
 builder.Services.Configure<ProductImageStorageOptions>(
     builder.Configuration.GetSection(ProductImageStorageOptions.SectionName));
 builder.Services.AddSingleton<IProductImageStorage, LocalProductImageStorage>();
@@ -143,6 +188,7 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseSession();
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllerRoute(

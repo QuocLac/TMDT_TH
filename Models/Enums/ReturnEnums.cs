@@ -31,6 +31,7 @@ public enum ReturnItemCondition
     Damaged,
     MissingParts,
     WrongItem,
+    Mixed,
     WriteOff
 }
 
