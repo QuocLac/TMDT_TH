@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebApplication2.Models;
+using WebApplication2.Services.Catalog;
 using WebApplication2.ViewModels.Shared;
 using WebApplication2.ViewModels.Storefront.Home;
 
@@ -15,7 +16,9 @@ public sealed class HomeController : Controller
     private readonly ApplicationDbContext _context;
     private readonly TimeProvider _timeProvider;
 
-    public HomeController(ApplicationDbContext context, TimeProvider timeProvider)
+    public HomeController(
+        ApplicationDbContext context,
+        TimeProvider timeProvider)
     {
         _context = context;
         _timeProvider = timeProvider;
@@ -30,22 +33,45 @@ public sealed class HomeController : Controller
         var normalizedQuery = query?.Trim() ?? string.Empty;
         var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
 
-        var categories = await _context.Categories
+        var categoryData = await _context.Categories
             .AsNoTracking()
-            .Where(category => category.ParentId == null)
-            .OrderBy(category => category.Name)
-            .Select(category => new CategoryCardViewModel
+            .Where(category =>
+                category.ParentId == null
+                && category.IsVisible)
+            .OrderBy(category => category.DisplayOrder)
+            .ThenBy(category => category.Name)
+            .Select(category => new
             {
-                Id = category.Id,
-                Name = category.Name,
-                Slug = category.Slug
+                category.Id,
+                category.Name,
+                category.Slug,
+                category.IconKey,
+                ProductCount = category.Products.Count(product => product.IsActive)
             })
             .Take(12)
             .ToListAsync(cancellationToken);
 
+        var categories = categoryData
+            .Select(category => new CategoryCardViewModel
+            {
+                Id = category.Id,
+                Name = category.Name,
+                Slug = category.Slug,
+                IconKey = CategoryIconCatalog.NormalizeKey(category.IconKey),
+                IconCssClass = CategoryIconCatalog.ResolveCssClass(category.IconKey),
+                ProductCount = category.ProductCount
+            })
+            .ToArray();
+
+        var effectiveCategoryId = categoryId is > 0
+            && categories.Any(category => category.Id == categoryId.Value)
+                ? categoryId
+                : null;
+
         var suggestedQuery = _context.Products
             .AsNoTracking()
-            .Where(product => product.IsActive
+            .Where(product =>
+                product.IsActive
                 && product.Variants.Any(variant =>
                     variant.IsActive
                     && variant.Price > 0
@@ -55,12 +81,14 @@ public sealed class HomeController : Controller
         {
             suggestedQuery = suggestedQuery.Where(product =>
                 product.Name.Contains(normalizedQuery)
-                || product.Variants.Any(variant => variant.SKU.Contains(normalizedQuery)));
+                || product.Variants.Any(variant =>
+                    variant.SKU.Contains(normalizedQuery)));
         }
 
-        if (categoryId is > 0)
+        if (effectiveCategoryId is > 0)
         {
-            suggestedQuery = suggestedQuery.Where(product => product.CategoryId == categoryId.Value);
+            suggestedQuery = suggestedQuery.Where(product =>
+                product.CategoryId == effectiveCategoryId.Value);
         }
 
         var suggestedProducts = await LoadProductCardsAsync(
@@ -70,6 +98,7 @@ public sealed class HomeController : Controller
             cancellationToken);
 
         IReadOnlyList<ProductCardViewModel> flashSaleProducts = [];
+
         if (string.IsNullOrEmpty(normalizedQuery) && categoryId is null)
         {
             var flashSaleQuery = _context.Products
@@ -97,7 +126,7 @@ public sealed class HomeController : Controller
         var model = new HomePageViewModel
         {
             Query = normalizedQuery,
-            CategoryId = categoryId,
+            CategoryId = effectiveCategoryId,
             Categories = categories,
             FlashSaleProducts = flashSaleProducts,
             SuggestedProducts = suggestedProducts,
@@ -111,10 +140,15 @@ public sealed class HomeController : Controller
     }
 
     [HttpGet]
-    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+    [ResponseCache(
+        Duration = 0,
+        Location = ResponseCacheLocation.None,
+        NoStore = true)]
     public IActionResult Error(int? statusCode = null)
     {
-        var effectiveStatusCode = statusCode ?? StatusCodes.Status500InternalServerError;
+        var effectiveStatusCode =
+            statusCode ?? StatusCodes.Status500InternalServerError;
+
         Response.StatusCode = effectiveStatusCode;
 
         return View(new ErrorPageViewModel
@@ -126,7 +160,8 @@ public sealed class HomeController : Controller
             Message = effectiveStatusCode == StatusCodes.Status404NotFound
                 ? "Nội dung bạn cần không tồn tại hoặc đã được chuyển sang địa chỉ khác."
                 : "Hệ thống chưa thể xử lý yêu cầu. Vui lòng thử lại sau.",
-            RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier
+            RequestId =
+                Activity.Current?.Id ?? HttpContext.TraceIdentifier
         });
     }
 
@@ -176,8 +211,6 @@ public sealed class HomeController : Controller
         return products
             .Select(product =>
             {
-                // Giá hiển thị của sản phẩm luôn lấy từ biến thể có
-                // CurrentPrice thấp nhất, không lấy ngẫu nhiên biến thể đầu tiên.
                 var lowestPriceVariant = product.Variants
                     .OrderBy(variant => variant.CurrentPrice)
                     .ThenBy(variant => variant.Price)
@@ -188,10 +221,13 @@ public sealed class HomeController : Controller
                     return null;
                 }
 
-                var isOnSale = lowestPriceVariant.CurrentPrice < lowestPriceVariant.Price;
+                var isOnSale =
+                    lowestPriceVariant.CurrentPrice < lowestPriceVariant.Price;
+
                 var discountPercentage = isOnSale
                     ? (int)Math.Round(
-                        (1 - lowestPriceVariant.CurrentPrice / lowestPriceVariant.Price) * 100,
+                        (1 - lowestPriceVariant.CurrentPrice
+                            / lowestPriceVariant.Price) * 100,
                         MidpointRounding.AwayFromZero)
                     : 0;
 
@@ -207,12 +243,16 @@ public sealed class HomeController : Controller
                     EffectivePrice = lowestPriceVariant.CurrentPrice,
                     DiscountPercentage = discountPercentage,
                     IsOnSale = isOnSale,
-                    StockQuantity = product.Variants.Sum(variant => Math.Max(0, variant.StockQuantity)),
+                    StockQuantity = product.Variants.Sum(
+                        variant => Math.Max(0, variant.StockQuantity)),
                     VariantCount = product.Variants.Count,
-                    AvailableVariantCount = product.Variants.Count(variant => variant.StockQuantity > 0),
+                    AvailableVariantCount = product.Variants.Count(
+                        variant => variant.StockQuantity > 0),
                     SaleEndsAt = lowestPriceVariant.SaleEndsAt.HasValue
                         ? new DateTimeOffset(
-                            DateTime.SpecifyKind(lowestPriceVariant.SaleEndsAt.Value, DateTimeKind.Utc))
+                            DateTime.SpecifyKind(
+                                lowestPriceVariant.SaleEndsAt.Value,
+                                DateTimeKind.Utc))
                         : null
                 };
             })

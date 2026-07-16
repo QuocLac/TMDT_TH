@@ -8,6 +8,12 @@
     var productCount = Model.SuggestedProducts?.Count() ?? 0;
 }
 
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/pages/storefront/home-category-icons.css"
+          asp-append-version="true" />
+}
+
 <section class="home-hero shell-container"
          aria-labelledby="home-hero-title"
          data-hero
@@ -109,7 +115,12 @@
         </div>
         @if (Model.CategoryId.HasValue)
         {
-            <a asp-controller="Home" asp-action="Index" asp-route-query="@Model.Query" class="text-link">Xóa bộ lọc</a>
+            <a asp-controller="Home"
+               asp-action="Index"
+               asp-route-query="@Model.Query"
+               class="text-link">
+                Xóa bộ lọc
+            </a>
         }
     </div>
 
@@ -123,18 +134,25 @@
             {
                 var isSelected = Model.CategoryId == category.Id;
                 categoryIndex++;
+
                 <a asp-controller="Home"
                    asp-action="Index"
                    asp-route-query="@Model.Query"
                    asp-route-categoryId="@category.Id"
-                   class="category-card @(isSelected ? "is-selected" : null)"
+                   class="category-card category-card--merchandising @(isSelected ? "is-selected" : null)"
                    aria-current="@(isSelected ? "page" : null)"
                    data-reveal>
                     <span class="category-card__number">@categoryIndex.ToString("00")</span>
-                    <span class="category-card__mark" aria-hidden="true">@category.Name[..1].ToUpperInvariant()</span>
+                    <span class="category-card__mark" aria-hidden="true">
+                        <i class="@category.IconCssClass"></i>
+                    </span>
                     <span class="category-card__copy">
                         <strong>@category.Name</strong>
-                        <small>Xem sản phẩm</small>
+                        <small>
+                            @(category.ProductCount > 0
+                                ? $"{category.ProductCount} sản phẩm"
+                                : "Khám phá ngành hàng")
+                        </small>
                     </span>
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
                 </a>
@@ -229,8 +247,10 @@
                 <p class="eyebrow">Chọn nhanh biến thể</p>
                 <h2 id="variant-picker-title" data-picker-product-name>Đang tải sản phẩm</h2>
             </div>
-            <button type="button" class="variant-picker__close"
-                    data-picker-close aria-label="Đóng cửa sổ chọn biến thể">
+            <button type="button"
+                    class="variant-picker__close"
+                    data-picker-close
+                    aria-label="Đóng cửa sổ chọn biến thể">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
             </button>
         </header>
@@ -238,8 +258,12 @@
         <div class="variant-picker__content">
             <div class="variant-picker__media">
                 <span class="variant-picker__media-grid" aria-hidden="true"></span>
-                <img src="/images/no-image.png" alt="" width="420" height="420"
-                     data-picker-image data-progressive-image />
+                <img src="/images/no-image.png"
+                     alt=""
+                     width="420"
+                     height="420"
+                     data-picker-image
+                     data-progressive-image />
             </div>
 
             <div class="variant-picker__configuration">
@@ -260,7 +284,8 @@
                     <div class="variant-picker__attributes" data-picker-attributes></div>
 
                     <div class="variant-picker__selection-status"
-                         data-picker-status role="status">
+                         data-picker-status
+                         role="status">
                         Hãy chọn đầy đủ thuộc tính để xác định đúng biến thể.
                     </div>
 
@@ -268,15 +293,22 @@
                         <label for="quick-cart-quantity">Số lượng</label>
                         <div class="quantity-control">
                             <button type="button" data-picker-quantity-minus aria-label="Giảm số lượng">−</button>
-                            <input id="quick-cart-quantity" type="number" min="1" max="1"
-                                   value="1" inputmode="numeric" data-picker-quantity />
+                            <input id="quick-cart-quantity"
+                                   type="number"
+                                   min="1"
+                                   max="1"
+                                   value="1"
+                                   inputmode="numeric"
+                                   data-picker-quantity />
                             <button type="button" data-picker-quantity-plus aria-label="Tăng số lượng">+</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="variant-picker__error app-alert app-alert--danger"
-                     data-picker-error role="alert" hidden></div>
+                     data-picker-error
+                     role="alert"
+                     hidden></div>
             </div>
         </div>
 

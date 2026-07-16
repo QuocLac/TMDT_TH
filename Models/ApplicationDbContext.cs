@@ -56,11 +56,35 @@ public sealed class ApplicationDbContext : DbContext
         modelBuilder.Entity<Category>(entity =>
         {
             entity.HasIndex(item => item.Slug).IsUnique();
-            entity.Property(item => item.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.HasIndex(item => new
+            {
+                item.ParentId,
+                item.IsVisible,
+                item.DisplayOrder
+            });
+
+            entity.Property(item => item.IconKey)
+                .HasMaxLength(50)
+                .HasDefaultValue("folder");
+            entity.Property(item => item.DisplayOrder)
+                .HasDefaultValue(0);
+            entity.Property(item => item.IsVisible)
+                .HasDefaultValue(true)
+                .HasSentinel(true);
+            entity.Property(item => item.CreatedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+
             entity.HasOne(item => item.Parent)
                 .WithMany(item => item.Children)
                 .HasForeignKey(item => item.ParentId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.ToTable(table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_Category_DisplayOrder",
+                    "[DisplayOrder] >= 0 AND [DisplayOrder] <= 9999");
+            });
         });
 
         modelBuilder.Entity<Brand>(entity =>

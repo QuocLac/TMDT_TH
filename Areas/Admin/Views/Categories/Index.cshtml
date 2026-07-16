@@ -1,51 +1,126 @@
 @model WebApplication2.Areas.Admin.ViewModels.Categories.CategoryIndexPageViewModel
+
 @{
-    ViewData["Title"] = "Quản lý danh mục";
+    ViewData["Title"] = "Danh mục";
+    var visibleCount = Model.Categories.Count(category => category.IsVisible);
+    var hiddenCount = Model.Categories.Count - visibleCount;
+    var rootCount = Model.Categories.Count(category => category.ParentName is null);
+    var assignedProductCount = Model.Categories.Sum(category => category.ProductCount);
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/admin/categories.css" asp-append-version="true" />
 }
 
-<section class="admin-page"
+<section class="admin-page category-page"
          data-category-page
          data-get-url="@Url.Action("GetCategory", "Categories", new { area = "Admin" })"
          data-save-url="@Url.Action("SaveCategory", "Categories", new { area = "Admin" })"
-         data-delete-url="@Url.Action("Delete", "Categories", new { area = "Admin" })">
-    <header class="admin-page-header">
-        <div>
-            <p class="admin-page-header__eyebrow">Danh mục sản phẩm</p>
-            <h1>Quản lý danh mục</h1>
-            <p>Tổ chức cây danh mục và đường dẫn SEO dùng cho toàn bộ ngành hàng.</p>
+         data-delete-url="@Url.Action("Delete", "Categories", new { area = "Admin" })"
+         data-icon-catalog-url="@Url.Action("IconCatalog", "Categories", new { area = "Admin" })">
+    <header class="admin-page-header admin-page-header--hero">
+        <div class="admin-page-header__copy">
+            <p class="admin-page-kicker">Điều hướng ngành hàng</p>
+            <h2>Quản lý danh mục sản phẩm</h2>
+            <p class="admin-page-lead">
+                Tổ chức cây ngành hàng, chọn biểu tượng, sắp xếp thứ tự xuất hiện
+                và kiểm soát danh mục được hiển thị trên storefront.
+            </p>
         </div>
-        <button type="button" class="app-button app-button--primary" data-category-open>
-            <i class="fa-solid fa-plus" aria-hidden="true"></i>
-            Thêm danh mục
-        </button>
+
+        <div class="admin-page-header__actions">
+            <button type="button"
+                    class="button button--primary"
+                    data-category-open>
+                <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                Thêm danh mục
+            </button>
+        </div>
     </header>
 
-    <div class="content-panel">
-        <div class="table-responsive">
-            <table class="admin-table">
+    <section class="admin-metric-grid" aria-label="Tổng quan danh mục">
+        <article class="admin-metric-card admin-metric-card--info">
+            <span class="admin-metric-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-layer-group"></i>
+            </span>
+            <div>
+                <span class="admin-metric-card__label">Tổng danh mục</span>
+                <strong class="admin-metric-card__value">@Model.Categories.Count</strong>
+                <small class="admin-metric-card__meta">@rootCount danh mục gốc</small>
+            </div>
+        </article>
+
+        <article class="admin-metric-card admin-metric-card--success">
+            <span class="admin-metric-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-eye"></i>
+            </span>
+            <div>
+                <span class="admin-metric-card__label">Đang hiển thị</span>
+                <strong class="admin-metric-card__value">@visibleCount</strong>
+                <small class="admin-metric-card__meta">Có thể xuất hiện trên storefront</small>
+            </div>
+        </article>
+
+        <article class="admin-metric-card admin-metric-card--warning">
+            <span class="admin-metric-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-eye-slash"></i>
+            </span>
+            <div>
+                <span class="admin-metric-card__label">Đang ẩn</span>
+                <strong class="admin-metric-card__value">@hiddenCount</strong>
+                <small class="admin-metric-card__meta">Vẫn giữ dữ liệu và liên kết sản phẩm</small>
+            </div>
+        </article>
+
+        <article class="admin-metric-card admin-metric-card--info">
+            <span class="admin-metric-card__icon" aria-hidden="true">
+                <i class="fa-solid fa-boxes-stacked"></i>
+            </span>
+            <div>
+                <span class="admin-metric-card__label">Sản phẩm đã phân loại</span>
+                <strong class="admin-metric-card__value">@assignedProductCount</strong>
+                <small class="admin-metric-card__meta">Tổng liên kết trực tiếp với danh mục</small>
+            </div>
+        </article>
+    </section>
+
+    <section class="admin-panel">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">Cây danh mục</p>
+                <h3>Danh sách ngành hàng</h3>
+                <p>Thứ tự nhỏ hơn được ưu tiên hiển thị trước trên storefront.</p>
+            </div>
+            <span class="admin-badge admin-badge--neutral">
+                @Model.Categories.Count danh mục
+            </span>
+        </header>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table category-table">
                 <caption class="visually-hidden">Danh sách danh mục sản phẩm</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Tên danh mục</th>
-                        <th scope="col">Danh mục cha</th>
-                        <th scope="col">Đường dẫn SEO</th>
-                        <th scope="col" class="text-end">Sản phẩm</th>
-                        <th scope="col" class="text-end">Thao tác</th>
+                        <th>Danh mục</th>
+                        <th>Danh mục cha</th>
+                        <th>Đường dẫn SEO</th>
+                        <th class="text-center">Thứ tự</th>
+                        <th>Hiển thị</th>
+                        <th class="text-end">Sản phẩm / Danh mục con</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     @if (Model.Categories.Count == 0)
                     {
                         <tr>
-                            <td colspan="5">
-                                <div class="empty-state">
+                            <td colspan="7">
+                                <div class="admin-empty-state admin-empty-state--compact">
                                     <i class="fa-regular fa-folder-open" aria-hidden="true"></i>
-                                    <strong>Chưa có danh mục</strong>
-                                    <span>Hãy tạo danh mục gốc đầu tiên cho catalog.</span>
+                                    <div>
+                                        <strong>Chưa có danh mục</strong>
+                                        <span>Hãy tạo danh mục gốc đầu tiên cho catalog.</span>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -55,20 +130,49 @@
                         @foreach (var category in Model.Categories)
                         {
                             <tr>
-                                <td><strong>@category.Name</strong></td>
-                                <td>@(category.ParentName ?? "Danh mục gốc")</td>
-                                <td><code>@category.Slug</code></td>
-                                <td class="text-end">@category.ProductCount</td>
+                                <td>
+                                    <div class="category-name-cell">
+                                        <span class="category-icon" aria-hidden="true">
+                                            <i class="@category.IconCssClass"></i>
+                                        </span>
+                                        <div>
+                                            <span class="admin-cell-primary">@category.Name</span>
+                                            <span class="admin-cell-secondary">Icon: @category.IconKey</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="admin-cell-primary">
+                                        @(category.ParentName ?? "Danh mục gốc")
+                                    </span>
+                                </td>
+                                <td>
+                                    <code class="category-slug">@category.Slug</code>
+                                </td>
+                                <td class="text-center">
+                                    <span class="category-order">@category.DisplayOrder</span>
+                                </td>
+                                <td>
+                                    <span class="admin-badge @(category.IsVisible ? "admin-badge--success" : "admin-badge--neutral")">
+                                        <i class="fa-solid @(category.IsVisible ? "fa-eye" : "fa-eye-slash")"
+                                           aria-hidden="true"></i>
+                                        @(category.IsVisible ? "Đang hiển thị" : "Đang ẩn")
+                                    </span>
+                                </td>
                                 <td class="text-end">
-                                    <div class="table-actions">
+                                    <span class="admin-cell-primary">@category.ProductCount sản phẩm</span>
+                                    <span class="admin-cell-secondary">@category.ChildCount danh mục con</span>
+                                </td>
+                                <td class="text-end">
+                                    <div class="category-row-actions">
                                         <button type="button"
-                                                class="icon-button"
+                                                class="admin-row-action"
                                                 data-category-open="@category.Id"
                                                 aria-label="Sửa danh mục @category.Name">
                                             <i class="fa-solid fa-pen" aria-hidden="true"></i>
                                         </button>
                                         <button type="button"
-                                                class="icon-button icon-button--danger"
+                                                class="admin-row-action category-delete-button"
                                                 data-category-delete="@category.Id"
                                                 data-category-name="@category.Name"
                                                 aria-label="Xóa danh mục @category.Name">
@@ -82,59 +186,192 @@
                 </tbody>
             </table>
         </div>
-    </div>
+    </section>
 </section>
 
-<div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <form class="modal-content" id="categoryForm">
-            <div class="modal-header">
+<div class="modal fade"
+     id="categoryModal"
+     tabindex="-1"
+     aria-labelledby="categoryModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <form class="modal-content category-editor" id="categoryForm">
+            <div class="modal-header category-editor__header">
                 <div>
-                    <p class="modal-eyebrow">Cây danh mục</p>
+                    <p class="admin-page-kicker">Thiết lập danh mục</p>
                     <h2 class="modal-title fs-5" id="categoryModalLabel">Thêm danh mục</h2>
+                    <p>Thông tin này được dùng cho cả trang quản trị và storefront.</p>
                 </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Đóng"></button>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="Đóng"></button>
             </div>
+
             <div class="modal-body">
                 <input type="hidden" id="CategoryId" value="0" />
+                <input type="hidden" id="CategoryIconKey" value="folder" />
 
-                <div class="form-field">
-                    <label for="CategoryName">Tên danh mục <span aria-hidden="true">*</span></label>
-                    <input type="text" id="CategoryName" maxlength="255" autocomplete="off" required />
+                <div class="category-editor__layout">
+                    <section class="category-editor__fields" aria-labelledby="category-information-heading">
+                        <div class="category-editor__section-heading">
+                            <span class="category-editor__section-icon" aria-hidden="true">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </span>
+                            <div>
+                                <h3 id="category-information-heading">Thông tin danh mục</h3>
+                                <p>Tên, cây phân cấp và cách hiển thị trên storefront.</p>
+                            </div>
+                        </div>
+
+                        <div class="category-form-grid">
+                            <label class="category-form-field category-form-field--wide">
+                                <span>Tên danh mục <i aria-hidden="true">*</i></span>
+                                <input type="text"
+                                       id="CategoryName"
+                                       maxlength="255"
+                                       autocomplete="off"
+                                       required />
+                            </label>
+
+                            <label class="category-form-field">
+                                <span>Danh mục cha</span>
+                                <select id="ParentId">
+                                    <option value="">Không có — đây là danh mục gốc</option>
+                                    @foreach (var category in Model.ParentOptions)
+                                    {
+                                        <option value="@category.Id">@category.Name</option>
+                                    }
+                                </select>
+                                <small>Không thể chọn chính danh mục hoặc danh mục con làm cha.</small>
+                            </label>
+
+                            <label class="category-form-field">
+                                <span>Thứ tự hiển thị</span>
+                                <input type="number"
+                                       id="CategoryDisplayOrder"
+                                       min="0"
+                                       max="9999"
+                                       value="0"
+                                       inputmode="numeric"
+                                       required />
+                                <small>Số nhỏ hơn sẽ được ưu tiên hiển thị trước.</small>
+                            </label>
+
+                            <label class="category-form-field category-form-field--wide">
+                                <span>Đường dẫn SEO <i aria-hidden="true">*</i></span>
+                                <input type="text"
+                                       id="CategorySlug"
+                                       maxlength="255"
+                                       pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                                       required />
+                            </label>
+
+                            <label class="category-visibility-card category-form-field--wide">
+                                <input type="checkbox" id="CategoryIsVisible" checked />
+                                <span class="category-visibility-card__control" aria-hidden="true"></span>
+                                <span>
+                                    <strong>Hiển thị danh mục trên storefront</strong>
+                                    <small>Tắt tùy chọn này để ẩn danh mục nhưng vẫn giữ sản phẩm và dữ liệu SEO.</small>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="category-editor__section-heading category-editor__section-heading--spaced">
+                            <span class="category-editor__section-icon" aria-hidden="true">
+                                <i class="fa-solid fa-magnifying-glass-chart"></i>
+                            </span>
+                            <div>
+                                <h3>Thông tin SEO</h3>
+                                <p>Tối ưu tiêu đề và mô tả khi danh mục có trang landing riêng.</p>
+                            </div>
+                        </div>
+
+                        <div class="category-form-grid">
+                            <label class="category-form-field category-form-field--wide">
+                                <span>Tiêu đề SEO</span>
+                                <input type="text" id="MetaTitle" maxlength="255" />
+                            </label>
+
+                            <label class="category-form-field category-form-field--wide">
+                                <span>Mô tả SEO</span>
+                                <textarea id="MetaDescription" maxlength="500" rows="4"></textarea>
+                                <small><span data-meta-description-count>0</span>/500 ký tự</small>
+                            </label>
+                        </div>
+                    </section>
+
+                    <aside class="category-icon-picker" aria-labelledby="category-icon-heading">
+                        <div class="category-editor__section-heading">
+                            <span class="category-editor__section-icon" aria-hidden="true">
+                                <i class="fa-solid fa-icons"></i>
+                            </span>
+                            <div>
+                                <h3 id="category-icon-heading">Biểu tượng danh mục</h3>
+                                <p>Danh sách được tải từ Icon Catalog API nội bộ.</p>
+                            </div>
+                        </div>
+
+                        <div class="category-selected-icon" data-selected-icon>
+                            <span class="category-selected-icon__preview" aria-hidden="true">
+                                <i class="fa-solid fa-folder" data-selected-icon-preview></i>
+                            </span>
+                            <div>
+                                <span>Biểu tượng đã chọn</span>
+                                <strong data-selected-icon-label>Danh mục chung</strong>
+                                <small data-selected-icon-key>folder</small>
+                            </div>
+                        </div>
+
+                        <div class="category-icon-toolbar">
+                            <label class="category-icon-search">
+                                <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                                <input type="search"
+                                       id="CategoryIconSearch"
+                                       placeholder="Tìm điện thoại, thời trang, nhà cửa..."
+                                       autocomplete="off" />
+                            </label>
+
+                            <label class="visually-hidden" for="CategoryIconGroup">
+                                Nhóm biểu tượng
+                            </label>
+                            <select id="CategoryIconGroup">
+                                <option value="">Tất cả nhóm</option>
+                            </select>
+                        </div>
+
+                        <div class="category-icon-status"
+                             data-icon-status
+                             role="status">
+                            Đang chuẩn bị thư viện biểu tượng…
+                        </div>
+
+                        <div class="category-icon-grid"
+                             data-icon-grid
+                             role="listbox"
+                             aria-label="Chọn biểu tượng danh mục"></div>
+                    </aside>
                 </div>
 
-                <div class="form-field">
-                    <label for="ParentId">Danh mục cha</label>
-                    <select id="ParentId">
-                        <option value="">Không có — đây là danh mục gốc</option>
-                        @foreach (var category in Model.ParentOptions)
-                        {
-                            <option value="@category.Id">@category.Name</option>
-                        }
-                    </select>
-                    <small>Không thể chọn chính danh mục hoặc một danh mục con làm cha.</small>
+                <div class="admin-notice admin-notice--danger d-none"
+                     role="alert"
+                     id="categoryFormError">
+                    <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                    <span data-category-error-message></span>
                 </div>
-
-                <div class="form-field">
-                    <label for="CategorySlug">Đường dẫn SEO <span aria-hidden="true">*</span></label>
-                    <input type="text" id="CategorySlug" maxlength="255" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required />
-                </div>
-
-                <div class="form-field">
-                    <label for="MetaTitle">Meta title</label>
-                    <input type="text" id="MetaTitle" maxlength="255" />
-                </div>
-
-                <div class="form-field">
-                    <label for="MetaDescription">Meta description</label>
-                    <textarea id="MetaDescription" maxlength="500" rows="3"></textarea>
-                </div>
-
-                <div class="app-alert app-alert--danger d-none" role="alert" id="categoryFormError"></div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="app-button app-button--secondary" data-bs-dismiss="modal">Hủy</button>
-                <button type="submit" class="app-button app-button--primary" id="categorySubmitButton">Lưu danh mục</button>
+
+            <div class="modal-footer category-editor__footer">
+                <button type="button"
+                        class="button button--secondary"
+                        data-bs-dismiss="modal">
+                    Hủy
+                </button>
+                <button type="submit"
+                        class="button button--primary"
+                        id="categorySubmitButton">
+                    Lưu danh mục
+                </button>
             </div>
         </form>
     </div>

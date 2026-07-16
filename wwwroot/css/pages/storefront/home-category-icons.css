@@ -1,0 +1,46 @@
+.category-card--merchandising .category-card__mark {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(
+            circle at 30% 20%,
+            color-mix(in srgb, var(--lime) 38%, transparent),
+            transparent 42%),
+        linear-gradient(145deg, var(--brand-200), var(--brand-500));
+}
+
+.category-card--merchandising .category-card__mark::after {
+    position: absolute;
+    inset: auto -0.6rem -0.8rem auto;
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid color-mix(in srgb, var(--brand-900) 18%, transparent);
+    border-radius: 50%;
+    content: "";
+}
+
+.category-card--merchandising .category-card__mark i {
+    position: relative;
+    z-index: 1;
+    font-size: 1.15rem;
+    transition:
+        color var(--transition-fast),
+        transform var(--transition);
+}
+
+.category-card--merchandising:hover .category-card__mark i {
+    transform: scale(1.12) rotate(-4deg);
+}
+
+.category-card--merchandising.is-selected .category-card__mark {
+    background: linear-gradient(145deg, var(--brand-700), var(--brand-900));
+    color: var(--text-inverse);
+}
+
+.category-card--merchandising .category-card__copy small {
+    font-variant-numeric: tabular-nums;
+}
+
+.category-card--merchandising > svg {
+    align-self: center;
+}
