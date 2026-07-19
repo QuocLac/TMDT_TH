@@ -20,17 +20,20 @@ public sealed class ProductOptionsController : Controller
     private readonly ApplicationDbContext _context;
     private readonly TimeProvider _timeProvider;
     private readonly IProductOptionIntegrityService _integrity;
+    private readonly IProductOptionCombinationGenerator _combinationGenerator;
     private readonly ILogger<ProductOptionsController> _logger;
 
     public ProductOptionsController(
         ApplicationDbContext context,
         TimeProvider timeProvider,
         IProductOptionIntegrityService integrity,
+        IProductOptionCombinationGenerator combinationGenerator,
         ILogger<ProductOptionsController> logger)
     {
         _context = context;
         _timeProvider = timeProvider;
         _integrity = integrity;
+        _combinationGenerator = combinationGenerator;
         _logger = logger;
     }
 
@@ -624,6 +627,60 @@ public sealed class ProductOptionsController : Controller
         return RedirectToAction(nameof(Configure), new { productId });
     }
 
+    [HttpPost("{productId:int}/generate-combinations")]
+    public async Task<IActionResult> GenerateCombinations(
+        int productId,
+        ProductOptionCombinationGenerateInput input,
+        CancellationToken cancellationToken)
+    {
+        input.ProductId = productId;
+
+        ModelState.Clear();
+        TryValidateModel(input);
+
+        if (!ModelState.IsValid)
+        {
+            TempData["ErrorMessage"] = FirstModelError();
+            return RedirectToAction(nameof(Configure), new { productId });
+        }
+
+        try
+        {
+            var result = await _combinationGenerator.GenerateMissingAsync(
+                new ProductOptionCombinationGenerationCommand(
+                    productId,
+                    input.ListPrice,
+                    input.StockQuantity,
+                    input.ActivateNewItems),
+                cancellationToken);
+
+            TempData["SuccessMessage"] = result.CreatedItemCount == 0
+                ? "Không có mã hàng nào cần tạo thêm."
+                : $"Đã tạo {result.CreatedItemCount} mã hàng còn thiếu. "
+                  + $"{result.CompleteItemCount}/{result.TotalCombinationCount} "
+                  + "tổ hợp đã sẵn sàng.";
+        }
+        catch (ProductOptionGenerationException exception)
+        {
+            TempData["ErrorMessage"] = exception.Message;
+        }
+        catch (ProductOptionCombinationConflictException exception)
+        {
+            TempData["ErrorMessage"] = exception.Message;
+        }
+        catch (DbUpdateException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Could not generate product option combinations for product {ProductId}.",
+                productId);
+            TempData["ErrorMessage"] =
+                "Không thể tạo các mã hàng còn thiếu. Dữ liệu vừa thay đổi hoặc có tổ hợp bị trùng.";
+        }
+
+        return RedirectToAction(nameof(Configure), new { productId });
+    }
+
     [HttpPost("{productId:int}/rebuild-integrity")]
     public async Task<IActionResult> RebuildIntegrity(
         int productId,
@@ -687,6 +744,10 @@ public sealed class ProductOptionsController : Controller
             return null;
         }
 
+        var combinationPreview = await _combinationGenerator.PreviewAsync(
+            productId,
+            cancellationToken);
+
         var groups = await _context.Set<ProductOptionGroup>()
             .AsNoTracking()
             .Where(group => group.ProductId == productId)
@@ -738,6 +799,18 @@ public sealed class ProductOptionsController : Controller
             CategoryName = product.CategoryName,
             BrandName = product.BrandName,
             ProductIsActive = product.IsActive,
+            CombinationPreview = new ProductOptionCombinationPreviewViewModel
+            {
+                ActiveGroupCount = combinationPreview.ActiveGroupCount,
+                TotalCombinationCount = combinationPreview.TotalCombinationCount,
+                ExistingCombinationCount = combinationPreview.ExistingCombinationCount,
+                MissingCombinationCount = combinationPreview.MissingCombinationCount,
+                SuggestedListPrice = combinationPreview.SuggestedListPrice,
+                RequiredGroupsWithoutValues = combinationPreview.RequiredGroupsWithoutValues,
+                HasExistingConflict = combinationPreview.HasExistingConflict,
+                IsOverLimit = combinationPreview.IsOverLimit,
+                MaximumCombinationCount = combinationPreview.MaximumCombinationCount
+            },
             HasLegacySelectionData = items.Any(item =>
                 !string.IsNullOrWhiteSpace(item.Color)
                 || !string.IsNullOrWhiteSpace(item.Size)),

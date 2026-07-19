@@ -6,6 +6,9 @@
     ViewData["MetaDescription"] = Model.MetaDescription;
     var mainImage = Model.Images.FirstOrDefault(image => image.IsMain)
         ?? Model.Images.First();
+    var minimumPrice = Model.Variants.Count == 0
+        ? 0m
+        : Model.Variants.Min(item => item.EffectivePrice);
 }
 
 <div class="shell-container product-details-page">
@@ -26,7 +29,8 @@
             <div class="product-gallery__main">
                 <img id="product-main-image"
                      src="@mainImage.Url"
-                     alt="@Model.Name" />
+                     alt="@Model.Name"
+                     data-product-main-image />
             </div>
             @if (Model.Images.Count > 1)
             {
@@ -53,43 +57,116 @@
                 <p>Thương hiệu: <strong>@Model.BrandName</strong></p>
             }
 
-            @if (Model.Variants.Count == 0)
+            @if (minimumPrice > 0)
             {
-                <div class="empty-state">
-                    <h2>Sản phẩm hiện chưa có lựa chọn mua</h2>
-                    <p>Vui lòng quay lại sau hoặc xem sản phẩm khác trong cùng danh mục.</p>
+                <div class="product-purchase-price">
+                    <span>Giá từ</span>
+                    <strong>@minimumPrice.ToString("N0") ₫</strong>
                 </div>
             }
-            else
-            {
-                <div class="variant-list" aria-label="Các lựa chọn mua">
-                    @foreach (var item in Model.Variants)
-                    {
-                        <article class="variant-card @(item.StockQuantity <= 0 ? "variant-card--sold-out" : null)">
-                            <div>
-                                <strong>@item.SelectionLabel</strong>
-                                <p>
-                                    @(item.StockQuantity > 0
-                                        ? "Có thể đặt mua"
-                                        : "Tạm hết hàng")
-                                </p>
-                            </div>
-                            <div class="price-display">
-                                @if (item.IsOnSale)
-                                {
-                                    <del>@item.OriginalPrice.ToString("N0") ₫</del>
-                                }
-                                <strong>@item.EffectivePrice.ToString("N0") ₫</strong>
-                            </div>
-                            <span class="stock-state">
-                                @(item.StockQuantity > 0
-                                    ? $"Còn {item.StockQuantity} sản phẩm"
-                                    : "Tạm hết hàng")
-                            </span>
-                        </article>
-                    }
+
+            <section class="product-purchase-panel"
+                     data-product-purchase
+                     data-product-id="@Model.Id">
+                <div class="product-purchase-panel__loading"
+                     data-purchase-loading>
+                    Đang tải các lựa chọn mua…
                 </div>
-            }
+
+                <div class="product-purchase-panel__error"
+                     data-purchase-error
+                     role="alert"
+                     hidden></div>
+
+                <div data-purchase-ready hidden>
+                    <div class="product-purchase-options"
+                         data-purchase-options></div>
+
+                    <div class="product-purchase-selection"
+                         data-purchase-selection>
+                        Hãy chọn đầy đủ để xác định đúng sản phẩm.
+                    </div>
+
+                    <div class="product-purchase-current">
+                        <div>
+                            <span>Giá đang áp dụng</span>
+                            <strong data-purchase-price>—</strong>
+                            <del data-purchase-original-price hidden></del>
+                        </div>
+                        <div>
+                            <span>Mã hàng</span>
+                            <strong data-purchase-sku>—</strong>
+                        </div>
+                    </div>
+
+                    <div class="product-purchase-actions">
+                        <label>
+                            <span>Số lượng</span>
+                            <div class="product-purchase-quantity">
+                                <button type="button"
+                                        data-purchase-minus
+                                        aria-label="Giảm số lượng">
+                                    −
+                                </button>
+                                <input type="number"
+                                       min="1"
+                                       value="1"
+                                       inputmode="numeric"
+                                       data-purchase-quantity />
+                                <button type="button"
+                                        data-purchase-plus
+                                        aria-label="Tăng số lượng">
+                                    +
+                                </button>
+                            </div>
+                        </label>
+
+                        <button type="button"
+                                class="button button--secondary"
+                                data-purchase-add
+                                disabled>
+                            Thêm vào giỏ
+                        </button>
+
+                        <button type="button"
+                                class="button button--primary"
+                                data-purchase-buy-now
+                                disabled>
+                            Mua ngay
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <noscript>
+                @if (Model.Variants.Count == 0)
+                {
+                    <div class="empty-state">
+                        <h2>Sản phẩm hiện chưa có lựa chọn mua</h2>
+                    </div>
+                }
+                else
+                {
+                    <div class="variant-list" aria-label="Các lựa chọn mua">
+                        @foreach (var item in Model.Variants)
+                        {
+                            <article class="variant-card @(item.StockQuantity <= 0 ? "variant-card--sold-out" : null)">
+                                <div>
+                                    <strong>@item.SelectionLabel</strong>
+                                    <p>@(item.StockQuantity > 0 ? "Có thể đặt mua" : "Tạm hết hàng")</p>
+                                </div>
+                                <div class="price-display">
+                                    @if (item.IsOnSale)
+                                    {
+                                        <del>@item.OriginalPrice.ToString("N0") ₫</del>
+                                    }
+                                    <strong>@item.EffectivePrice.ToString("N0") ₫</strong>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </noscript>
         </section>
     </article>
 
@@ -133,8 +210,10 @@
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/storefront/product-details.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/storefront/product-specifications.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/storefront/product-purchase.css" asp-append-version="true" />
 }
 
 @section Scripts {
     <script src="~/js/pages/storefront/product-details.js" asp-append-version="true"></script>
+    <script src="~/js/pages/storefront/product-purchase.js" asp-append-version="true"></script>
 }

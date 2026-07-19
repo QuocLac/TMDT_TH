@@ -31,7 +31,10 @@ public sealed class ProductOptionReadService : IProductOptionReadService
 
         var rows = await _context.Set<ProductVariantOptionSelection>()
             .AsNoTracking()
-            .Where(selection => ids.Contains(selection.VariantId))
+            .Where(selection =>
+                ids.Contains(selection.VariantId)
+                && selection.OptionGroup.IsActive
+                && selection.OptionValue.IsActive)
             .Select(selection => new
             {
                 selection.VariantId,

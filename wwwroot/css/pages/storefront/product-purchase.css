@@ -1,0 +1,189 @@
+.product-purchase-price {
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    margin-block: 0.9rem;
+}
+
+.product-purchase-price span {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+}
+
+.product-purchase-price strong {
+    color: var(--color-accent-strong);
+    font-size: clamp(1.35rem, 3vw, 2rem);
+}
+
+.product-purchase-panel {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+}
+
+.product-purchase-panel__loading,
+.product-purchase-panel__error {
+    padding: 0.85rem;
+    border-radius: var(--radius-md);
+    font-size: 0.82rem;
+}
+
+.product-purchase-panel__loading {
+    background: var(--color-bg-subtle);
+    color: var(--color-text-muted);
+}
+
+.product-purchase-panel__error {
+    background: var(--color-danger-surface);
+    color: var(--color-danger-text);
+}
+
+.product-purchase-options {
+    display: grid;
+    gap: 0.9rem;
+}
+
+.product-purchase-group {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.product-purchase-group legend {
+    color: var(--color-text-primary);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.product-purchase-group__values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.product-purchase-group__values button {
+    min-height: 2.35rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.product-purchase-group__values button:hover:not(:disabled),
+.product-purchase-group__values button.is-selected {
+    border-color: var(--color-accent);
+    background: var(--color-accent-soft);
+    color: var(--color-accent-soft-text);
+}
+
+.product-purchase-group__values button:disabled {
+    cursor: not-allowed;
+    opacity: 0.38;
+    text-decoration: line-through;
+}
+
+.product-purchase-selection {
+    padding: 0.75rem;
+    border-radius: var(--radius-md);
+    background: var(--color-bg-subtle);
+    color: var(--color-text-muted);
+    font-size: 0.78rem;
+}
+
+.product-purchase-selection.is-ready {
+    background: var(--color-success-surface);
+    color: var(--color-success-text);
+}
+
+.product-purchase-current {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.product-purchase-current > div {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.product-purchase-current span {
+    color: var(--color-text-muted);
+    font-size: 0.68rem;
+}
+
+.product-purchase-current strong {
+    color: var(--color-text-primary);
+    font-size: 1rem;
+}
+
+.product-purchase-current del {
+    color: var(--color-text-muted);
+    font-size: 0.72rem;
+}
+
+.product-purchase-actions {
+    display: grid;
+    grid-template-columns: minmax(8rem, 0.6fr) 1fr 1fr;
+    align-items: end;
+    gap: 0.65rem;
+}
+
+.product-purchase-actions > label {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.product-purchase-actions > label > span {
+    color: var(--color-text-secondary);
+    font-size: 0.7rem;
+    font-weight: 750;
+}
+
+.product-purchase-quantity {
+    display: grid;
+    grid-template-columns: 2.4rem minmax(3.5rem, 1fr) 2.4rem;
+}
+
+.product-purchase-quantity button,
+.product-purchase-quantity input {
+    min-height: 2.6rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    font: inherit;
+    text-align: center;
+}
+
+.product-purchase-quantity button:first-child {
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.product-purchase-quantity button:last-child {
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.product-purchase-quantity input {
+    border-inline: 0;
+    border-radius: 0;
+}
+
+@media (max-width: 40rem) {
+    .product-purchase-current,
+    .product-purchase-actions {
+        grid-template-columns: 1fr;
+    }
+}

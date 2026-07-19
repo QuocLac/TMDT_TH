@@ -102,6 +102,7 @@ builder.Services.AddSession(options =>
 
 builder.Services.AddScoped<IProductOptionReadService, ProductOptionReadService>();
 builder.Services.AddScoped<IProductOptionIntegrityService, ProductOptionIntegrityService>();
+builder.Services.AddScoped<IProductOptionCombinationGenerator, ProductOptionCombinationGenerator>();
 builder.Services.AddScoped<SessionCartService>();
 builder.Services.AddScoped<ISessionCartService, DynamicProductOptionCartService>();
 

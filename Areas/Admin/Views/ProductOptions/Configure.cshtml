@@ -271,6 +271,119 @@
         </section>
     </div>
 
+    <section class="admin-panel product-combination-generator">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">Tạo mã hàng tự động</p>
+                <h3>Tạo các tổ hợp còn thiếu</h3>
+                <p>
+                    Hệ thống giữ nguyên mã hàng đã có và chỉ tạo những tổ hợp chưa tồn tại.
+                    Nhóm không bắt buộc sẽ có thêm phương án “Không áp dụng”.
+                </p>
+            </div>
+        </header>
+
+        <div class="product-combination-generator__summary">
+            <article>
+                <span>Tổng tổ hợp dự kiến</span>
+                <strong>@Model.CombinationPreview.TotalCombinationCount</strong>
+            </article>
+            <article>
+                <span>Đã có mã hàng</span>
+                <strong>@Model.CombinationPreview.ExistingCombinationCount</strong>
+            </article>
+            <article>
+                <span>Còn thiếu</span>
+                <strong>@Model.CombinationPreview.MissingCombinationCount</strong>
+            </article>
+            <article>
+                <span>Giới hạn mỗi lần</span>
+                <strong>@Model.CombinationPreview.MaximumCombinationCount</strong>
+            </article>
+        </div>
+
+        @if (Model.CombinationPreview.HasExistingConflict)
+        {
+            <div class="product-combination-generator__warning">
+                <strong>Phát hiện mã hàng trùng tổ hợp</strong>
+                <p>
+                    Hãy sửa các tổ hợp bị trùng trong bảng bên dưới rồi chạy
+                    “Kiểm tra toàn bộ tổ hợp” trước khi tạo thêm mã hàng.
+                </p>
+            </div>
+        }
+        else if (Model.CombinationPreview.RequiredGroupsWithoutValues.Count > 0)
+        {
+            <div class="product-combination-generator__warning">
+                <strong>Chưa thể tạo mã hàng</strong>
+                <p>
+                    Các nhóm bắt buộc chưa có giá trị:
+                    @string.Join(", ", Model.CombinationPreview.RequiredGroupsWithoutValues).
+                </p>
+            </div>
+        }
+        else if (Model.CombinationPreview.IsOverLimit)
+        {
+            <div class="product-combination-generator__warning">
+                <strong>Số tổ hợp vượt giới hạn</strong>
+                <p>
+                    Hãy giảm số giá trị trong các nhóm lựa chọn trước khi tạo mã hàng.
+                </p>
+            </div>
+        }
+        else if (Model.CombinationPreview.MissingCombinationCount == 0)
+        {
+            <div class="product-combination-generator__ready">
+                <strong>Đã đủ mã hàng cho các tổ hợp hiện tại</strong>
+                <p>
+                    Khi thêm giá trị mới, số tổ hợp còn thiếu sẽ được tính lại tự động.
+                </p>
+            </div>
+        }
+        else
+        {
+            <form asp-action="GenerateCombinations"
+                  asp-route-productId="@Model.ProductId"
+                  method="post"
+                  class="product-combination-generator__form">
+                <label>
+                    <span>Giá niêm yết ban đầu</span>
+                    <input name="ListPrice"
+                           type="number"
+                           min="0.01"
+                           step="0.01"
+                           required
+                           value="@(Model.CombinationPreview.SuggestedListPrice > 0 ? Model.CombinationPreview.SuggestedListPrice.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty)"
+                           placeholder="Nhập giá cho các mã hàng mới" />
+                </label>
+
+                <label>
+                    <span>Số lượng có thể bán ban đầu</span>
+                    <input name="StockQuantity"
+                           type="number"
+                           min="0"
+                           value="0"
+                           required />
+                </label>
+
+                <label class="product-combination-generator__check">
+                    <input name="ActivateNewItems"
+                           type="checkbox"
+                           value="true"
+                           checked />
+                    <input name="ActivateNewItems"
+                           type="hidden"
+                           value="false" />
+                    <span>Cho phép bán ngay sau khi tạo</span>
+                </label>
+
+                <button type="submit" class="button button--primary">
+                    Tạo @Model.CombinationPreview.MissingCombinationCount mã hàng còn thiếu
+                </button>
+            </form>
+        }
+    </section>
+
     <section class="admin-panel product-option-matrix">
         <header class="admin-panel__header">
             <div>

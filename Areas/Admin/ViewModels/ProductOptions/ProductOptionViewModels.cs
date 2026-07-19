@@ -55,6 +55,9 @@ public sealed class ProductOptionConfigureViewModel
     public IReadOnlyList<ProductOptionVariantItemViewModel> Items { get; init; } = [];
 
     public bool HasLegacySelectionData { get; init; }
+
+    public ProductOptionCombinationPreviewViewModel CombinationPreview { get; init; }
+        = new();
 }
 
 public sealed class ProductOptionGroupItemViewModel
@@ -146,4 +149,54 @@ public sealed class ProductVariantSelectionInput
     public int VariantId { get; set; }
 
     public Dictionary<int, int?> Selections { get; set; } = [];
+}
+
+
+public sealed class ProductOptionCombinationPreviewViewModel
+{
+    public int ActiveGroupCount { get; init; }
+
+    public long TotalCombinationCount { get; init; }
+
+    public int ExistingCombinationCount { get; init; }
+
+    public long MissingCombinationCount { get; init; }
+
+    public decimal SuggestedListPrice { get; init; }
+
+    public IReadOnlyList<string> RequiredGroupsWithoutValues { get; init; } = [];
+
+    public bool HasExistingConflict { get; init; }
+
+    public bool IsOverLimit { get; init; }
+
+    public int MaximumCombinationCount { get; init; }
+
+    public bool CanGenerate =>
+        ActiveGroupCount > 0
+        && RequiredGroupsWithoutValues.Count == 0
+        && !HasExistingConflict
+        && !IsOverLimit
+        && MissingCombinationCount > 0;
+}
+
+public sealed class ProductOptionCombinationGenerateInput
+{
+    [Range(1, int.MaxValue)]
+    public int ProductId { get; set; }
+
+    [Range(
+        typeof(decimal),
+        "0.01",
+        "9999999999999999",
+        ErrorMessage = "Giá niêm yết phải lớn hơn 0.")]
+    public decimal ListPrice { get; set; }
+
+    [Range(
+        0,
+        int.MaxValue,
+        ErrorMessage = "Số lượng có thể bán không được âm.")]
+    public int StockQuantity { get; set; }
+
+    public bool ActivateNewItems { get; set; } = true;
 }
