@@ -12,6 +12,20 @@
     var initial = string.IsNullOrWhiteSpace(displayName)
         ? "A"
         : displayName.Trim()[0].ToString().ToUpperInvariant();
+
+    string ActiveClass(params string[] controllers) =>
+        controllers.Contains(currentController, StringComparer.OrdinalIgnoreCase)
+            ? "is-active"
+            : string.Empty;
+
+    string CommercializeMessage(string value) =>
+        value
+            .Replace("Biến thể", "Lựa chọn bán", StringComparison.OrdinalIgnoreCase)
+            .Replace("biến thể", "lựa chọn bán", StringComparison.OrdinalIgnoreCase)
+            .Replace("Inbound", "Nhập vào kho", StringComparison.OrdinalIgnoreCase)
+            .Replace("inbound", "nhập vào kho", StringComparison.OrdinalIgnoreCase)
+            .Replace("Outbound", "Giao tới khách hàng", StringComparison.OrdinalIgnoreCase)
+            .Replace("outbound", "giao tới khách hàng", StringComparison.OrdinalIgnoreCase);
 }
 <!DOCTYPE html>
 <html lang="vi" data-theme="light" data-event-theme="@eventTheme">
@@ -23,15 +37,11 @@
     <meta name="request-verification-token" content="@antiforgeryTokens.RequestToken" />
     <title>@ViewData["Title"] - FastBuy Admin</title>
     <script src="~/js/layouts/theme.js" asp-append-version="true"></script>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
-          referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
 </head>
 <body class="admin-body">
-    <a class="skip-link" href="#admin-main-content">Bỏ qua đến nội dung chính</a>
+    <a class="skip-link" href="#admin-main-content">Đi đến nội dung chính</a>
 
     <div class="admin-shell">
         <aside id="admin-sidebar" class="admin-sidebar" aria-label="Điều hướng quản trị">
@@ -52,9 +62,8 @@
                 <a asp-area="Admin"
                    asp-controller="Home"
                    asp-action="Index"
-                   class="admin-nav__link @(currentController == "Home" ? "is-active" : null)"
+                   class="admin-nav__link @ActiveClass("Home")"
                    aria-current="@(currentController == "Home" ? "page" : null)">
-                    <i class="fa-solid fa-chart-pie" aria-hidden="true"></i>
                     <span>Tổng quan vận hành</span>
                 </a>
 
@@ -62,72 +71,71 @@
                 <a asp-area="Admin"
                    asp-controller="Orders"
                    asp-action="Index"
-                   class="admin-nav__link @(currentController == "Orders" ? "is-active" : null)"
+                   class="admin-nav__link @ActiveClass("Orders")"
                    aria-current="@(currentController == "Orders" ? "page" : null)">
-                    <i class="fa-solid fa-receipt" aria-hidden="true"></i>
-                    <span>Đơn hàng</span>
+                    <span>Xử lý đơn hàng</span>
                 </a>
 
-                <p class="admin-nav__label">Danh mục hàng hóa</p>
+                <p class="admin-nav__label">Hàng hóa</p>
                 <a asp-area="Admin"
                    asp-controller="Products"
                    asp-action="Index"
-                   class="admin-nav__link @(currentController == "Products" ? "is-active" : null)"
+                   class="admin-nav__link @ActiveClass("Products")"
                    aria-current="@(currentController == "Products" ? "page" : null)">
-                    <i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i>
-                    <span>Sản phẩm và biến thể</span>
+                    <span>Quản lý sản phẩm</span>
                 </a>
                 <a asp-area="Admin"
                    asp-controller="Categories"
                    asp-action="Index"
-                   class="admin-nav__link @(currentController == "Categories" ? "is-active" : null)"
+                   class="admin-nav__link @ActiveClass("Categories")"
                    aria-current="@(currentController == "Categories" ? "page" : null)">
-                    <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
-                    <span>Danh mục</span>
+                    <span>Danh mục sản phẩm</span>
+                </a>
+                <a asp-area="Admin"
+                   asp-controller="ProductInformation"
+                   asp-action="Definitions"
+                   class="admin-nav__link @ActiveClass("ProductInformation")"
+                   aria-current="@(currentController == "ProductInformation" ? "page" : null)">
+                    <span>Thông tin theo ngành hàng</span>
                 </a>
 
-                <p class="admin-nav__label">Vận hành đơn</p>
+                <p class="admin-nav__label">Vận hành sau bán</p>
                 <a asp-area="Admin"
                    asp-controller="Shipping"
                    asp-action="Index"
-                   class="admin-nav__link @(currentController == "Shipping" ? "is-active" : null)"
+                   class="admin-nav__link @ActiveClass("Shipping")"
                    aria-current="@(currentController == "Shipping" ? "page" : null)">
-                    <i class="fa-solid fa-truck-fast" aria-hidden="true"></i>
-                    <span>Giao hàng GHN</span>
+                    <span>Giao vận</span>
                 </a>
                 <a asp-area="Admin"
                    asp-controller="Returns"
                    asp-action="Index"
-                   class="admin-nav__link @(currentController == "Returns" ? "is-active" : null)"
+                   class="admin-nav__link @ActiveClass("Returns")"
                    aria-current="@(currentController == "Returns" ? "page" : null)">
-                    <i class="fa-solid fa-arrow-rotate-left" aria-hidden="true"></i>
-                    <span>Hoàn trả</span>
+                    <span>Hoàn trả và kiểm định</span>
                 </a>
 
-                <p class="admin-nav__label">Marketing và giá</p>
+                <p class="admin-nav__label">Giá bán</p>
                 <a asp-area="Admin"
                    asp-controller="PriceCampaigns"
                    asp-action="Index"
-                   class="admin-nav__link @(currentController == "PriceCampaigns" ? "is-active" : null)"
+                   class="admin-nav__link @ActiveClass("PriceCampaigns")"
                    aria-current="@(currentController == "PriceCampaigns" ? "page" : null)">
-                    <i class="fa-solid fa-tags" aria-hidden="true"></i>
-                    <span>Chiến dịch giá</span>
+                    <span>Lịch áp dụng giá</span>
                 </a>
                 <a asp-area="Admin"
                    asp-controller="PriceHistories"
                    asp-action="Index"
-                   class="admin-nav__link @(currentController == "PriceHistories" ? "is-active" : null)"
+                   class="admin-nav__link @ActiveClass("PriceHistories")"
                    aria-current="@(currentController == "PriceHistories" ? "page" : null)">
-                    <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
-                    <span>Lịch sử giá</span>
+                    <span>Nhật ký biến động giá</span>
                 </a>
             </nav>
 
             <div class="admin-sidebar__footer">
-                <span class="admin-health-dot" aria-hidden="true"></span>
                 <div>
-                    <strong>Hệ thống vận hành</strong>
-                    <small>Đơn hàng và tích hợp đang được theo dõi</small>
+                    <strong>Trạng thái hệ thống</strong>
+                    <small>Đơn hàng, thanh toán và giao vận đang được giám sát</small>
                 </div>
             </div>
         </aside>
@@ -145,9 +153,8 @@
                             class="admin-menu-toggle"
                             data-admin-sidebar-toggle
                             aria-controls="admin-sidebar"
-                            aria-expanded="false"
-                            aria-label="Mở menu quản trị">
-                        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                            aria-expanded="false">
+                        Menu
                     </button>
                     <div>
                         <small>FastBuy Admin</small>
@@ -164,14 +171,13 @@
                     <label class="visually-hidden" for="admin-global-search-input">
                         Tìm đơn hàng
                     </label>
-                    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                     <input id="admin-global-search-input"
                            name="Search"
                            type="search"
                            maxlength="100"
-                           placeholder="Tìm mã đơn, khách hàng, số điện thoại..."
+                           placeholder="Tìm mã đơn, khách hàng hoặc số điện thoại"
                            autocomplete="off" />
-                    <kbd>/</kbd>
+                    <button type="submit">Tìm</button>
                 </form>
 
                 <div class="admin-topbar__actions">
@@ -180,17 +186,15 @@
                        asp-action="Index"
                        target="_blank"
                        rel="noopener noreferrer"
-                       class="admin-icon-button"
-                       aria-label="Mở website bán hàng">
-                        <i class="fa-solid fa-store" aria-hidden="true"></i>
+                       class="admin-text-action">
+                        Mở cửa hàng
                     </a>
 
                     <button type="button"
-                            class="admin-icon-button theme-toggle"
+                            class="admin-text-action theme-toggle"
                             data-theme-toggle
-                            aria-pressed="false"
-                            aria-label="Chuyển giao diện sáng hoặc tối">
-                        <span class="theme-toggle__icon" data-theme-icon aria-hidden="true">◐</span>
+                            aria-pressed="false">
+                        <span data-theme-label>Giao diện tối</span>
                     </button>
 
                     <details class="admin-account-menu">
@@ -200,7 +204,6 @@
                                 <strong>@displayName</strong>
                                 <small>Quản trị viên</small>
                             </span>
-                            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
                         </summary>
                         <div class="admin-account-menu__panel">
                             <div class="admin-account-menu__identity">
@@ -213,17 +216,13 @@
                             <a asp-area=""
                                asp-controller="Account"
                                asp-action="Profile">
-                                <i class="fa-regular fa-user" aria-hidden="true"></i>
                                 Hồ sơ tài khoản
                             </a>
                             <form asp-area=""
                                   asp-controller="Account"
                                   asp-action="Logout"
                                   method="post">
-                                <button type="submit">
-                                    <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
-                                    Đăng xuất
-                                </button>
+                                <button type="submit">Đăng xuất</button>
                             </form>
                         </div>
                     </details>
@@ -234,15 +233,13 @@
                 @if (TempData["SuccessMessage"] is string successMessage)
                 {
                     <div class="admin-notice admin-notice--success" role="status">
-                        <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-                        <span>@successMessage</span>
+                        <span>@CommercializeMessage(successMessage)</span>
                     </div>
                 }
                 @if (TempData["ErrorMessage"] is string errorMessage)
                 {
                     <div class="admin-notice admin-notice--danger" role="alert">
-                        <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
-                        <span>@errorMessage</span>
+                        <span>@CommercializeMessage(errorMessage)</span>
                     </div>
                 }
 
@@ -251,7 +248,6 @@
         </div>
     </div>
 
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/core/http.js" asp-append-version="true"></script>
     <script src="~/js/core/pricing-confirmation-integrity.js" asp-append-version="true"></script>
     <script src="~/js/layouts/admin-shell.js" asp-append-version="true"></script>

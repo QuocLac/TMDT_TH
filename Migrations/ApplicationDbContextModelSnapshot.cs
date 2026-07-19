@@ -301,6 +301,36 @@ namespace WebApplication2.Migrations
                         });
                 });
 
+            modelBuilder.Entity("WebApplication2.Models.CategoryProductAttribute", b =>
+                {
+                    b.Property<int>("CategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AttributeDefinitionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GroupName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.HasKey("CategoryId", "AttributeDefinitionId");
+
+                    b.HasIndex("AttributeDefinitionId");
+
+                    b.HasIndex("CategoryId", "DisplayOrder");
+
+                    b.ToTable("CategoryProductAttributes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CategoryProductAttribute_DisplayOrder", "[DisplayOrder] >= 0 AND [DisplayOrder] <= 9999");
+                        });
+                });
+
             modelBuilder.Entity("WebApplication2.Models.Customer", b =>
                 {
                     b.Property<int>("Id")
@@ -1491,6 +1521,181 @@ namespace WebApplication2.Migrations
                     b.ToTable("Products");
                 });
 
+            modelBuilder.Entity("WebApplication2.Models.ProductAttributeDefinition", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("DataType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("HelpText")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsComparable")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsCustomerVisible")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<bool>("IsFilterable")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("IsActive", "IsCustomerVisible");
+
+                    b.ToTable("ProductAttributeDefinitions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductAttributeDefinition_DataType", "[DataType] IN ('ShortText','LongText','Number','Boolean','Date','SingleChoice')");
+                        });
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ProductAttributeOption", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AttributeDefinitionId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttributeDefinitionId", "DisplayOrder");
+
+                    b.HasIndex("AttributeDefinitionId", "Value")
+                        .IsUnique();
+
+                    b.ToTable("ProductAttributeOptions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductAttributeOption_DisplayOrder", "[DisplayOrder] >= 0 AND [DisplayOrder] <= 9999");
+                        });
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ProductAttributeValue", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AttributeDefinitionId")
+                        .HasColumnType("int");
+
+                    b.Property<bool?>("BooleanValue")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<DateTime?>("DateValue")
+                        .HasColumnType("date");
+
+                    b.Property<decimal?>("NumberValue")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int?>("OptionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("TextValue")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AttributeDefinitionId", "OptionId");
+
+                    b.HasIndex("ProductId", "AttributeDefinitionId")
+                        .IsUnique();
+
+                    b.ToTable("ProductAttributeValues", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductAttributeValue_OneValue", "(CASE WHEN [TextValue] IS NULL THEN 0 ELSE 1 END) + (CASE WHEN [NumberValue] IS NULL THEN 0 ELSE 1 END) + (CASE WHEN [BooleanValue] IS NULL THEN 0 ELSE 1 END) + (CASE WHEN [DateValue] IS NULL THEN 0 ELSE 1 END) + (CASE WHEN [OptionId] IS NULL THEN 0 ELSE 1 END) = 1");
+                        });
+                });
+
             modelBuilder.Entity("WebApplication2.Models.ProductImage", b =>
                 {
                     b.Property<int>("Id")
@@ -2277,6 +2482,25 @@ namespace WebApplication2.Migrations
                     b.Navigation("Parent");
                 });
 
+            modelBuilder.Entity("WebApplication2.Models.CategoryProductAttribute", b =>
+                {
+                    b.HasOne("WebApplication2.Models.ProductAttributeDefinition", "AttributeDefinition")
+                        .WithMany("CategoryAssignments")
+                        .HasForeignKey("AttributeDefinitionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WebApplication2.Models.Category", "Category")
+                        .WithMany("ProductAttributeAssignments")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AttributeDefinition");
+
+                    b.Navigation("Category");
+                });
+
             modelBuilder.Entity("WebApplication2.Models.Customer", b =>
                 {
                     b.HasOne("WebApplication2.Models.Account", "Account")
@@ -2443,6 +2667,44 @@ namespace WebApplication2.Migrations
                     b.Navigation("Brand");
 
                     b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ProductAttributeOption", b =>
+                {
+                    b.HasOne("WebApplication2.Models.ProductAttributeDefinition", "AttributeDefinition")
+                        .WithMany("Options")
+                        .HasForeignKey("AttributeDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AttributeDefinition");
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ProductAttributeValue", b =>
+                {
+                    b.HasOne("WebApplication2.Models.ProductAttributeDefinition", "AttributeDefinition")
+                        .WithMany("ProductValues")
+                        .HasForeignKey("AttributeDefinitionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WebApplication2.Models.Product", "Product")
+                        .WithMany("AttributeValues")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WebApplication2.Models.ProductAttributeOption", "Option")
+                        .WithMany("ProductValues")
+                        .HasForeignKey("AttributeDefinitionId", "OptionId")
+                        .HasPrincipalKey("AttributeDefinitionId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AttributeDefinition");
+
+                    b.Navigation("Option");
+
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("WebApplication2.Models.ProductImage", b =>
@@ -2623,6 +2885,8 @@ namespace WebApplication2.Migrations
                 {
                     b.Navigation("Children");
 
+                    b.Navigation("ProductAttributeAssignments");
+
                     b.Navigation("Products");
                 });
 
@@ -2673,11 +2937,27 @@ namespace WebApplication2.Migrations
 
             modelBuilder.Entity("WebApplication2.Models.Product", b =>
                 {
+                    b.Navigation("AttributeValues");
+
                     b.Navigation("Images");
 
                     b.Navigation("ProductPromotions");
 
                     b.Navigation("Variants");
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ProductAttributeDefinition", b =>
+                {
+                    b.Navigation("CategoryAssignments");
+
+                    b.Navigation("Options");
+
+                    b.Navigation("ProductValues");
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ProductAttributeOption", b =>
+                {
+                    b.Navigation("ProductValues");
                 });
 
             modelBuilder.Entity("WebApplication2.Models.ProductVariant", b =>

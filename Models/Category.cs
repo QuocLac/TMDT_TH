@@ -11,7 +11,9 @@ public sealed class Category : BaseEntity
     public string Name { get; set; } = string.Empty;
 
     public int? ParentId { get; set; }
+
     public Category? Parent { get; set; }
+
     public ICollection<Category> Children { get; set; } = [];
 
     [Required, MaxLength(255)]
@@ -32,4 +34,6 @@ public sealed class Category : BaseEntity
     public string MetaDescription { get; set; } = string.Empty;
 
     public ICollection<Product> Products { get; set; } = [];
+
+    public ICollection<CategoryProductAttribute> ProductAttributeAssignments { get; set; } = [];
 }

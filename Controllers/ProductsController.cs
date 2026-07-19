@@ -1,6 +1,8 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebApplication2.Models;
+using WebApplication2.Models.Enums;
 using WebApplication2.ViewModels.Storefront.Products;
 
 namespace WebApplication2.Controllers;
@@ -16,7 +18,9 @@ public sealed class ProductsController : Controller
     }
 
     [HttpGet("{slug}")]
-    public async Task<IActionResult> Details(string slug, CancellationToken cancellationToken)
+    public async Task<IActionResult> Details(
+        string slug,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(slug))
         {
@@ -24,6 +28,7 @@ public sealed class ProductsController : Controller
         }
 
         var normalizedSlug = slug.Trim().ToLowerInvariant();
+
         var product = await _context.Products
             .AsNoTracking()
             .Where(item => item.IsActive && item.Slug == normalizedSlug)
@@ -58,8 +63,9 @@ public sealed class ProductsController : Controller
                     {
                         Id = variant.Id,
                         Sku = variant.SKU,
-                        Color = variant.Color,
-                        Size = variant.Size,
+                        SelectionLabel = variant.Color != null && variant.Size != null
+                            ? variant.Color + " · " + variant.Size
+                            : variant.Color ?? variant.Size ?? "Lựa chọn tiêu chuẩn",
                         ImageUrl = variant.ImageUrl,
                         OriginalPrice = variant.Price,
                         EffectivePrice = variant.CurrentPrice,
@@ -75,30 +81,105 @@ public sealed class ProductsController : Controller
             return NotFound();
         }
 
-        if (product.Images.Count == 0)
-        {
-            product = new ProductDetailsViewModel
+        var specificationRows = await _context.Set<ProductAttributeValue>()
+            .AsNoTracking()
+            .Where(value =>
+                value.ProductId == product.Id
+                && value.AttributeDefinition.IsActive
+                && value.AttributeDefinition.IsCustomerVisible
+                && value.AttributeDefinition.CategoryAssignments.Any(assignment =>
+                    assignment.CategoryId == product.CategoryId))
+            .Select(value => new
             {
-                Id = product.Id,
-                Name = product.Name,
-                Slug = product.Slug,
-                Description = product.Description,
-                MetaTitle = product.MetaTitle,
-                MetaDescription = product.MetaDescription,
-                CategoryId = product.CategoryId,
-                CategoryName = product.CategoryName,
-                CategorySlug = product.CategorySlug,
-                BrandName = product.BrandName,
-                Images = [new ProductMediaViewModel { Url = "/images/no-image.png", IsMain = true }],
-                Variants = product.Variants
-            };
-        }
+                value.AttributeDefinition.Name,
+                value.AttributeDefinition.DataType,
+                value.AttributeDefinition.Unit,
+                value.TextValue,
+                value.NumberValue,
+                value.BooleanValue,
+                value.DateValue,
+                OptionLabel = value.Option != null ? value.Option.Label : null,
+                GroupName = value.AttributeDefinition.CategoryAssignments
+                    .Where(assignment => assignment.CategoryId == product.CategoryId)
+                    .Select(assignment => assignment.GroupName)
+                    .FirstOrDefault(),
+                DisplayOrder = value.AttributeDefinition.CategoryAssignments
+                    .Where(assignment => assignment.CategoryId == product.CategoryId)
+                    .Select(assignment => assignment.DisplayOrder)
+                    .FirstOrDefault()
+            })
+            .OrderBy(item => item.DisplayOrder)
+            .ThenBy(item => item.Name)
+            .ToArrayAsync(cancellationToken);
+
+        var specificationGroups = specificationRows
+            .Select(row => new
+            {
+                GroupName = string.IsNullOrWhiteSpace(row.GroupName)
+                    ? "Thông tin chung"
+                    : row.GroupName,
+                row.DisplayOrder,
+                row.Name,
+                Value = FormatSpecificationValue(
+                    row.DataType,
+                    row.Unit,
+                    row.TextValue,
+                    row.NumberValue,
+                    row.BooleanValue,
+                    row.DateValue,
+                    row.OptionLabel)
+            })
+            .Where(row => !string.IsNullOrWhiteSpace(row.Value))
+            .GroupBy(row => row.GroupName)
+            .Select(group => new ProductSpecificationGroupViewModel
+            {
+                Name = group.Key,
+                DisplayOrder = group.Min(item => item.DisplayOrder),
+                Items = group
+                    .OrderBy(item => item.DisplayOrder)
+                    .ThenBy(item => item.Name)
+                    .Select(item => new ProductSpecificationItemViewModel
+                    {
+                        Name = item.Name,
+                        Value = item.Value!,
+                        DisplayOrder = item.DisplayOrder
+                    })
+                    .ToArray()
+            })
+            .OrderBy(group => group.DisplayOrder)
+            .ThenBy(group => group.Name)
+            .ToArray();
+
+        product = new ProductDetailsViewModel
+        {
+            Id = product.Id,
+            Name = product.Name,
+            Slug = product.Slug,
+            Description = product.Description,
+            MetaTitle = product.MetaTitle,
+            MetaDescription = product.MetaDescription,
+            CategoryId = product.CategoryId,
+            CategoryName = product.CategoryName,
+            CategorySlug = product.CategorySlug,
+            BrandName = product.BrandName,
+            Images = product.Images.Count == 0
+                ? [new ProductMediaViewModel
+                {
+                    Url = "/images/no-image.png",
+                    IsMain = true
+                }]
+                : product.Images,
+            Variants = product.Variants,
+            SpecificationGroups = specificationGroups
+        };
 
         return View(product);
     }
 
     [HttpGet("/Product/Details/{id:int}")]
-    public async Task<IActionResult> LegacyDetails(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> LegacyDetails(
+        int id,
+        CancellationToken cancellationToken)
     {
         var slug = await _context.Products
             .AsNoTracking()
@@ -109,5 +190,39 @@ public sealed class ProductsController : Controller
         return string.IsNullOrWhiteSpace(slug)
             ? NotFound()
             : RedirectToActionPermanent(nameof(Details), new { slug });
+    }
+
+    private static string? FormatSpecificationValue(
+        ProductAttributeDataType dataType,
+        string? unit,
+        string? textValue,
+        decimal? numberValue,
+        bool? booleanValue,
+        DateTime? dateValue,
+        string? optionLabel)
+    {
+        var culture = CultureInfo.GetCultureInfo("vi-VN");
+
+        return dataType switch
+        {
+            ProductAttributeDataType.ShortText
+                or ProductAttributeDataType.LongText =>
+                string.IsNullOrWhiteSpace(textValue)
+                    ? null
+                    : textValue.Trim(),
+            ProductAttributeDataType.Number when numberValue.HasValue =>
+                string.IsNullOrWhiteSpace(unit)
+                    ? numberValue.Value.ToString("0.####", culture)
+                    : $"{numberValue.Value.ToString("0.####", culture)} {unit}",
+            ProductAttributeDataType.Boolean when booleanValue.HasValue =>
+                booleanValue.Value ? "Có" : "Không",
+            ProductAttributeDataType.Date when dateValue.HasValue =>
+                dateValue.Value.ToString("dd/MM/yyyy", culture),
+            ProductAttributeDataType.SingleChoice =>
+                string.IsNullOrWhiteSpace(optionLabel)
+                    ? null
+                    : optionLabel,
+            _ => null
+        };
     }
 }

@@ -1,0 +1,98 @@
+/*
+   Text-first admin shell. Icons are hidden outside category merchandising.
+*/
+
+.admin-body i,
+.admin-body .admin-metric-card__icon {
+    display: none !important;
+}
+
+.admin-body .categories-page i,
+.admin-body [data-category-icon] i,
+.admin-body .category-icon i {
+    display: inline-flex !important;
+}
+
+.admin-nav__link {
+    grid-template-columns: 1fr;
+    padding-inline: 0.85rem;
+}
+
+.admin-sidebar__footer {
+    grid-template-columns: 1fr;
+}
+
+.admin-health-dot {
+    display: none;
+}
+
+.admin-menu-toggle,
+.admin-text-action {
+    display: inline-flex;
+    min-height: 2.35rem;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 0.72rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-surface);
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.admin-global-search {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.admin-global-search button {
+    min-height: 2.35rem;
+    padding: 0.5rem 0.72rem;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.admin-account-menu summary {
+    list-style: none;
+}
+
+.admin-account-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.admin-notice {
+    grid-template-columns: 1fr;
+}
+
+.admin-row-action:empty::after,
+.admin-row-action:has(i)::after {
+    content: "Mở";
+    color: var(--color-accent-strong);
+    font-size: 0.68rem;
+    font-weight: 850;
+}
+
+.admin-metric-card {
+    grid-template-columns: 1fr;
+}
+
+@media (max-width: 64rem) {
+    .admin-topbar {
+        grid-template-columns: 1fr auto;
+    }
+
+    .admin-global-search {
+        order: 3;
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+}

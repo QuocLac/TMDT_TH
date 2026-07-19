@@ -3,6 +3,12 @@
 
     const http = window.FastBuyHttp;
 
+    function commercialize(message) {
+        return String(message ?? "")
+            .replaceAll("biến thể", "lựa chọn bán")
+            .replaceAll("Biến thể", "Lựa chọn bán");
+    }
+
     function slugify(value) {
         return value
             .normalize("NFD")
@@ -22,49 +28,72 @@
         let slugWasEdited = Boolean(slugInput.value);
 
         function reindex() {
-            [...list.querySelectorAll("[data-create-variant-row]")].forEach((row, index) => {
-                row.querySelector(".variant-create-row__number").textContent = String(index + 1);
-                row.querySelectorAll("[data-variant-property]").forEach((field) => {
-                    const property = field.dataset.variantProperty;
-                    field.name = `Variants[${index}].${property}`;
-                    field.id = `Variants_${index}__${property}`;
-                    if (field.type === "checkbox") field.value = "true";
+            [...list.querySelectorAll("[data-create-variant-row]")]
+                .forEach((row, index) => {
+                    row.querySelector(".variant-create-row__number")
+                        .textContent = String(index + 1);
+
+                    row.querySelectorAll("[data-variant-property]")
+                        .forEach((field) => {
+                            const property = field.dataset.variantProperty;
+                            field.name = `Variants[${index}].${property}`;
+                            field.id = `Variants_${index}__${property}`;
+
+                            if (field.type === "checkbox") {
+                                field.value = "true";
+                            }
+                        });
+
+                    row.querySelectorAll("[data-variant-hidden]")
+                        .forEach((field) => {
+                            field.name =
+                                `Variants[${index}].${field.dataset.variantHidden}`;
+                        });
                 });
-                row.querySelectorAll("[data-variant-hidden]").forEach((field) => {
-                    field.name = `Variants[${index}].${field.dataset.variantHidden}`;
-                });
-            });
         }
 
-        root.querySelector("[data-add-create-variant]").addEventListener("click", () => {
-            list.append(template.content.cloneNode(true));
-            reindex();
-        });
+        root.querySelector("[data-add-create-variant]")
+            .addEventListener("click", () => {
+                list.append(template.content.cloneNode(true));
+                reindex();
+            });
 
         list.addEventListener("click", (event) => {
-            const removeButton = event.target.closest("[data-remove-create-variant]");
+            const removeButton =
+                event.target.closest("[data-remove-create-variant]");
+
             if (!removeButton) return;
-            if (list.querySelectorAll("[data-create-variant-row]").length <= 1) return;
+            if (list.querySelectorAll("[data-create-variant-row]").length <= 1) {
+                return;
+            }
+
             removeButton.closest("[data-create-variant-row]").remove();
             reindex();
         });
 
-        slugInput.addEventListener("input", () => { slugWasEdited = true; });
-        nameInput.addEventListener("input", () => {
-            if (!slugWasEdited) slugInput.value = slugify(nameInput.value);
+        slugInput.addEventListener("input", () => {
+            slugWasEdited = true;
         });
+
+        nameInput.addEventListener("input", () => {
+            if (!slugWasEdited) {
+                slugInput.value = slugify(nameInput.value);
+            }
+        });
+
         reindex();
     }
 
     function initializeEdit(root) {
         if (!http) return;
+
         const feedback = root.querySelector("[data-page-feedback]");
         const dialog = root.querySelector("[data-variant-dialog]");
         const form = root.querySelector("[data-variant-form]");
         const title = root.querySelector("[data-variant-dialog-title]");
 
         function setFeedback(message, type = "") {
-            feedback.textContent = message ?? "";
+            feedback.textContent = commercialize(message);
             feedback.classList.remove("is-error", "is-success");
             if (type) feedback.classList.add(`is-${type}`);
         }
@@ -72,13 +101,18 @@
         function setField(name, value) {
             const field = form.querySelector(`[data-field="${name}"]`);
             if (!field) return;
-            if (field.type === "checkbox") field.checked = value === true || value === "true";
-            else field.value = value ?? "";
+
+            if (field.type === "checkbox") {
+                field.checked = value === true || value === "true";
+            } else {
+                field.value = value ?? "";
+            }
         }
 
         function openDialog(row) {
             form.reset();
             setField("ProductId", root.dataset.productId);
+
             if (row) {
                 title.textContent = `Chỉnh sửa ${row.dataset.sku}`;
                 setField("VariantId", row.dataset.variantId);
@@ -89,37 +123,54 @@
                 setField("StockQuantity", row.dataset.stock);
                 setField("IsActive", row.dataset.active);
             } else {
-                title.textContent = "Thêm biến thể";
+                title.textContent = "Thêm lựa chọn bán";
                 setField("VariantId", 0);
                 setField("RowVersion", "");
                 setField("IsActive", true);
             }
+
             dialog.showModal();
         }
 
         root.addEventListener("click", async (event) => {
             const openButton = event.target.closest("[data-open-variant]");
+
             if (openButton) {
                 openDialog(openButton.closest("[data-variant-row]"));
                 return;
             }
 
-            const deleteButton = event.target.closest("[data-delete-gallery-image]");
-            if (deleteButton) {
-                const figure = deleteButton.closest("[data-gallery-image]");
-                if (!window.confirm("Xóa ảnh này khỏi thư viện sản phẩm?")) return;
-                deleteButton.disabled = true;
-                try {
-                    const formData = new FormData();
-                    formData.append("imageId", figure.dataset.imageId);
-                    const result = await http.postForm("/Admin/Products/DeleteProductImage", formData);
-                    if (!result.success) throw new Error(result.message ?? "Không thể xóa ảnh.");
-                    figure.remove();
-                    setFeedback(result.message, "success");
-                } catch (error) {
-                    setFeedback(error.message, "error");
-                    deleteButton.disabled = false;
+            const deleteButton =
+                event.target.closest("[data-delete-gallery-image]");
+
+            if (!deleteButton) return;
+
+            const figure = deleteButton.closest("[data-gallery-image]");
+
+            if (!window.confirm("Xóa ảnh này khỏi thư viện sản phẩm?")) {
+                return;
+            }
+
+            deleteButton.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append("imageId", figure.dataset.imageId);
+
+                const result = await http.postForm(
+                    "/Admin/Products/DeleteProductImage",
+                    formData
+                );
+
+                if (!result.success) {
+                    throw new Error(result.message ?? "Không thể xóa ảnh.");
                 }
+
+                figure.remove();
+                setFeedback(result.message, "success");
+            } catch (error) {
+                setFeedback(error.message, "error");
+                deleteButton.disabled = false;
             }
         });
 
@@ -131,11 +182,25 @@
             event.preventDefault();
             const submitButton = form.querySelector('button[type="submit"]');
             submitButton.disabled = true;
+
             try {
                 const formData = new FormData(form);
-                if (!form.querySelector('[data-field="IsActive"]').checked) formData.set("IsActive", "false");
-                const result = await http.postForm("/Admin/Products/SaveQuickVariant", formData);
-                if (!result.success) throw new Error(result.message ?? "Không thể lưu biến thể.");
+
+                if (!form.querySelector('[data-field="IsActive"]').checked) {
+                    formData.set("IsActive", "false");
+                }
+
+                const result = await http.postForm(
+                    "/Admin/Products/SaveQuickVariant",
+                    formData
+                );
+
+                if (!result.success) {
+                    throw new Error(
+                        result.message ?? "Không thể lưu lựa chọn bán."
+                    );
+                }
+
                 dialog.close();
                 setFeedback(result.message, "success");
                 window.setTimeout(() => window.location.reload(), 350);

@@ -1,12 +1,10 @@
 @using WebApplication2.Models.Enums
 @model WebApplication2.Areas.Admin.ViewModels.PriceCampaigns.PriceCampaignIndexPageViewModel
 @{
-    ViewData["Title"] = "Quản lý giá";
-    var runningCount = Model.Items.Count(item =>
-        item.Status == PriceCampaignStatus.Active);
+    ViewData["Title"] = "Lịch áp dụng giá";
+    var runningCount = Model.Items.Count(item => item.Status == PriceCampaignStatus.Active);
     var scheduledCount = Model.Items.Count(item =>
-        item.Status is PriceCampaignStatus.Scheduled
-            or PriceCampaignStatus.Confirmed);
+        item.Status is PriceCampaignStatus.Scheduled or PriceCampaignStatus.Confirmed);
     var terminalCount = Model.Items.Count(item =>
         item.Status is PriceCampaignStatus.Completed
             or PriceCampaignStatus.Cancelled
@@ -14,55 +12,76 @@
 }
 
 <section class="admin-page" data-price-campaign-index>
-    <header class="admin-page-header">
+    <header class="admin-page-header admin-page-header--hero">
         <div>
-            <p class="eyebrow">Pricing operations</p>
-            <h2>Quản lý kế hoạch giá</h2>
+            <p class="admin-page-kicker">Điều hành giá bán theo thời gian</p>
+            <h2>Lịch áp dụng giá cho từng mã hàng</h2>
             <p class="admin-page-lead">
-                Điều hành vòng đời giá theo biến thể, xử lý chồng lấn có kiểm soát, dừng giá đang chạy và phục hồi giá cũ với lịch sử kiểm toán.
+                Lập lịch giá hiệu lực, xử lý chồng lấn và phục hồi giá cũ theo SKU.
+                Khu vực này không quản lý mã giảm giá, ưu đãi tại giỏ hàng hoặc chương trình bán nhanh theo khung giờ.
             </p>
         </div>
-        <a asp-action="Create" class="btn btn-primary">
-            <i class="fa-solid fa-plus" aria-hidden="true"></i>
-            Tạo kế hoạch
-        </a>
+        <a asp-action="Create" class="button button--primary">Tạo lịch giá</a>
     </header>
 
-    <div class="metric-grid metric-grid--four" aria-label="Tổng quan kế hoạch giá">
-        <article class="metric-card">
-            <span>Tổng kế hoạch</span>
-            <strong>@Model.Items.Count</strong>
-        </article>
-        <article class="metric-card">
-            <span>Đang hiệu lực</span>
-            <strong>@runningCount</strong>
-        </article>
-        <article class="metric-card">
-            <span>Đã lên lịch</span>
-            <strong>@scheduledCount</strong>
-        </article>
-        <article class="metric-card">
-            <span>Đã kết thúc</span>
-            <strong>@terminalCount</strong>
-        </article>
+    <div class="pricing-taxonomy-note">
+        <strong>Phân loại nghiệp vụ:</strong>
+        Lịch giá thay đổi giá hiển thị của SKU theo thời gian.
+        Khuyến mãi áp điều kiện giảm tại giỏ hàng hoặc mã giảm giá.
+        Chương trình bán nhanh theo khung giờ cần hạn mức hàng, giới hạn mua và cơ chế chống bán vượt.
     </div>
+
+    <section class="admin-metric-grid admin-metric-grid--four" aria-label="Tổng quan lịch giá">
+        <article class="admin-metric-card">
+            <div>
+                <span class="admin-metric-card__label">Tổng lịch giá</span>
+                <strong class="admin-metric-card__value">@Model.Items.Count</strong>
+            </div>
+        </article>
+        <article class="admin-metric-card admin-metric-card--success">
+            <div>
+                <span class="admin-metric-card__label">Đang hiệu lực</span>
+                <strong class="admin-metric-card__value">@runningCount</strong>
+            </div>
+        </article>
+        <article class="admin-metric-card admin-metric-card--info">
+            <div>
+                <span class="admin-metric-card__label">Đã lên lịch</span>
+                <strong class="admin-metric-card__value">@scheduledCount</strong>
+            </div>
+        </article>
+        <article class="admin-metric-card">
+            <div>
+                <span class="admin-metric-card__label">Đã kết thúc</span>
+                <strong class="admin-metric-card__value">@terminalCount</strong>
+            </div>
+        </article>
+    </section>
 
     <div class="page-feedback"
          data-page-feedback
          role="status"
          aria-live="polite"></div>
 
-    <div class="data-panel">
-        <div class="table-responsive">
-            <table class="table align-middle campaign-table">
+    <section class="admin-panel">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">Vòng đời giá</p>
+                <h3>Danh sách lịch áp dụng</h3>
+                <p>Mỗi lịch giá phải có nguồn, thời gian hiệu lực, chính sách chồng lấn và lịch sử kiểm toán.</p>
+            </div>
+        </header>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table campaign-table">
                 <thead>
                     <tr>
-                        <th>Kế hoạch</th>
-                        <th>Thời gian</th>
-                        <th>Chính sách</th>
-                        <th class="text-center">Biến thể</th>
+                        <th>Lịch giá</th>
+                        <th>Thời gian hiệu lực</th>
+                        <th>Xử lý chồng lấn</th>
+                        <th class="u-text-center">Mã hàng</th>
                         <th>Trạng thái</th>
-                        <th class="text-end">Thao tác</th>
+                        <th class="u-text-end">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -70,9 +89,11 @@
                     {
                         <tr>
                             <td colspan="6">
-                                <div class="empty-state compact">
-                                    <strong>Chưa có kế hoạch giá</strong>
-                                    <span>Tạo kế hoạch đầu tiên để quản lý giá theo từng biến thể.</span>
+                                <div class="admin-empty-state admin-empty-state--compact">
+                                    <div>
+                                        <strong>Chưa có lịch giá</strong>
+                                        <span>Tạo lịch đầu tiên để quản lý giá hiệu lực theo SKU.</span>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -94,16 +115,12 @@
                             };
                             var policyText = item.ConflictPolicy switch
                             {
-                                PriceConflictPolicy.ReplaceFromStart => "Thay từ lúc bắt đầu",
+                                PriceConflictPolicy.ReplaceFromStart => "Thay từ thời điểm bắt đầu",
                                 PriceConflictPolicy.SupersedeNow => "Thay thế ngay",
                                 _ => "Từ chối chồng lấn"
                             };
-                            var statusClass = item.Status
-                                .ToString()
-                                .ToLowerInvariant();
-                            var policyClass = item.ConflictPolicy
-                                .ToString()
-                                .ToLowerInvariant();
+                            var statusClass = item.Status.ToString().ToLowerInvariant();
+                            var policyClass = item.ConflictPolicy.ToString().ToLowerInvariant();
 
                             <tr data-campaign-row
                                 data-campaign-id="@item.Id"
@@ -112,23 +129,21 @@
                                 data-campaign-status="@item.Status"
                                 data-row-version="@item.RowVersion">
                                 <td>
-                                    <strong>@item.Name</strong>
-                                    <small>@item.Code · @item.SourceType · @item.CreatedBy</small>
+                                    <span class="admin-cell-primary">@item.Name</span>
+                                    <span class="admin-cell-secondary">@item.Code · @item.SourceType · @item.CreatedBy</span>
                                     @if (!string.IsNullOrWhiteSpace(item.Description))
                                     {
-                                        <small>@item.Description</small>
+                                        <span class="admin-cell-secondary">@item.Description</span>
                                     }
                                 </td>
                                 <td>
-                                    <time datetime="@item.StartDateUtc.ToString("O")"
-                                          data-local-datetime>
+                                    <time datetime="@item.StartDateUtc.ToString("O")" data-local-datetime>
                                         @item.StartDateUtc.ToString("dd/MM/yyyy HH:mm") UTC
                                     </time>
                                     <span class="time-separator">→</span>
                                     @if (item.EndDateUtc.HasValue)
                                     {
-                                        <time datetime="@item.EndDateUtc.Value.ToString("O")"
-                                              data-local-datetime>
+                                        <time datetime="@item.EndDateUtc.Value.ToString("O")" data-local-datetime>
                                             @item.EndDateUtc.Value.ToString("dd/MM/yyyy HH:mm") UTC
                                         </time>
                                     }
@@ -138,26 +153,22 @@
                                     }
                                 </td>
                                 <td>
-                                    <span class="policy-badge policy-badge--@policyClass">
-                                        @policyText
-                                    </span>
+                                    <span class="policy-badge policy-badge--@policyClass">@policyText</span>
                                 </td>
-                                <td class="text-center">
+                                <td class="u-text-center">
                                     <span class="count-badge">@item.VariantCount</span>
                                 </td>
                                 <td>
-                                    <span class="status-badge status-badge--@statusClass">
-                                        @statusText
-                                    </span>
+                                    <span class="status-badge status-badge--@statusClass">@statusText</span>
                                     @if (item.SupersededByCampaignId.HasValue)
                                     {
-                                        <small>Thay bởi #@item.SupersededByCampaignId</small>
+                                        <span class="admin-cell-secondary">Thay bởi #@item.SupersededByCampaignId</span>
                                     }
                                 </td>
-                                <td class="text-end">
+                                <td class="u-text-end">
                                     <div class="table-actions">
                                         <button type="button"
-                                                class="btn btn-sm btn-outline-secondary"
+                                                class="button button--secondary button--small"
                                                 data-view-timeline>
                                             Chi tiết
                                         </button>
@@ -166,16 +177,15 @@
                                         {
                                             <a asp-action="Create"
                                                asp-route-id="@item.Id"
-                                               class="btn btn-sm btn-outline-primary">
+                                               class="button button--secondary button--small">
                                                 Chỉnh sửa
                                             </a>
                                         }
 
-                                        @if (item.Status is PriceCampaignStatus.Confirmed
-                                            or PriceCampaignStatus.Scheduled)
+                                        @if (item.Status is PriceCampaignStatus.Confirmed or PriceCampaignStatus.Scheduled)
                                         {
                                             <button type="button"
-                                                    class="btn btn-sm btn-primary"
+                                                    class="button button--primary button--small"
                                                     data-apply-campaign>
                                                 Áp dụng ngay
                                             </button>
@@ -187,9 +197,9 @@
                                             or PriceCampaignStatus.Active)
                                         {
                                             <button type="button"
-                                                    class="btn btn-sm btn-outline-danger"
+                                                    class="button button--danger button--small"
                                                     data-cancel-campaign>
-                                                Dừng / hủy
+                                                Dừng lịch giá
                                             </button>
                                         }
 
@@ -199,9 +209,9 @@
                                             or PriceCampaignStatus.Superseded)
                                         {
                                             <button type="button"
-                                                    class="btn btn-sm btn-outline-secondary"
+                                                    class="button button--secondary button--small"
                                                     data-recover-campaign>
-                                                Phục hồi giá cũ
+                                                Phục hồi giá trước
                                             </button>
                                         }
                                     </div>
@@ -212,21 +222,20 @@
                 </tbody>
             </table>
         </div>
-    </div>
+    </section>
 
     <dialog class="pricing-dialog lifecycle-dialog" data-lifecycle-dialog>
         <form method="dialog" class="pricing-dialog__surface" data-lifecycle-form>
             <header class="pricing-dialog__header">
                 <div>
-                    <p class="eyebrow">Lifecycle operation</p>
+                    <p class="admin-page-kicker">Thao tác vòng đời</p>
                     <h3 data-lifecycle-title>Xác nhận thao tác</h3>
                     <span data-lifecycle-description></span>
                 </div>
                 <button type="button"
                         class="pricing-dialog__close"
-                        data-close-lifecycle
-                        aria-label="Đóng">
-                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        data-close-lifecycle>
+                    Đóng
                 </button>
             </header>
             <div class="pricing-dialog__body">
@@ -234,23 +243,22 @@
                 <div class="form-field">
                     <label for="lifecycle-reason">Lý do thao tác</label>
                     <textarea id="lifecycle-reason"
-                              class="form-control"
                               maxlength="500"
                               rows="3"
                               data-lifecycle-reason
                               required></textarea>
-                    <small>Lý do được ghi vào lịch sử giá để phục vụ kiểm toán.</small>
+                    <small>Lý do được ghi vào nhật ký giá để phục vụ kiểm toán.</small>
                 </div>
                 <div class="confirmation-warning" data-lifecycle-warning></div>
             </div>
             <footer class="pricing-dialog__footer">
                 <button type="button"
-                        class="btn btn-outline-secondary"
+                        class="button button--secondary"
                         data-close-lifecycle>
                     Quay lại
                 </button>
                 <button type="submit"
-                        class="btn btn-danger"
+                        class="button button--danger"
                         data-lifecycle-confirm>
                     Xác nhận
                 </button>
@@ -262,15 +270,14 @@
         <div class="pricing-dialog__surface pricing-dialog__surface--wide">
             <header class="pricing-dialog__header">
                 <div>
-                    <p class="eyebrow">Audit timeline</p>
-                    <h3 data-timeline-title>Chi tiết kế hoạch</h3>
+                    <p class="admin-page-kicker">Nhật ký kiểm toán</p>
+                    <h3 data-timeline-title>Chi tiết lịch giá</h3>
                     <span data-timeline-subtitle></span>
                 </div>
                 <button type="button"
                         class="pricing-dialog__close"
-                        data-close-timeline
-                        aria-label="Đóng">
-                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        data-close-timeline>
+                    Đóng
                 </button>
             </header>
             <div class="pricing-dialog__body" data-timeline-body>
@@ -278,7 +285,7 @@
             </div>
             <footer class="pricing-dialog__footer">
                 <button type="button"
-                        class="btn btn-outline-secondary"
+                        class="button button--secondary"
                         data-close-timeline>
                     Đóng
                 </button>

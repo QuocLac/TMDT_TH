@@ -4,45 +4,102 @@
 }
 
 <section class="admin-page product-editor" data-product-edit data-product-id="@Model.Id">
-    <header class="admin-page-header">
+    <header class="admin-page-header admin-page-header--hero">
         <div>
-            <p class="eyebrow">Catalog maintenance</p>
+            <p class="admin-page-kicker">Quản lý nội dung hàng hóa</p>
             <h2>@Model.Name</h2>
-            <p class="admin-page-lead">Thông tin sản phẩm và biến thể được lưu bằng các luồng riêng để giảm rủi ro ghi đè.</p>
+            <p class="admin-page-lead">
+                Thông tin cơ bản, lựa chọn bán và thông tin ngành hàng được lưu ở các phần riêng
+                để tránh ghi đè dữ liệu giá hoặc số lượng bán.
+            </p>
         </div>
-        <div class="header-actions">
-            <a asp-area="" asp-controller="Products" asp-action="Details" asp-route-slug="@Model.Slug" target="_blank" rel="noopener" class="btn btn-outline-secondary">Xem trang bán</a>
-            <a asp-action="Index" class="btn btn-outline-secondary">Quay lại</a>
+        <div class="admin-page-header__actions">
+            <a asp-area="Admin"
+               asp-controller="ProductInformation"
+               asp-action="EditProduct"
+               asp-route-productId="@Model.Id"
+               class="button button--primary">
+                Thông tin ngành hàng
+            </a>
+            <a asp-area=""
+               asp-controller="Products"
+               asp-action="Details"
+               asp-route-slug="@Model.Slug"
+               target="_blank"
+               rel="noopener"
+               class="button button--secondary">
+                Xem trang bán
+            </a>
+            <a asp-action="Index" class="button button--secondary">Quay lại</a>
         </div>
     </header>
 
     <div class="page-feedback" data-page-feedback role="status" aria-live="polite"></div>
 
-    <form asp-action="Edit" asp-route-id="@Model.Id" method="post" enctype="multipart/form-data" class="product-editor-form">
+    <form asp-action="Edit"
+          asp-route-id="@Model.Id"
+          method="post"
+          enctype="multipart/form-data"
+          class="product-editor-form">
         <input asp-for="Id" type="hidden" />
-        <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+        <div asp-validation-summary="ModelOnly"
+             class="admin-notice admin-notice--danger"></div>
 
         <section class="editor-card">
-            <div class="editor-card__heading"><span class="step-index">01</span><h3>Thông tin chung và SEO</h3></div>
+            <div class="editor-card__heading">
+                <span class="step-index">01</span>
+                <h3>Thông tin cơ bản và tìm kiếm</h3>
+            </div>
             <div class="editor-grid">
-                <label class="field field--wide">Tên sản phẩm<input asp-for="Name" class="form-control" /><span asp-validation-for="Name"></span></label>
-                <label class="field">Slug<input asp-for="Slug" class="form-control" /><span asp-validation-for="Slug"></span></label>
-                <label class="field">Danh mục<select asp-for="CategoryId" asp-items="Model.CategoryOptions" class="form-select"></select></label>
-                <label class="field">Thương hiệu<select asp-for="BrandId" asp-items="Model.BrandOptions" class="form-select"></select></label>
-                <label class="field field--wide">Mô tả<textarea asp-for="Description" class="form-control" rows="5"></textarea></label>
-                <label class="field">Meta title<input asp-for="MetaTitle" class="form-control" /></label>
-                <label class="field">Meta description<textarea asp-for="MetaDescription" class="form-control" rows="3"></textarea></label>
-                <label class="form-check field--check"><input asp-for="IsActive" class="form-check-input" /><span>Hiển thị sản phẩm</span></label>
+                <label class="field field--wide">
+                    Tên sản phẩm
+                    <input asp-for="Name" />
+                    <span asp-validation-for="Name"></span>
+                </label>
+                <label class="field">
+                    Đường dẫn SEO
+                    <input asp-for="Slug" />
+                    <span asp-validation-for="Slug"></span>
+                </label>
+                <label class="field">
+                    Danh mục
+                    <select asp-for="CategoryId" asp-items="Model.CategoryOptions"></select>
+                </label>
+                <label class="field">
+                    Thương hiệu
+                    <select asp-for="BrandId" asp-items="Model.BrandOptions"></select>
+                </label>
+                <label class="field field--wide">
+                    Giới thiệu sản phẩm
+                    <textarea asp-for="Description" rows="5"></textarea>
+                </label>
+                <label class="field">
+                    Tiêu đề tìm kiếm
+                    <input asp-for="MetaTitle" />
+                </label>
+                <label class="field">
+                    Mô tả tìm kiếm
+                    <textarea asp-for="MetaDescription" rows="3"></textarea>
+                </label>
+                <label class="form-check field--check">
+                    <input asp-for="IsActive" />
+                    <span>Hiển thị sản phẩm</span>
+                </label>
             </div>
         </section>
 
         <section class="editor-card">
-            <div class="editor-card__heading"><span class="step-index">02</span><h3>Hình ảnh sản phẩm</h3></div>
+            <div class="editor-card__heading">
+                <span class="step-index">02</span>
+                <h3>Hình ảnh sản phẩm</h3>
+            </div>
             <div class="media-editor">
                 <div class="media-editor__main">
                     <span>Ảnh đại diện hiện tại</span>
                     <img src="@(Model.CurrentMainImageUrl ?? "/images/no-image.png")" alt="" />
-                    <input asp-for="MainImage" type="file" class="form-control" accept="image/jpeg,image/png,image/webp" />
+                    <input asp-for="MainImage"
+                           type="file"
+                           accept="image/jpeg,image/png,image/webp" />
                 </div>
                 <div class="media-editor__gallery">
                     <div class="media-grid" data-gallery-list>
@@ -50,11 +107,21 @@
                         {
                             <figure data-gallery-image data-image-id="@image.Id">
                                 <img src="@image.Url" alt="" loading="lazy" />
-                                <button type="button" class="btn btn-sm btn-danger" data-delete-gallery-image>Xóa</button>
+                                <button type="button"
+                                        class="button button--danger button--small"
+                                        data-delete-gallery-image>
+                                    Xóa
+                                </button>
                             </figure>
                         }
                     </div>
-                    <label class="field">Thêm ảnh thư viện<input asp-for="GalleryImages" type="file" class="form-control" accept="image/jpeg,image/png,image/webp" multiple /></label>
+                    <label class="field">
+                        Thêm ảnh bổ sung
+                        <input asp-for="GalleryImages"
+                               type="file"
+                               accept="image/jpeg,image/png,image/webp"
+                               multiple />
+                    </label>
                 </div>
             </div>
         </section>
@@ -62,48 +129,100 @@
         @if (Model.PromotionOptions.Count > 0)
         {
             <section class="editor-card">
-                <div class="editor-card__heading"><span class="step-index">03</span><h3>Khuyến mãi sản phẩm hiện có</h3></div>
+                <div class="editor-card__heading">
+                    <span class="step-index">03</span>
+                    <h3>Chương trình giảm giá đang có</h3>
+                </div>
                 <div class="choice-grid">
                     @foreach (var option in Model.PromotionOptions)
                     {
-                        <label class="choice-card"><input type="checkbox" name="SelectedPromotionIds" value="@option.Value" checked="@option.Selected" /><span>@option.Text</span></label>
+                        <label class="choice-card">
+                            <input type="checkbox"
+                                   name="SelectedPromotionIds"
+                                   value="@option.Value"
+                                   checked="@option.Selected" />
+                            <span>@option.Text</span>
+                        </label>
                     }
                 </div>
             </section>
         }
 
         <footer class="sticky-editor-actions">
-            <span>Lưu phần thông tin chung trước khi chỉnh biến thể.</span>
-            <div><a asp-action="Index" class="btn btn-outline-secondary">Hủy</a><button class="btn btn-primary" type="submit">Lưu thông tin</button></div>
+            <span>Lưu thông tin cơ bản trước khi thay đổi các lựa chọn bán.</span>
+            <div>
+                <a asp-action="Index" class="button button--secondary">Hủy</a>
+                <button class="button button--primary" type="submit">Lưu thông tin</button>
+            </div>
         </footer>
     </form>
 
     <section class="editor-card variant-management">
         <div class="editor-card__heading editor-card__heading--actions">
-            <div><span class="step-index">04</span><div><h3>Biến thể bán hàng</h3><small>SKU được cấp tự động và không thể chỉnh sửa.</small></div></div>
-            <button type="button" class="btn btn-sm btn-primary" data-open-variant data-product-id="@Model.Id">Thêm biến thể</button>
+            <div>
+                <span class="step-index">04</span>
+                <div>
+                    <h3>Các lựa chọn bán</h3>
+                    <small>Mỗi lựa chọn có mã hàng, giá và số lượng bán riêng.</small>
+                </div>
+            </div>
+            <button type="button"
+                    class="button button--primary button--small"
+                    data-open-variant
+                    data-product-id="@Model.Id">
+                Thêm lựa chọn
+            </button>
         </div>
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead><tr><th>SKU</th><th>Thuộc tính</th><th>Giá niêm yết</th><th>Giá hiệu lực</th><th>Tồn</th><th>Trạng thái</th><th></th></tr></thead>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table">
+                <thead>
+                    <tr>
+                        <th>Mã hàng</th>
+                        <th>Mô tả lựa chọn</th>
+                        <th>Giá niêm yết</th>
+                        <th>Giá đang áp dụng</th>
+                        <th>Số lượng</th>
+                        <th>Trạng thái</th>
+                        <th></th>
+                    </tr>
+                </thead>
                 <tbody data-edit-variant-list>
-                    @foreach (var variant in Model.Variants)
+                    @foreach (var item in Model.Variants)
                     {
-                        var variantAttributes = string.Join(" · ", new[] { variant.Color, variant.Size }
-                            .Where(value => !string.IsNullOrWhiteSpace(value)));
+                        var selectionLabel = string.Join(
+                            " · ",
+                            new[] { item.Color, item.Size }
+                                .Where(value => !string.IsNullOrWhiteSpace(value)));
+
                         <tr data-variant-row
-                            data-variant-id="@variant.Id" data-product-id="@Model.Id" data-row-version="@variant.RowVersion"
-                            data-sku="@variant.SKU" data-color="@variant.Color" data-size="@variant.Size"
-                            data-price="@variant.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)"
-                            data-current-price="@variant.CurrentPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)"
-                            data-stock="@variant.StockQuantity" data-active="@variant.IsActive.ToString().ToLowerInvariant()">
-                            <td><strong>@variant.SKU</strong></td>
-                            <td>@(string.IsNullOrWhiteSpace(variantAttributes) ? "—" : variantAttributes)</td>
-                            <td>@variant.Price.ToString("N0") ₫</td>
-                            <td>@variant.CurrentPrice.ToString("N0") ₫</td>
-                            <td>@variant.StockQuantity</td>
-                            <td>@(variant.IsActive ? "Đang bán" : "Tạm ẩn")</td>
-                            <td class="text-end"><button type="button" class="btn btn-sm btn-outline-secondary" data-open-variant>Sửa</button></td>
+                            data-variant-id="@item.Id"
+                            data-product-id="@Model.Id"
+                            data-row-version="@item.RowVersion"
+                            data-sku="@item.SKU"
+                            data-color="@item.Color"
+                            data-size="@item.Size"
+                            data-price="@item.Price.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                            data-current-price="@item.CurrentPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                            data-stock="@item.StockQuantity"
+                            data-active="@item.IsActive.ToString().ToLowerInvariant()">
+                            <td><strong>@item.SKU</strong></td>
+                            <td>
+                                @(string.IsNullOrWhiteSpace(selectionLabel)
+                                    ? "Lựa chọn tiêu chuẩn"
+                                    : selectionLabel)
+                            </td>
+                            <td>@item.Price.ToString("N0") ₫</td>
+                            <td>@item.CurrentPrice.ToString("N0") ₫</td>
+                            <td>@item.StockQuantity</td>
+                            <td>@(item.IsActive ? "Đang bán" : "Tạm ngừng bán")</td>
+                            <td class="u-text-end">
+                                <button type="button"
+                                        class="button button--secondary button--small"
+                                        data-open-variant>
+                                    Chỉnh sửa
+                                </button>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -113,24 +232,81 @@
 
     <dialog class="variant-dialog" data-variant-dialog>
         <form method="dialog" class="variant-dialog__surface" data-variant-form>
-            <header><div><p class="eyebrow">Variant editor</p><h3 data-variant-dialog-title>Biến thể</h3></div><button type="button" class="btn-close" data-close-variant aria-label="Đóng"></button></header>
+            <header>
+                <div>
+                    <p class="admin-page-kicker">Lựa chọn bán hàng</p>
+                    <h3 data-variant-dialog-title>Lựa chọn bán</h3>
+                </div>
+                <button type="button"
+                        class="variant-dialog__close"
+                        data-close-variant>
+                    Đóng
+                </button>
+            </header>
+
             <input type="hidden" name="VariantId" data-field="VariantId" />
             <input type="hidden" name="ProductId" value="@Model.Id" data-field="ProductId" />
             <input type="hidden" name="RowVersion" data-field="RowVersion" />
+
             <div class="variant-form-grid">
-                <label>Màu<input class="form-control" name="Color" data-field="Color" /></label>
-                <label>Size / quy cách<input class="form-control" name="Size" data-field="Size" /></label>
-                <label>Giá niêm yết<input class="form-control" type="number" min="0.01" step="0.01" name="Price" required data-field="Price" /></label>
-                <label>Tồn kho<input class="form-control" type="number" min="0" name="StockQuantity" required data-field="StockQuantity" /></label>
-                <label>Ảnh biến thể<input class="form-control" type="file" name="VariantImage" accept="image/jpeg,image/png,image/webp" /></label>
-                <label class="form-check variant-form-grid__active"><input class="form-check-input" type="checkbox" name="IsActive" value="true" data-field="IsActive" /><span>Cho phép bán</span></label>
+                <label>
+                    Màu sắc / phiên bản
+                    <input name="Color" data-field="Color" />
+                </label>
+                <label>
+                    Kích cỡ / dung lượng / quy cách
+                    <input name="Size" data-field="Size" />
+                </label>
+                <label>
+                    Giá niêm yết
+                    <input type="number"
+                           min="0.01"
+                           step="0.01"
+                           name="Price"
+                           required
+                           data-field="Price" />
+                </label>
+                <label>
+                    Số lượng có thể bán
+                    <input type="number"
+                           min="0"
+                           name="StockQuantity"
+                           required
+                           data-field="StockQuantity" />
+                </label>
+                <label>
+                    Ảnh của lựa chọn
+                    <input type="file"
+                           name="VariantImage"
+                           accept="image/jpeg,image/png,image/webp" />
+                </label>
+                <label class="form-check variant-form-grid__active">
+                    <input type="checkbox"
+                           name="IsActive"
+                           value="true"
+                           data-field="IsActive" />
+                    <span>Cho phép bán</span>
+                </label>
             </div>
-            <footer><button type="button" class="btn btn-outline-secondary" data-close-variant>Hủy</button><button type="submit" class="btn btn-primary">Lưu biến thể</button></footer>
+
+            <footer>
+                <button type="button"
+                        class="button button--secondary"
+                        data-close-variant>
+                    Hủy
+                </button>
+                <button type="submit" class="button button--primary">
+                    Lưu lựa chọn
+                </button>
+            </footer>
         </form>
     </dialog>
 </section>
 
-@section Styles { <link rel="stylesheet" href="~/css/pages/admin/products-editor.css" asp-append-version="true" /> }
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/products-editor.css" asp-append-version="true" />
+}
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script src="~/js/pages/admin/products-editor.js" asp-append-version="true"></script>

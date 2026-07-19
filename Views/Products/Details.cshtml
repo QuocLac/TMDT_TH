@@ -1,15 +1,22 @@
 @model WebApplication2.ViewModels.Storefront.Products.ProductDetailsViewModel
 @{
-    ViewData["Title"] = string.IsNullOrWhiteSpace(Model.MetaTitle) ? Model.Name : Model.MetaTitle;
+    ViewData["Title"] = string.IsNullOrWhiteSpace(Model.MetaTitle)
+        ? Model.Name
+        : Model.MetaTitle;
     ViewData["MetaDescription"] = Model.MetaDescription;
-    var mainImage = Model.Images.FirstOrDefault(image => image.IsMain) ?? Model.Images.First();
+    var mainImage = Model.Images.FirstOrDefault(image => image.IsMain)
+        ?? Model.Images.First();
 }
 
 <div class="shell-container product-details-page">
-    <nav class="breadcrumb" aria-label="Breadcrumb">
+    <nav class="breadcrumb" aria-label="Đường dẫn">
         <a asp-controller="Home" asp-action="Index">Trang chủ</a>
         <span aria-hidden="true">/</span>
-        <a asp-controller="Home" asp-action="Index" asp-route-categoryId="@Model.CategoryId">@Model.CategoryName</a>
+        <a asp-controller="Home"
+           asp-action="Index"
+           asp-route-categoryId="@Model.CategoryId">
+            @Model.CategoryName
+        </a>
         <span aria-hidden="true">/</span>
         <span aria-current="page">@Model.Name</span>
     </nav>
@@ -17,14 +24,19 @@
     <article class="product-details">
         <section class="product-gallery" aria-label="Hình ảnh sản phẩm">
             <div class="product-gallery__main">
-                <img id="product-main-image" src="@mainImage.Url" alt="@Model.Name" />
+                <img id="product-main-image"
+                     src="@mainImage.Url"
+                     alt="@Model.Name" />
             </div>
             @if (Model.Images.Count > 1)
             {
                 <div class="product-gallery__thumbs">
                     @foreach (var image in Model.Images)
                     {
-                        <button type="button" class="product-gallery__thumb" data-product-image="@image.Url" aria-label="Xem ảnh khác của @Model.Name">
+                        <button type="button"
+                                class="product-gallery__thumb"
+                                data-product-image="@image.Url"
+                                aria-label="Xem ảnh khác của @Model.Name">
                             <img src="@image.Url" alt="" loading="lazy" />
                         </button>
                     }
@@ -35,6 +47,7 @@
         <section class="product-summary">
             <p class="product-summary__eyebrow">@Model.CategoryName</p>
             <h1>@Model.Name</h1>
+
             @if (!string.IsNullOrWhiteSpace(Model.BrandName))
             {
                 <p>Thương hiệu: <strong>@Model.BrandName</strong></p>
@@ -43,32 +56,35 @@
             @if (Model.Variants.Count == 0)
             {
                 <div class="empty-state">
-                    <h2>Sản phẩm tạm hết lựa chọn bán</h2>
+                    <h2>Sản phẩm hiện chưa có lựa chọn mua</h2>
                     <p>Vui lòng quay lại sau hoặc xem sản phẩm khác trong cùng danh mục.</p>
                 </div>
             }
             else
             {
-                <div class="variant-list" aria-label="Các biến thể đang bán">
-                    @foreach (var variant in Model.Variants)
+                <div class="variant-list" aria-label="Các lựa chọn mua">
+                    @foreach (var item in Model.Variants)
                     {
-                        var attributes = string.Join(" · ", new[] { variant.Color, variant.Size }.Where(value => !string.IsNullOrWhiteSpace(value)));
-                        <article class="variant-card @(variant.StockQuantity <= 0 ? "variant-card--sold-out" : null)">
+                        <article class="variant-card @(item.StockQuantity <= 0 ? "variant-card--sold-out" : null)">
                             <div>
-                                <strong>@variant.Sku</strong>
+                                <strong>@item.SelectionLabel</strong>
                                 <p>
-                                    <span>@(string.IsNullOrWhiteSpace(attributes) ? "Phiên bản tiêu chuẩn" : attributes)</span>
+                                    @(item.StockQuantity > 0
+                                        ? "Có thể đặt mua"
+                                        : "Tạm hết hàng")
                                 </p>
                             </div>
                             <div class="price-display">
-                                @if (variant.IsOnSale)
+                                @if (item.IsOnSale)
                                 {
-                                    <del>@variant.OriginalPrice.ToString("N0") ₫</del>
+                                    <del>@item.OriginalPrice.ToString("N0") ₫</del>
                                 }
-                                <strong>@variant.EffectivePrice.ToString("N0") ₫</strong>
+                                <strong>@item.EffectivePrice.ToString("N0") ₫</strong>
                             </div>
                             <span class="stock-state">
-                                @(variant.StockQuantity > 0 ? $"Còn {variant.StockQuantity} sản phẩm" : "Tạm hết hàng")
+                                @(item.StockQuantity > 0
+                                    ? $"Còn {item.StockQuantity} sản phẩm"
+                                    : "Tạm hết hàng")
                             </span>
                         </article>
                     }
@@ -80,14 +96,43 @@
     @if (!string.IsNullOrWhiteSpace(Model.Description))
     {
         <section class="product-description surface-card">
-            <h2>Thông tin sản phẩm</h2>
+            <h2>Giới thiệu sản phẩm</h2>
             <div class="product-description__content">@Model.Description</div>
+        </section>
+    }
+
+    @if (Model.SpecificationGroups.Count > 0)
+    {
+        <section class="product-specifications surface-card">
+            <header>
+                <h2>Thông tin chi tiết</h2>
+                <p>Các thông tin dưới đây được trình bày theo nhóm để dễ tra cứu và so sánh.</p>
+            </header>
+
+            <div class="product-specification-groups">
+                @foreach (var group in Model.SpecificationGroups)
+                {
+                    <section class="product-specification-group">
+                        <h3>@group.Name</h3>
+                        <dl>
+                            @foreach (var item in group.Items)
+                            {
+                                <div>
+                                    <dt>@item.Name</dt>
+                                    <dd>@item.Value</dd>
+                                </div>
+                            }
+                        </dl>
+                    </section>
+                }
+            </div>
         </section>
     }
 </div>
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/storefront/product-details.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/storefront/product-specifications.css" asp-append-version="true" />
 }
 
 @section Scripts {

@@ -1,0 +1,227 @@
+@using WebApplication2.Areas.Admin.ViewModels.ProductInformation
+@using WebApplication2.Models.Enums
+@model ProductAttributeDefinitionIndexViewModel
+@{
+    ViewData["Title"] = "Cấu trúc thông tin sản phẩm";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/product-information.css" asp-append-version="true" />
+}
+
+<section class="admin-page product-information-page" data-product-information>
+    <header class="admin-page-header admin-page-header--hero">
+        <div>
+            <p class="admin-page-kicker">Dữ liệu hàng hóa</p>
+            <h2>Thư viện trường thông tin</h2>
+            <p class="admin-page-lead">
+                Tạo các trường dùng chung như chất liệu, công suất, tác giả, dung tích,
+                hạn sử dụng hoặc hệ điều hành. Danh mục sẽ quyết định trường nào cần nhập.
+            </p>
+        </div>
+        <a asp-action="CategoryTemplate" class="button button--secondary">
+            Cấu hình theo danh mục
+        </a>
+    </header>
+
+    <div class="product-information-layout">
+        <section class="admin-panel product-information-form-panel">
+            <header class="admin-panel__header">
+                <div>
+                    <p class="admin-page-kicker">Khai báo trường dữ liệu</p>
+                    <h3>Tạo hoặc cập nhật trường</h3>
+                    <p>Không dùng một ô mô tả tự do cho dữ liệu cần lọc, so sánh hoặc xuất sang kênh bán.</p>
+                </div>
+            </header>
+
+            <form asp-action="SaveDefinition"
+                  method="post"
+                  class="product-information-form"
+                  data-definition-form>
+                <input asp-for="Input.Id" type="hidden" data-definition-id />
+
+                <label>
+                    <span>Mã trường dữ liệu</span>
+                    <input asp-for="Input.Code"
+                           placeholder="vi_du: chat_lieu"
+                           data-definition-code />
+                    <small>Dùng nội bộ để liên kết dữ liệu; không hiển thị cho khách hàng.</small>
+                </label>
+
+                <label>
+                    <span>Tên hiển thị</span>
+                    <input asp-for="Input.Name"
+                           placeholder="Ví dụ: Chất liệu"
+                           data-definition-name />
+                </label>
+
+                <label>
+                    <span>Kiểu dữ liệu</span>
+                    <select asp-for="Input.DataType" data-definition-type>
+                        @foreach (var dataType in Enum.GetValues<ProductAttributeDataType>())
+                        {
+                            if (Model.Input.DataType == dataType)
+                            {
+                                <option value="@dataType" selected>
+                                    @ProductInformationDisplay.DataTypeText(dataType)
+                                </option>
+                            }
+                            else
+                            {
+                                <option value="@dataType">
+                                    @ProductInformationDisplay.DataTypeText(dataType)
+                                </option>
+                            }
+                        }
+                    </select>
+                </label>
+
+                <label data-number-unit>
+                    <span>Đơn vị</span>
+                    <input asp-for="Input.Unit" placeholder="W, ml, kg, inch..." />
+                </label>
+
+                <label class="product-information-form__wide">
+                    <span>Hướng dẫn nhập</span>
+                    <textarea asp-for="Input.HelpText"
+                              rows="3"
+                              placeholder="Giải thích cách nhập và phạm vi giá trị phù hợp"></textarea>
+                </label>
+
+                <label class="product-information-form__wide" data-choice-labels>
+                    <span>Các giá trị được phép</span>
+                    <textarea asp-for="Input.ChoiceLabels"
+                              rows="5"
+                              placeholder="Mỗi dòng là một lựa chọn, ví dụ:&#10;Cotton&#10;Linen&#10;Polyester"></textarea>
+                </label>
+
+                <div class="product-information-checks product-information-form__wide">
+                    <label><input asp-for="Input.IsCustomerVisible" /> Hiển thị trong thông tin sản phẩm</label>
+                    <label><input asp-for="Input.IsFilterable" /> Dùng làm bộ lọc tìm kiếm</label>
+                    <label><input asp-for="Input.IsComparable" /> Dùng trong bảng so sánh</label>
+                    <label><input asp-for="Input.IsActive" /> Cho phép sử dụng</label>
+                </div>
+
+                <div class="product-information-form__actions product-information-form__wide">
+                    <button type="reset"
+                            class="button button--secondary"
+                            data-definition-reset>
+                        Làm mới
+                    </button>
+                    <button type="submit" class="button button--primary">
+                        Lưu trường thông tin
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="admin-panel">
+            <header class="admin-panel__header">
+                <div>
+                    <p class="admin-page-kicker">Thư viện hiện có</p>
+                    <h3>@Model.Items.Count trường thông tin</h3>
+                    <p>Ngừng sử dụng thay vì xóa để bảo toàn dữ liệu sản phẩm đã lưu.</p>
+                </div>
+            </header>
+
+            <div class="admin-table-wrap">
+                <table class="admin-data-table">
+                    <thead>
+                        <tr>
+                            <th>Trường thông tin</th>
+                            <th>Kiểu dữ liệu</th>
+                            <th>Phạm vi sử dụng</th>
+                            <th>Hiển thị</th>
+                            <th class="u-text-end">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Items.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="5">
+                                    <div class="admin-empty-state admin-empty-state--compact">
+                                        <div>
+                                            <strong>Chưa có trường thông tin</strong>
+                                            <span>Tạo trường đầu tiên để cấu hình dữ liệu theo ngành hàng.</span>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in Model.Items)
+                            {
+                                <tr data-definition-row
+                                    data-id="@item.Id"
+                                    data-code="@item.Code"
+                                    data-name="@item.Name"
+                                    data-help-text="@item.HelpText"
+                                    data-type="@item.DataType"
+                                    data-unit="@item.Unit"
+                                    data-customer-visible="@item.IsCustomerVisible.ToString().ToLowerInvariant()"
+                                    data-filterable="@item.IsFilterable.ToString().ToLowerInvariant()"
+                                    data-comparable="@item.IsComparable.ToString().ToLowerInvariant()"
+                                    data-active="@item.IsActive.ToString().ToLowerInvariant()"
+                                    data-options="@string.Join("\n", item.Options)">
+                                    <td>
+                                        <span class="admin-cell-primary">@item.Name</span>
+                                        <span class="admin-cell-secondary">@item.Code</span>
+                                        @if (item.Options.Count > 0)
+                                        {
+                                            <span class="admin-cell-secondary">
+                                                @string.Join(" · ", item.Options.Take(4))
+                                                @(item.Options.Count > 4 ? "…" : string.Empty)
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span>@ProductInformationDisplay.DataTypeText(item.DataType)</span>
+                                        @if (!string.IsNullOrWhiteSpace(item.Unit))
+                                        {
+                                            <span class="admin-cell-secondary">Đơn vị: @item.Unit</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="admin-cell-primary">@item.CategoryCount danh mục</span>
+                                        <span class="admin-cell-secondary">@item.ProductValueCount sản phẩm đã nhập</span>
+                                    </td>
+                                    <td>
+                                        <span class="admin-badge admin-badge--@(item.IsActive ? "success" : "neutral")">
+                                            @(item.IsActive ? "Đang sử dụng" : "Đã ngừng")
+                                        </span>
+                                        <span class="admin-cell-secondary">
+                                            @(item.IsCustomerVisible ? "Có hiển thị cho khách" : "Chỉ dùng nội bộ")
+                                        </span>
+                                    </td>
+                                    <td class="u-text-end">
+                                        <div class="table-actions">
+                                            <button type="button"
+                                                    class="button button--secondary button--small"
+                                                    data-edit-definition>
+                                                Chỉnh sửa
+                                            </button>
+                                            <form asp-action="ToggleDefinition"
+                                                  asp-route-id="@item.Id"
+                                                  method="post">
+                                                <button type="submit"
+                                                        class="button button--secondary button--small">
+                                                    @(item.IsActive ? "Ngừng dùng" : "Dùng lại")
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="~/js/pages/admin/product-information.js" asp-append-version="true"></script>
+}

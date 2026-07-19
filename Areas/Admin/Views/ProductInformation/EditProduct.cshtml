@@ -1,0 +1,157 @@
+@using WebApplication2.Models.Enums
+@model WebApplication2.Areas.Admin.ViewModels.ProductInformation.ProductInformationEditViewModel
+@{
+    ViewData["Title"] = $"Thông tin sản phẩm - {Model.ProductName}";
+    var groups = Model.Fields
+        .GroupBy(item => item.GroupName)
+        .ToArray();
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/product-information.css" asp-append-version="true" />
+}
+
+<section class="admin-page product-information-page">
+    <header class="admin-page-header admin-page-header--hero">
+        <div>
+            <p class="admin-page-kicker">@Model.CategoryName</p>
+            <h2>@Model.ProductName</h2>
+            <p class="admin-page-lead">
+                Nhập thông tin có cấu trúc để khách hàng dễ đọc, bộ lọc hoạt động chính xác
+                và dữ liệu có thể dùng cho so sánh hoặc kênh bán khác.
+            </p>
+        </div>
+        <div class="admin-page-header__actions">
+            <a asp-area="Admin"
+               asp-controller="Products"
+               asp-action="Edit"
+               asp-route-id="@Model.ProductId"
+               class="button button--secondary">
+                Thông tin cơ bản
+            </a>
+            <a asp-area="Admin"
+               asp-controller="Products"
+               asp-action="Index"
+               class="button button--secondary">
+                Danh sách sản phẩm
+            </a>
+        </div>
+    </header>
+
+    @if (Model.Fields.Count == 0)
+    {
+        <section class="admin-panel">
+            <div class="admin-empty-state">
+                <div>
+                    <strong>Danh mục chưa có bộ thông tin</strong>
+                    <span>
+                        Hãy cấu hình trường dữ liệu cho danh mục @Model.CategoryName trước khi nhập thông tin sản phẩm.
+                    </span>
+                    <a asp-action="CategoryTemplate"
+                       asp-route-categoryId="@Model.CategoryId"
+                       class="button button--primary">
+                        Cấu hình danh mục
+                    </a>
+                </div>
+            </div>
+        </section>
+    }
+    else
+    {
+        <form asp-action="EditProduct"
+              asp-route-productId="@Model.ProductId"
+              method="post"
+              class="product-information-editor">
+            <input asp-for="ProductId" type="hidden" />
+            <div asp-validation-summary="ModelOnly"
+                 class="admin-notice admin-notice--danger"></div>
+
+            @for (var groupIndex = 0; groupIndex < groups.Length; groupIndex++)
+            {
+                var group = groups[groupIndex];
+
+                <section class="admin-panel product-information-group">
+                    <header class="admin-panel__header">
+                        <div>
+                            <p class="admin-page-kicker">Nhóm thông tin</p>
+                            <h3>@group.Key</h3>
+                        </div>
+                    </header>
+
+                    <div class="product-information-field-grid">
+                        @foreach (var field in group.OrderBy(item => item.DisplayOrder))
+                        {
+                            var index = Model.Fields.IndexOf(field);
+                            <div class="product-information-field @(field.DataType == ProductAttributeDataType.LongText ? "product-information-field--wide" : null)">
+                                <input asp-for="Fields[index].AttributeDefinitionId" type="hidden" />
+
+                                <label>
+                                    <span>
+                                        @field.Name
+                                        @if (field.IsRequired)
+                                        {
+                                            <strong aria-label="Bắt buộc">*</strong>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(field.Unit))
+                                        {
+                                            <small>(@field.Unit)</small>
+                                        }
+                                    </span>
+
+                                    @switch (field.DataType)
+                                    {
+                                        case ProductAttributeDataType.ShortText:
+                                            <input asp-for="Fields[index].TextValue"
+                                                   maxlength="2000" />
+                                            break;
+                                        case ProductAttributeDataType.LongText:
+                                            <textarea asp-for="Fields[index].TextValue"
+                                                      rows="5"
+                                                      maxlength="2000"></textarea>
+                                            break;
+                                        case ProductAttributeDataType.Number:
+                                            <input asp-for="Fields[index].NumberValue"
+                                                   type="number"
+                                                   step="0.0001" />
+                                            break;
+                                        case ProductAttributeDataType.Boolean:
+                                            <select asp-for="Fields[index].BooleanValue">
+                                                <option value="">Chưa xác định</option>
+                                                <option value="true">Có</option>
+                                                <option value="false">Không</option>
+                                            </select>
+                                            break;
+                                        case ProductAttributeDataType.Date:
+                                            <input asp-for="Fields[index].DateValue"
+                                                   type="date" />
+                                            break;
+                                        case ProductAttributeDataType.SingleChoice:
+                                            <select asp-for="Fields[index].OptionId"
+                                                    asp-items="field.OptionItems">
+                                                <option value="">Chọn giá trị</option>
+                                            </select>
+                                            break;
+                                    }
+
+                                    @if (!string.IsNullOrWhiteSpace(field.HelpText))
+                                    {
+                                        <small>@field.HelpText</small>
+                                    }
+                                </label>
+                            </div>
+                        }
+                    </div>
+                </section>
+            }
+
+            <footer class="sticky-editor-actions">
+                <span>
+                    Chỉ lưu dữ liệu đúng với sản phẩm. Không nhập nội dung quảng cáo vào phần thông số.
+                </span>
+                <button type="submit" class="button button--primary">
+                    Lưu thông tin ngành hàng
+                </button>
+            </footer>
+        </form>
+    }
+</section>

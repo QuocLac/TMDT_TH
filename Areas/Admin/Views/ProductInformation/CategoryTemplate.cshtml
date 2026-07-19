@@ -1,0 +1,114 @@
+@model WebApplication2.Areas.Admin.ViewModels.ProductInformation.CategoryProductInformationViewModel
+@{
+    ViewData["Title"] = "Thông tin theo danh mục";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/product-information.css" asp-append-version="true" />
+}
+
+<section class="admin-page product-information-page">
+    <header class="admin-page-header admin-page-header--hero">
+        <div>
+            <p class="admin-page-kicker">Chuẩn hóa dữ liệu ngành hàng</p>
+            <h2>Bộ thông tin theo danh mục</h2>
+            <p class="admin-page-lead">
+                Mỗi danh mục có số lượng trường khác nhau. Chỉ những trường được chọn tại đây
+                mới xuất hiện khi admin nhập thông tin cho sản phẩm.
+            </p>
+        </div>
+        <a asp-action="Definitions" class="button button--secondary">
+            Thư viện trường thông tin
+        </a>
+    </header>
+
+    @if (Model.CategoryOptions.Count == 0)
+    {
+        <section class="admin-panel">
+            <div class="admin-empty-state">
+                <div>
+                    <strong>Chưa có danh mục</strong>
+                    <span>Hãy tạo danh mục trước khi cấu hình bộ thông tin sản phẩm.</span>
+                </div>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="admin-panel category-template-panel">
+            <header class="admin-panel__header">
+                <div>
+                    <p class="admin-page-kicker">Danh mục đang cấu hình</p>
+                    <h3>@Model.CategoryName</h3>
+                </div>
+                <form method="get" asp-action="CategoryTemplate" class="category-template-picker">
+                    <label>
+                        <span>Chọn danh mục</span>
+                        <select name="categoryId"
+                                asp-items="Model.CategoryOptions"
+                                onchange="this.form.submit()"></select>
+                    </label>
+                </form>
+            </header>
+
+            <form asp-action="SaveCategoryTemplate"
+                  method="post"
+                  class="category-template-form">
+                <input asp-for="CategoryId" type="hidden" />
+
+                <div class="admin-table-wrap">
+                    <table class="admin-data-table">
+                        <thead>
+                            <tr>
+                                <th>Sử dụng</th>
+                                <th>Trường thông tin</th>
+                                <th>Nhóm hiển thị</th>
+                                <th>Bắt buộc</th>
+                                <th>Thứ tự</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (var index = 0; index < Model.Attributes.Count; index++)
+                            {
+                                <tr>
+                                    <td>
+                                        <input asp-for="Attributes[index].Selected" />
+                                        <input asp-for="Attributes[index].AttributeDefinitionId" type="hidden" />
+                                    </td>
+                                    <td>
+                                        <span class="admin-cell-primary">@Model.Attributes[index].Name</span>
+                                        <span class="admin-cell-secondary">
+                                            @Model.Attributes[index].Code · @Model.Attributes[index].DataTypeText
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <input asp-for="Attributes[index].GroupName"
+                                               placeholder="Ví dụ: Kích thước, Chất liệu, Bảo hành" />
+                                    </td>
+                                    <td>
+                                        <input asp-for="Attributes[index].IsRequired" />
+                                    </td>
+                                    <td>
+                                        <input asp-for="Attributes[index].DisplayOrder"
+                                               type="number"
+                                               min="0"
+                                               max="9999" />
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <footer class="category-template-actions">
+                    <span>
+                        Trường bắt buộc chỉ nên dùng khi mọi sản phẩm trong danh mục đều có thông tin đó.
+                    </span>
+                    <button type="submit" class="button button--primary">
+                        Lưu bộ thông tin
+                    </button>
+                </footer>
+            </form>
+        </section>
+    }
+</section>

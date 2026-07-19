@@ -25,6 +25,8 @@ public sealed class ProductDetailsViewModel
     public IReadOnlyList<ProductMediaViewModel> Images { get; init; } = [];
 
     public IReadOnlyList<ProductVariantDetailsViewModel> Variants { get; init; } = [];
+
+    public IReadOnlyList<ProductSpecificationGroupViewModel> SpecificationGroups { get; init; } = [];
 }
 
 public sealed class ProductMediaViewModel
@@ -40,9 +42,7 @@ public sealed class ProductVariantDetailsViewModel
 
     public string Sku { get; init; } = string.Empty;
 
-    public string? Color { get; init; }
-
-    public string? Size { get; init; }
+    public string SelectionLabel { get; init; } = "Lựa chọn tiêu chuẩn";
 
     public string? ImageUrl { get; init; }
 
@@ -53,4 +53,22 @@ public sealed class ProductVariantDetailsViewModel
     public bool IsOnSale { get; init; }
 
     public int StockQuantity { get; init; }
+}
+
+public sealed class ProductSpecificationGroupViewModel
+{
+    public string Name { get; init; } = "Thông tin chung";
+
+    public int DisplayOrder { get; init; }
+
+    public IReadOnlyList<ProductSpecificationItemViewModel> Items { get; init; } = [];
+}
+
+public sealed class ProductSpecificationItemViewModel
+{
+    public string Name { get; init; } = string.Empty;
+
+    public string Value { get; init; } = string.Empty;
+
+    public int DisplayOrder { get; init; }
 }

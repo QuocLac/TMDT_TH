@@ -27,9 +27,17 @@
         document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
             const nextTheme = theme === "dark" ? "light" : "dark";
             button.setAttribute("aria-pressed", String(theme === "dark"));
-            button.setAttribute("aria-label", `Chuyển sang giao diện ${nextTheme === "dark" ? "tối" : "sáng"}`);
-            const icon = button.querySelector("[data-theme-icon]");
-            if (icon) icon.textContent = theme === "dark" ? "☀" : "◐";
+            button.setAttribute(
+                "aria-label",
+                `Chuyển sang giao diện ${nextTheme === "dark" ? "tối" : "sáng"}`
+            );
+
+            const label = button.querySelector("[data-theme-label]");
+            if (label) {
+                label.textContent = nextTheme === "dark"
+                    ? "Giao diện tối"
+                    : "Giao diện sáng";
+            }
         });
     }
 
@@ -43,12 +51,15 @@
             const button = event.target.closest("[data-theme-toggle]");
             if (!button) return;
 
-            const nextTheme = (root.dataset.theme || resolveTheme()) === "dark" ? "light" : "dark";
+            const currentTheme = root.dataset.theme || resolveTheme();
+            const nextTheme = currentTheme === "dark" ? "light" : "dark";
+
             try {
                 window.localStorage.setItem(storageKey, nextTheme);
             } catch {
-                // The theme still applies for the current page when storage is unavailable.
+                // Theme remains active for the current page.
             }
+
             applyTheme(nextTheme);
             updateControls(nextTheme);
         });
