@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using WebApplication2.Models;
 using WebApplication2.Services;
 using WebApplication2.Services.Cart;
+using WebApplication2.Services.Catalog;
 using WebApplication2.Services.Commerce.Cancellations;
 using WebApplication2.Services.Commerce.Checkout;
 using WebApplication2.Services.Commerce.Inventory;
@@ -98,7 +99,10 @@ builder.Services.AddSession(options =>
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     options.IdleTimeout = TimeSpan.FromDays(7);
 });
-builder.Services.AddScoped<ISessionCartService, SessionCartService>();
+
+builder.Services.AddScoped<IProductOptionReadService, ProductOptionReadService>();
+builder.Services.AddScoped<SessionCartService>();
+builder.Services.AddScoped<ISessionCartService, DynamicProductOptionCartService>();
 
 builder.Services.AddScoped<InventoryService>();
 builder.Services.AddScoped<CommerceInventoryService>();
@@ -114,7 +118,8 @@ builder.Services.AddScoped<IReturnWorkflowService, ReturnWorkflowService>();
 
 builder.Services.AddScoped<IShippingFeeCalculator, StandardShippingFeeCalculator>();
 builder.Services.AddScoped<ICheckoutShippingQuoteService, CheckoutShippingQuoteService>();
-builder.Services.AddScoped<IOrderApplicationService, OrderApplicationService>();
+builder.Services.AddScoped<OrderApplicationService>();
+builder.Services.AddScoped<IOrderApplicationService, DynamicProductOptionOrderApplicationService>();
 builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
 builder.Services.AddScoped<IOrderWorkflowService, OrderWorkflowService>();
 
