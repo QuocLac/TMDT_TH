@@ -6,6 +6,7 @@ namespace WebApplication2.Services.Catalog;
 public sealed class ProductOptionReadService : IProductOptionReadService
 {
     private const int MaximumSnapshotLength = 255;
+    private const string NoSelectionLabel = "Không áp dụng";
 
     private readonly ApplicationDbContext _context;
 
@@ -93,7 +94,8 @@ public sealed class ProductOptionReadService : IProductOptionReadService
                 group.Id,
                 group.Code,
                 group.Name,
-                group.DisplayOrder
+                group.DisplayOrder,
+                group.IsRequired
             })
             .ToArrayAsync(cancellationToken);
 
@@ -149,6 +151,7 @@ public sealed class ProductOptionReadService : IProductOptionReadService
             .ToArrayAsync(cancellationToken);
 
         var requiredGroupIds = groups
+            .Where(group => group.IsRequired)
             .Select(group => group.Id)
             .ToHashSet();
 
@@ -175,22 +178,57 @@ public sealed class ProductOptionReadService : IProductOptionReadService
             .ToArray();
 
         var groupSnapshots = groups
-            .Select(group => new ProductOptionGroupSnapshot(
-                group.Code,
-                group.Name,
-                visibleRows
+            .Select(group =>
+            {
+                var values = visibleRows
                     .Where(row => row.OptionGroupId == group.Id)
                     .OrderBy(row => row.ValueOrder)
                     .ThenBy(row => row.OptionValueId)
                     .Select(row => row.ValueLabel)
                     .Distinct(StringComparer.CurrentCultureIgnoreCase)
-                    .ToArray()))
+                    .ToList();
+
+                if (!group.IsRequired
+                    && completeVariants.Any(variant =>
+                        !selectionsByVariantId.TryGetValue(variant.Id, out var rows)
+                        || rows.All(row => row.OptionGroupId != group.Id)))
+                {
+                    values.Add(NoSelectionLabel);
+                }
+
+                return new ProductOptionGroupSnapshot(
+                    group.Code,
+                    group.Name,
+                    values);
+            })
             .ToArray();
 
         var itemSnapshots = completeVariants
             .Select(variant =>
             {
-                var rows = selectionsByVariantId[variant.Id];
+                selectionsByVariantId.TryGetValue(
+                    variant.Id,
+                    out var rows);
+
+                rows ??= [];
+
+                var selections = new Dictionary<string, string>(
+                    StringComparer.OrdinalIgnoreCase);
+
+                foreach (var group in groups)
+                {
+                    var row = rows.FirstOrDefault(item =>
+                        item.OptionGroupId == group.Id);
+
+                    if (row is not null)
+                    {
+                        selections[group.Code] = row.ValueLabel;
+                    }
+                    else if (!group.IsRequired)
+                    {
+                        selections[group.Code] = NoSelectionLabel;
+                    }
+                }
 
                 return new ProductOptionItemSnapshot(
                     variant.Id,
@@ -201,10 +239,7 @@ public sealed class ProductOptionReadService : IProductOptionReadService
                     variant.OriginalPrice,
                     variant.EffectivePrice,
                     Math.Max(0, variant.StockQuantity),
-                    rows.ToDictionary(
-                        row => row.GroupCode,
-                        row => row.ValueLabel,
-                        StringComparer.OrdinalIgnoreCase));
+                    selections);
             })
             .ToArray();
 

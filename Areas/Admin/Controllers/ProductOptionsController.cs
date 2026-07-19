@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebApplication2.Areas.Admin.ViewModels.ProductOptions;
 using WebApplication2.Models;
+using WebApplication2.Services.Catalog;
 
 namespace WebApplication2.Areas.Admin.Controllers;
 
@@ -14,18 +15,22 @@ public sealed class ProductOptionsController : Controller
 {
     private const int PageSize = 20;
     private const int MaximumValuesPerGroup = 80;
+    private const string ReservedNoSelectionLabel = "Không áp dụng";
 
     private readonly ApplicationDbContext _context;
     private readonly TimeProvider _timeProvider;
+    private readonly IProductOptionIntegrityService _integrity;
     private readonly ILogger<ProductOptionsController> _logger;
 
     public ProductOptionsController(
         ApplicationDbContext context,
         TimeProvider timeProvider,
+        IProductOptionIntegrityService integrity,
         ILogger<ProductOptionsController> logger)
     {
         _context = context;
         _timeProvider = timeProvider;
+        _integrity = integrity;
         _logger = logger;
     }
 
@@ -120,6 +125,15 @@ public sealed class ProductOptionsController : Controller
                 nameof(input.ValuesText),
                 $"Mỗi nhóm được tối đa {MaximumValuesPerGroup} giá trị.");
         }
+        else if (values.Any(value => string.Equals(
+                     value,
+                     ReservedNoSelectionLabel,
+                     StringComparison.CurrentCultureIgnoreCase)))
+        {
+            ModelState.AddModelError(
+                nameof(input.ValuesText),
+                $"“{ReservedNoSelectionLabel}” là giá trị do hệ thống quản lý cho nhóm không bắt buộc.");
+        }
 
         if (!ModelState.IsValid)
         {
@@ -188,11 +202,21 @@ public sealed class ProductOptionsController : Controller
             await SynchronizeValuesAsync(group, values, cancellationToken);
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            var integrity = await _integrity.RebuildProductKeysAsync(
+                input.ProductId,
+                cancellationToken);
+
             await transaction.CommitAsync(cancellationToken);
 
             TempData["SuccessMessage"] = input.Id == 0
-                ? "Đã tạo nhóm lựa chọn mua."
-                : "Đã cập nhật nhóm lựa chọn mua.";
+                ? $"Đã tạo nhóm lựa chọn mua. {integrity.CompleteItemCount} mã hàng đã sẵn sàng."
+                : $"Đã cập nhật nhóm lựa chọn mua. {integrity.IncompleteItemCount} mã hàng còn thiếu lựa chọn.";
+        }
+        catch (ProductOptionCombinationConflictException exception)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            TempData["ErrorMessage"] = exception.Message;
         }
         catch (InvalidOperationException exception)
         {
@@ -220,23 +244,54 @@ public sealed class ProductOptionsController : Controller
         int productId,
         CancellationToken cancellationToken)
     {
-        var group = await _context.Set<ProductOptionGroup>()
-            .SingleOrDefaultAsync(
-                item => item.Id == id && item.ProductId == productId,
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+
+        try
+        {
+            var group = await _context.Set<ProductOptionGroup>()
+                .SingleOrDefaultAsync(
+                    item => item.Id == id && item.ProductId == productId,
+                    cancellationToken);
+
+            if (group is null)
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+                return NotFound();
+            }
+
+            group.IsActive = !group.IsActive;
+            group.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            var integrity = await _integrity.RebuildProductKeysAsync(
+                productId,
                 cancellationToken);
 
-        if (group is null)
-        {
-            return NotFound();
+            await transaction.CommitAsync(cancellationToken);
+
+            TempData["SuccessMessage"] = group.IsActive
+                ? $"Đã sử dụng lại nhóm lựa chọn mua. {integrity.IncompleteItemCount} mã hàng cần kiểm tra."
+                : $"Đã tạm ngừng nhóm lựa chọn mua. {integrity.CompleteItemCount} mã hàng đang sẵn sàng.";
         }
-
-        group.IsActive = !group.IsActive;
-        group.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-        await _context.SaveChangesAsync(cancellationToken);
-
-        TempData["SuccessMessage"] = group.IsActive
-            ? "Đã sử dụng lại nhóm lựa chọn mua."
-            : "Đã tạm ngừng nhóm lựa chọn mua.";
+        catch (ProductOptionCombinationConflictException exception)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            TempData["ErrorMessage"] = exception.Message;
+        }
+        catch (DbUpdateException exception)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            _logger.LogWarning(
+                exception,
+                "Could not toggle product option group {GroupId} for product {ProductId}.",
+                id,
+                productId);
+            TempData["ErrorMessage"] =
+                "Không thể thay đổi trạng thái nhóm vì dữ liệu mã hàng chưa nhất quán.";
+        }
 
         return RedirectToAction(nameof(Configure), new { productId });
     }
@@ -321,69 +376,95 @@ public sealed class ProductOptionsController : Controller
             IsolationLevel.Serializable,
             cancellationToken);
 
-        var otherRows = await _context.Set<ProductVariantOptionSelection>()
-            .AsNoTracking()
-            .Where(selection =>
-                selection.Variant.ProductId == input.ProductId
-                && selection.VariantId != input.VariantId
-                && selection.OptionGroup.IsActive
-                && selection.OptionValue.IsActive)
-            .Select(selection => new
-            {
-                selection.VariantId,
-                selection.OptionGroupId,
-                selection.OptionValueId,
-                selection.Variant.SKU
-            })
-            .ToArrayAsync(cancellationToken);
-
-        foreach (var otherItem in otherRows.GroupBy(row => new
-                 {
-                     row.VariantId,
-                     row.SKU
-                 }))
+        try
         {
-            var otherSelections = otherItem.ToDictionary(
-                row => row.OptionGroupId,
-                row => row.OptionValueId);
-
-            if (BuildSignature(groups, otherSelections) == desiredSignature)
-            {
-                await transaction.RollbackAsync(CancellationToken.None);
-                TempData["ErrorMessage"] =
-                    $"Tổ hợp lựa chọn này đã được dùng cho mã hàng {otherItem.Key.SKU}.";
-                return RedirectToAction(
-                    nameof(Configure),
-                    new { productId = input.ProductId });
-            }
-        }
-
-        var activeGroupIds = groups.Select(group => group.Id).ToArray();
-
-        var current = await _context.Set<ProductVariantOptionSelection>()
-            .Where(selection =>
-                selection.VariantId == input.VariantId
-                && activeGroupIds.Contains(selection.OptionGroupId))
-            .ToArrayAsync(cancellationToken);
-
-        _context.Set<ProductVariantOptionSelection>().RemoveRange(current);
-
-        foreach (var selection in desired)
-        {
-            _context.Set<ProductVariantOptionSelection>().Add(
-                new ProductVariantOptionSelection
+            var otherRows = await _context.Set<ProductVariantOptionSelection>()
+                .AsNoTracking()
+                .Where(selection =>
+                    selection.Variant.ProductId == input.ProductId
+                    && selection.VariantId != input.VariantId
+                    && selection.OptionGroup.IsActive
+                    && selection.OptionValue.IsActive)
+                .Select(selection => new
                 {
-                    VariantId = input.VariantId,
-                    OptionGroupId = selection.Key,
-                    OptionValueId = selection.Value
-                });
+                    selection.VariantId,
+                    selection.OptionGroupId,
+                    selection.OptionValueId,
+                    selection.Variant.SKU
+                })
+                .ToArrayAsync(cancellationToken);
+
+            foreach (var otherItem in otherRows.GroupBy(row => new
+                     {
+                         row.VariantId,
+                         row.SKU
+                     }))
+            {
+                var otherSelections = otherItem.ToDictionary(
+                    row => row.OptionGroupId,
+                    row => row.OptionValueId);
+
+                if (BuildSignature(groups, otherSelections) == desiredSignature)
+                {
+                    await transaction.RollbackAsync(CancellationToken.None);
+                    TempData["ErrorMessage"] =
+                        $"Tổ hợp lựa chọn này đã được dùng cho mã hàng {otherItem.Key.SKU}.";
+                    return RedirectToAction(
+                        nameof(Configure),
+                        new { productId = input.ProductId });
+                }
+            }
+
+            var activeGroupIds = groups
+                .Select(group => group.Id)
+                .ToArray();
+
+            var current = await _context.Set<ProductVariantOptionSelection>()
+                .Where(selection =>
+                    selection.VariantId == input.VariantId
+                    && activeGroupIds.Contains(selection.OptionGroupId))
+                .ToArrayAsync(cancellationToken);
+
+            _context.Set<ProductVariantOptionSelection>().RemoveRange(current);
+
+            foreach (var selection in desired)
+            {
+                _context.Set<ProductVariantOptionSelection>().Add(
+                    new ProductVariantOptionSelection
+                    {
+                        VariantId = input.VariantId,
+                        OptionGroupId = selection.Key,
+                        OptionValueId = selection.Value
+                    });
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            var integrity = await _integrity.RebuildProductKeysAsync(
+                input.ProductId,
+                cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+
+            TempData["SuccessMessage"] =
+                $"Đã cập nhật lựa chọn mua cho mã hàng {item.SKU}. "
+                + $"{integrity.CompleteItemCount}/{integrity.TotalItemCount} mã hàng đã sẵn sàng.";
         }
-
-        await _context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        TempData["SuccessMessage"] =
-            $"Đã cập nhật lựa chọn mua cho mã hàng {item.SKU}.";
+        catch (ProductOptionCombinationConflictException exception)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            TempData["ErrorMessage"] = exception.Message;
+        }
+        catch (DbUpdateException exception)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            _logger.LogWarning(
+                exception,
+                "Could not save product option selections for item {VariantId}.",
+                input.VariantId);
+            TempData["ErrorMessage"] =
+                "Không thể lưu tổ hợp lựa chọn. Dữ liệu vừa thay đổi hoặc tổ hợp đã bị trùng.";
+        }
 
         return RedirectToAction(nameof(Configure), new { productId = input.ProductId });
     }
@@ -514,10 +595,20 @@ public sealed class ProductOptionsController : Controller
             }
 
             await _context.SaveChangesAsync(cancellationToken);
+
+            var integrity = await _integrity.RebuildProductKeysAsync(
+                productId,
+                cancellationToken);
+
             await transaction.CommitAsync(cancellationToken);
 
             TempData["SuccessMessage"] =
-                "Đã chuyển dữ liệu lựa chọn hiện có sang cấu trúc mới.";
+                $"Đã chuyển dữ liệu lựa chọn hiện có. {integrity.CompleteItemCount} mã hàng đã sẵn sàng.";
+        }
+        catch (ProductOptionCombinationConflictException exception)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            TempData["ErrorMessage"] = exception.Message;
         }
         catch (DbUpdateException exception)
         {
@@ -528,6 +619,47 @@ public sealed class ProductOptionsController : Controller
                 productId);
             TempData["ErrorMessage"] =
                 "Không thể chuyển đổi dữ liệu lựa chọn hiện có.";
+        }
+
+        return RedirectToAction(nameof(Configure), new { productId });
+    }
+
+    [HttpPost("{productId:int}/rebuild-integrity")]
+    public async Task<IActionResult> RebuildIntegrity(
+        int productId,
+        CancellationToken cancellationToken)
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+
+        try
+        {
+            var result = await _integrity.RebuildProductKeysAsync(
+                productId,
+                cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+
+            TempData["SuccessMessage"] =
+                $"Đã kiểm tra {result.TotalItemCount} mã hàng. "
+                + $"{result.CompleteItemCount} mã hàng sẵn sàng, "
+                + $"{result.IncompleteItemCount} mã hàng cần bổ sung lựa chọn.";
+        }
+        catch (ProductOptionCombinationConflictException exception)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            TempData["ErrorMessage"] = exception.Message;
+        }
+        catch (DbUpdateException exception)
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            _logger.LogWarning(
+                exception,
+                "Could not rebuild option integrity for product {ProductId}.",
+                productId);
+            TempData["ErrorMessage"] =
+                "Không thể hoàn tất kiểm tra dữ liệu lựa chọn mua.";
         }
 
         return RedirectToAction(nameof(Configure), new { productId });

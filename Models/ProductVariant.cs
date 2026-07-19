@@ -1,9 +1,12 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.EntityFrameworkCore;
+using WebApplication2.Models.Configuration;
 using WebApplication2.Models.Enums;
 
 namespace WebApplication2.Models;
 
+[EntityTypeConfiguration(typeof(ProductVariantCombinationConfiguration))]
 public sealed class ProductVariant : BaseEntity
 {
     [Key]
@@ -39,6 +42,9 @@ public sealed class ProductVariant : BaseEntity
     public string? ImageUrl { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    [MaxLength(64)]
+    public string? OptionCombinationKey { get; set; }
 
     [Timestamp]
     public byte[] RowVersion { get; set; } = [];

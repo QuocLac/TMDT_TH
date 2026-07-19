@@ -19,6 +19,13 @@
             </p>
         </div>
         <div class="admin-page-header__actions">
+            <form asp-action="RebuildIntegrity"
+                  asp-route-productId="@Model.ProductId"
+                  method="post">
+                <button type="submit" class="button button--primary">
+                    Kiểm tra toàn bộ tổ hợp
+                </button>
+            </form>
             <a asp-area="Admin"
                asp-controller="Products"
                asp-action="Edit"

@@ -3,11 +3,63 @@
 
     const cart = window.FastBuyCart;
 
+    function normalizeCommercialLanguage() {
+        const replacements = new Map([
+            ["FastBuy shopping system", "Mua sắm đa ngành hàng"],
+            ["Smart variant shopping", "Chọn đúng sản phẩm"],
+            ["Smart Cart", "Giỏ hàng tiện lợi"],
+            ["Live pricing", "Giá cập nhật"],
+            ["Live", "Đang cập nhật"],
+            ["Session", "Tự động lưu"],
+            ["database", "hệ thống"],
+            ["Database", "hệ thống"],
+            ["campaign", "lịch giá"],
+            ["Campaign", "Lịch giá"],
+            ["biến thể", "lựa chọn mua"],
+            ["Biến thể", "Lựa chọn mua"],
+            ["giá hiệu lực", "giá đang áp dụng"],
+            ["Giá hiệu lực", "Giá đang áp dụng"],
+            ["tồn kho thực tế", "số lượng có thể bán"],
+            ["Tồn kho thực tế", "Số lượng có thể bán"]
+        ]);
+
+        const walker = document.createTreeWalker(
+            document.body,
+            NodeFilter.SHOW_TEXT
+        );
+
+        const nodes = [];
+        while (walker.nextNode()) {
+            nodes.push(walker.currentNode);
+        }
+
+        nodes.forEach((node) => {
+            let value = node.nodeValue ?? "";
+            replacements.forEach((replacement, source) => {
+                value = value.replaceAll(source, replacement);
+            });
+            node.nodeValue = value;
+        });
+
+        document.querySelectorAll("[aria-label], [placeholder], [title]").forEach((element) => {
+            ["aria-label", "placeholder", "title"].forEach((attribute) => {
+                if (!element.hasAttribute(attribute)) return;
+
+                let value = element.getAttribute(attribute) ?? "";
+                replacements.forEach((replacement, source) => {
+                    value = value.replaceAll(source, replacement);
+                });
+                element.setAttribute(attribute, value);
+            });
+        });
+    }
+
     function initializeCountdowns() {
         const countdowns = document.querySelectorAll("[data-countdown]");
         if (!countdowns.length) return;
 
-        const pad = (value) => String(Math.max(0, value)).padStart(2, "0");
+        const pad = (value) =>
+            String(Math.max(0, value)).padStart(2, "0");
 
         function updateCountdown(element) {
             const endAt = Date.parse(element.dataset.countdownEnd ?? "");
@@ -34,20 +86,24 @@
         }
 
         countdowns.forEach(updateCountdown);
+
         const timer = window.setInterval(() => {
             countdowns.forEach(updateCountdown);
-            if ([...countdowns].every((item) => item.dataset.expired === "true")) {
+
+            if ([...countdowns].every(
+                    (item) => item.dataset.expired === "true")) {
                 window.clearInterval(timer);
             }
         }, 1000);
     }
 
-    function initializeVariantPicker() {
+    function initializePurchaseOptionPicker() {
         const dialog = document.querySelector("[data-variant-picker]");
 
         if (!dialog || !cart) {
             document.addEventListener("click", (event) => {
-                const button = event.target.closest("[data-open-variant-picker]");
+                const button = event.target.closest(
+                    "[data-open-variant-picker]");
                 if (!button) return;
 
                 event.preventDefault();
@@ -59,34 +115,37 @@
             return;
         }
 
-        const productName = dialog.querySelector("[data-picker-product-name]");
+        const productName = dialog.querySelector(
+            "[data-picker-product-name]");
         const image = dialog.querySelector("[data-picker-image]");
         const loading = dialog.querySelector("[data-picker-loading]");
         const ready = dialog.querySelector("[data-picker-ready]");
         const error = dialog.querySelector("[data-picker-error]");
-        const attributesHost = dialog.querySelector("[data-picker-attributes]");
+        const optionsHost = dialog.querySelector(
+            "[data-picker-attributes]");
         const status = dialog.querySelector("[data-picker-status]");
         const price = dialog.querySelector("[data-picker-price]");
-        const originalPrice = dialog.querySelector("[data-picker-original-price]");
+        const originalPrice = dialog.querySelector(
+            "[data-picker-original-price]");
         const quantity = dialog.querySelector("[data-picker-quantity]");
-        const minus = dialog.querySelector("[data-picker-quantity-minus]");
-        const plus = dialog.querySelector("[data-picker-quantity-plus]");
+        const minus = dialog.querySelector(
+            "[data-picker-quantity-minus]");
+        const plus = dialog.querySelector(
+            "[data-picker-quantity-plus]");
         const confirm = dialog.querySelector("[data-picker-confirm]");
 
         const state = {
             product: null,
             selections: {},
-            selectedVariant: null,
-            intent: "add",
-            loading: false
+            selectedItem: null,
+            intent: "add"
         };
 
         function resetPicker(productId, intent) {
             state.product = null;
             state.selections = {};
-            state.selectedVariant = null;
+            state.selectedItem = null;
             state.intent = intent;
-            state.loading = true;
 
             dialog.dataset.productId = String(productId);
             productName.textContent = "Đang tải sản phẩm";
@@ -96,8 +155,9 @@
             ready.hidden = true;
             error.hidden = true;
             error.textContent = "";
-            attributesHost.replaceChildren();
-            status.textContent = "Hãy chọn đầy đủ thuộc tính để xác định đúng biến thể.";
+            optionsHost.replaceChildren();
+            status.textContent =
+                "Hãy chọn đầy đủ để xác định đúng sản phẩm.";
             status.className = "variant-picker__selection-status";
             price.textContent = "—";
             originalPrice.hidden = true;
@@ -105,70 +165,81 @@
             quantity.value = "1";
             quantity.max = "1";
             confirm.disabled = true;
-            confirm.textContent = intent === "buy-now" ? "Mua ngay" : "Thêm vào giỏ";
+            confirm.textContent = intent === "buy-now"
+                ? "Mua ngay"
+                : "Thêm vào giỏ";
         }
 
-        function matchesSelections(variant, selections, ignoredKey = null) {
+        function matchesSelections(item, selections, ignoredKey = null) {
             return Object.entries(selections).every(([key, value]) => {
                 if (key === ignoredKey || !value) return true;
-                return variant.attributes?.[key] === value;
+                return item.attributes?.[key] === value;
             });
         }
 
-        function optionHasAvailableVariant(groupKey, value) {
-            return state.product.variants.some((variant) => {
-                if (variant.stockQuantity <= 0) return false;
-                if (variant.attributes?.[groupKey] !== value) return false;
-                return matchesSelections(variant, state.selections, groupKey);
-            });
+        function valueHasAvailableItem(groupKey, value) {
+            return state.product.variants.some((item) =>
+                item.stockQuantity > 0
+                && item.attributes?.[groupKey] === value
+                && matchesSelections(item, state.selections, groupKey)
+            );
         }
 
-        function findSelectedVariant() {
+        function findSelectedItem() {
             const groups = state.product?.attributeGroups ?? [];
-            const allSelected = groups.every((group) => Boolean(state.selections[group.key]));
+            const allSelected = groups.every((group) =>
+                Boolean(state.selections[group.key]));
+
             if (!allSelected) return null;
 
-            return state.product.variants.find((variant) =>
-                variant.stockQuantity > 0
+            return state.product.variants.find((item) =>
+                item.stockQuantity > 0
                 && groups.every((group) =>
-                    variant.attributes?.[group.key] === state.selections[group.key]
-                )
+                    item.attributes?.[group.key]
+                    === state.selections[group.key])
             ) ?? null;
         }
 
-        function updateOptionAvailability() {
-            attributesHost.querySelectorAll("[data-attribute-option]").forEach((button) => {
-                const groupKey = button.dataset.attributeKey;
-                const value = button.dataset.attributeValue;
-                const available = optionHasAvailableVariant(groupKey, value);
-                button.disabled = !available;
-                button.classList.toggle(
-                    "is-selected",
-                    state.selections[groupKey] === value
-                );
-                button.setAttribute(
-                    "aria-pressed",
-                    state.selections[groupKey] === value ? "true" : "false"
-                );
-            });
+        function updateValueAvailability() {
+            optionsHost
+                .querySelectorAll("[data-attribute-option]")
+                .forEach((button) => {
+                    const groupKey = button.dataset.attributeKey;
+                    const value = button.dataset.attributeValue;
+                    const available = valueHasAvailableItem(
+                        groupKey,
+                        value);
+
+                    button.disabled = !available;
+                    button.classList.toggle(
+                        "is-selected",
+                        state.selections[groupKey] === value);
+                    button.setAttribute(
+                        "aria-pressed",
+                        state.selections[groupKey] === value
+                            ? "true"
+                            : "false");
+                });
         }
 
         function updateSelection() {
             if (!state.product) return;
 
-            updateOptionAvailability();
-            state.selectedVariant = findSelectedVariant();
+            updateValueAvailability();
+            state.selectedItem = findSelectedItem();
 
-            if (!state.selectedVariant) {
+            if (!state.selectedItem) {
                 const remaining = state.product.attributeGroups
                     .filter((group) => !state.selections[group.key])
                     .map((group) => group.label);
 
-                status.className = "variant-picker__selection-status";
+                status.className =
+                    "variant-picker__selection-status";
                 status.textContent = remaining.length
                     ? `Cần chọn: ${remaining.join(", ")}.`
-                    : "Tổ hợp thuộc tính này không còn hàng. Hãy chọn tổ hợp khác.";
-                price.textContent = cart.formatMoney(state.product.minimumPrice);
+                    : "Lựa chọn này hiện không còn hàng. Hãy chọn phương án khác.";
+                price.textContent = cart.formatMoney(
+                    state.product.minimumPrice);
                 originalPrice.hidden = true;
                 quantity.max = "1";
                 quantity.value = "1";
@@ -178,34 +249,41 @@
                 return;
             }
 
-            const variant = state.selectedVariant;
-            image.src = variant.imageUrl || state.product.imageUrl || "/images/no-image.png";
-            image.alt = `${state.product.productName} - ${variant.sku}`;
-            price.textContent = cart.formatMoney(variant.effectivePrice);
+            const item = state.selectedItem;
+            image.src = item.imageUrl
+                || state.product.imageUrl
+                || "/images/no-image.png";
+            image.alt = state.product.productName;
+            price.textContent = cart.formatMoney(item.effectivePrice);
 
-            if (variant.originalPrice > variant.effectivePrice) {
-                originalPrice.textContent = cart.formatMoney(variant.originalPrice);
+            if (item.originalPrice > item.effectivePrice) {
+                originalPrice.textContent = cart.formatMoney(
+                    item.originalPrice);
                 originalPrice.hidden = false;
             } else {
                 originalPrice.hidden = true;
             }
 
-            quantity.max = String(Math.max(1, variant.stockQuantity));
-            quantity.value = String(
-                Math.min(
-                    Math.max(1, Number.parseInt(quantity.value, 10) || 1),
-                    variant.stockQuantity
-                )
-            );
+            const maxQuantity = Math.max(1, item.stockQuantity);
+            const nextQuantity = Math.min(
+                Math.max(
+                    1,
+                    Number.parseInt(quantity.value, 10) || 1),
+                maxQuantity);
 
-            status.className = "variant-picker__selection-status is-ready";
-            status.textContent = `${variant.sku} · Còn ${variant.stockQuantity} sản phẩm.`;
-            minus.disabled = Number(quantity.value) <= 1;
-            plus.disabled = Number(quantity.value) >= variant.stockQuantity;
+            quantity.max = String(maxQuantity);
+            quantity.value = String(nextQuantity);
+
+            status.className =
+                "variant-picker__selection-status is-ready";
+            status.textContent =
+                `Còn ${item.stockQuantity} sản phẩm.`;
+            minus.disabled = nextQuantity <= 1;
+            plus.disabled = nextQuantity >= item.stockQuantity;
             confirm.disabled = false;
         }
 
-        function createAttributeGroup(group) {
+        function createOptionGroup(group) {
             const fieldset = document.createElement("fieldset");
             fieldset.className = "variant-attribute-group";
 
@@ -214,7 +292,8 @@
             fieldset.append(legend);
 
             const options = document.createElement("div");
-            options.className = "variant-attribute-group__options";
+            options.className =
+                "variant-attribute-group__options";
 
             group.values.forEach((value) => {
                 const button = document.createElement("button");
@@ -234,57 +313,65 @@
 
         function renderProduct(product) {
             state.product = product;
-            state.loading = false;
             productName.textContent = product.productName;
             image.src = product.imageUrl || "/images/no-image.png";
             image.alt = product.productName;
             loading.hidden = true;
             ready.hidden = false;
-            attributesHost.replaceChildren();
+            optionsHost.replaceChildren();
 
             if (!product.variants?.length) {
                 ready.hidden = true;
                 error.hidden = false;
-                error.textContent = "Sản phẩm chưa có biến thể hợp lệ để mua.";
+                error.textContent =
+                    "Sản phẩm chưa có lựa chọn mua phù hợp.";
                 confirm.disabled = true;
                 return;
             }
 
             product.attributeGroups.forEach((group) => {
-                attributesHost.append(createAttributeGroup(group));
+                optionsHost.append(createOptionGroup(group));
 
                 const availableValues = group.values.filter((value) =>
-                    product.variants.some((variant) =>
-                        variant.stockQuantity > 0
-                        && variant.attributes?.[group.key] === value
-                    )
-                );
+                    product.variants.some((item) =>
+                        item.stockQuantity > 0
+                        && item.attributes?.[group.key] === value));
 
                 if (availableValues.length === 1) {
-                    state.selections[group.key] = availableValues[0];
+                    state.selections[group.key] =
+                        availableValues[0];
                 }
             });
 
             if (product.attributeGroups.length === 0) {
-                state.selectedVariant = product.variants.find((variant) => variant.stockQuantity > 0) ?? null;
+                state.selectedItem = product.variants.find(
+                    (item) => item.stockQuantity > 0) ?? null;
             }
 
             updateSelection();
         }
 
         async function openPicker(button) {
-            const productId = Number.parseInt(button.dataset.productId ?? "", 10);
-            if (!Number.isInteger(productId) || productId <= 0) return;
+            const productId = Number.parseInt(
+                button.dataset.productId ?? "",
+                10);
 
-            const intent = button.dataset.cartIntent === "buy-now" ? "buy-now" : "add";
+            if (!Number.isInteger(productId) || productId <= 0) {
+                return;
+            }
+
+            const intent = button.dataset.cartIntent === "buy-now"
+                ? "buy-now"
+                : "add";
+
             resetPicker(productId, intent);
             dialog.showModal();
 
             try {
-                const response = await cart.requestJson(`/cart/product-options/${productId}`);
+                const response = await cart.requestJson(
+                    `/cart/product-options/${productId}`);
                 renderProduct(response.data);
             } catch (requestError) {
-                state.loading = false;
                 loading.hidden = true;
                 ready.hidden = true;
                 error.hidden = false;
@@ -293,27 +380,33 @@
             }
         }
 
-        attributesHost.addEventListener("click", (event) => {
-            const button = event.target.closest("[data-attribute-option]");
-            if (!button || button.disabled || !state.product) return;
+        optionsHost.addEventListener("click", (event) => {
+            const button = event.target.closest(
+                "[data-attribute-option]");
+
+            if (!button || button.disabled || !state.product) {
+                return;
+            }
 
             const key = button.dataset.attributeKey;
             const value = button.dataset.attributeValue;
             state.selections[key] = value;
 
-            // Khi một thuộc tính đổi, giữ các lựa chọn tương thích và bỏ
-            // lựa chọn ở nhóm khác nếu không còn biến thể phù hợp.
             state.product.attributeGroups.forEach((group) => {
-                const selectedValue = state.selections[group.key];
+                const selectedValue =
+                    state.selections[group.key];
+
                 if (!selectedValue) return;
 
-                const stillCompatible = state.product.variants.some((variant) =>
-                    variant.stockQuantity > 0
-                    && variant.attributes?.[group.key] === selectedValue
-                    && matchesSelections(variant, state.selections, group.key)
-                );
+                const compatible = state.product.variants.some((item) =>
+                    item.stockQuantity > 0
+                    && item.attributes?.[group.key] === selectedValue
+                    && matchesSelections(
+                        item,
+                        state.selections,
+                        group.key));
 
-                if (!stillCompatible && group.key !== key) {
+                if (!compatible && group.key !== key) {
                     delete state.selections[group.key];
                 }
             });
@@ -322,42 +415,52 @@
         });
 
         quantity.addEventListener("change", () => {
-            const max = state.selectedVariant?.stockQuantity ?? 1;
+            const max = state.selectedItem?.stockQuantity ?? 1;
             const next = Math.min(
-                Math.max(1, Number.parseInt(quantity.value, 10) || 1),
-                max
-            );
+                Math.max(
+                    1,
+                    Number.parseInt(quantity.value, 10) || 1),
+                max);
+
             quantity.value = String(next);
             minus.disabled = next <= 1;
             plus.disabled = next >= max;
         });
 
         minus.addEventListener("click", () => {
-            quantity.value = String(Math.max(1, Number(quantity.value) - 1));
+            quantity.value = String(
+                Math.max(1, Number(quantity.value) - 1));
             quantity.dispatchEvent(new Event("change"));
         });
 
         plus.addEventListener("click", () => {
-            const max = state.selectedVariant?.stockQuantity ?? 1;
-            quantity.value = String(Math.min(max, Number(quantity.value) + 1));
+            const max = state.selectedItem?.stockQuantity ?? 1;
+            quantity.value = String(
+                Math.min(max, Number(quantity.value) + 1));
             quantity.dispatchEvent(new Event("change"));
         });
 
         confirm.addEventListener("click", async () => {
-            if (!state.product || !state.selectedVariant || confirm.disabled) return;
+            if (!state.product
+                || !state.selectedItem
+                || confirm.disabled) {
+                return;
+            }
 
             confirm.disabled = true;
             const originalText = confirm.textContent;
             let redirecting = false;
-            confirm.textContent = "Đang kiểm tra tồn kho…";
+            confirm.textContent = "Đang kiểm tra số lượng…";
 
             try {
                 const result = await cart.requestJson("/cart/add", {
                     method: "POST",
                     body: {
                         productId: state.product.productId,
-                        variantId: state.selectedVariant.id,
-                        quantity: Number.parseInt(quantity.value, 10) || 1,
+                        variantId: state.selectedItem.id,
+                        quantity: Number.parseInt(
+                            quantity.value,
+                            10) || 1,
                         buyNow: state.intent === "buy-now"
                     }
                 });
@@ -379,13 +482,15 @@
             } finally {
                 confirm.textContent = originalText;
                 if (!redirecting) {
-                    confirm.disabled = !state.selectedVariant;
+                    confirm.disabled = !state.selectedItem;
                 }
             }
         });
 
         document.addEventListener("click", (event) => {
-            const openButton = event.target.closest("[data-open-variant-picker]");
+            const openButton = event.target.closest(
+                "[data-open-variant-picker]");
+
             if (openButton) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -405,6 +510,7 @@
         });
     }
 
+    normalizeCommercialLanguage();
     initializeCountdowns();
-    initializeVariantPicker();
+    initializePurchaseOptionPicker();
 })();
