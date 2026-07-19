@@ -117,9 +117,11 @@ public sealed class CatalogPublishingController : Controller
                 cancellationToken);
 
             TempData["SuccessMessage"] = result.HiddenCount == 0
-                ? $"Đã rà soát {result.ScannedCount} sản phẩm đang hiển thị. "
+                ? $"Đã rà soát {result.ScannedCount} sản phẩm đang hiển thị "
+                  + $"qua {result.BatchCount} lượt xử lý. "
                   + "Không phát hiện sản phẩm cần ẩn."
-                : $"Đã rà soát {result.ScannedCount} sản phẩm và tự động ẩn "
+                : $"Đã rà soát {result.ScannedCount} sản phẩm qua "
+                  + $"{result.BatchCount} lượt xử lý và tự động ẩn "
                   + $"{result.HiddenCount} sản phẩm không còn đáp ứng điều kiện bán.";
 
             if (result.HiddenCount > 0)
@@ -137,12 +139,6 @@ public sealed class CatalogPublishingController : Controller
                     + string.Join(" | ", examples);
             }
 
-            if (result.ReachedLimit)
-            {
-                TempData["ErrorMessage"] =
-                    (TempData["ErrorMessage"] as string ?? string.Empty)
-                    + " Vẫn còn sản phẩm chưa được rà soát; hãy chạy lại thao tác.";
-            }
         }
         catch (DbUpdateConcurrencyException exception)
         {

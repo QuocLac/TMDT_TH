@@ -199,68 +199,88 @@ public sealed class ProductPublicationService
             int maximumProducts,
             CancellationToken cancellationToken)
     {
-        var limit = Math.Clamp(maximumProducts, 1, 500);
+        var batchSize = Math.Clamp(maximumProducts, 1, 500);
+        var scannedCount = 0;
+        var batchCount = 0;
+        var lastProductId = 0;
+        var hiddenItems =
+            new List<ProductPublicationReconciliationItem>();
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync(
-                IsolationLevel.Serializable,
-                cancellationToken);
-
-        try
+        while (true)
         {
-            var products = await BuildProductQuery(tracking: true)
-                .Where(product => product.IsActive)
-                .OrderBy(product => product.UpdatedAt ?? product.CreatedAt)
-                .ThenBy(product => product.Id)
-                .Take(limit + 1)
+            var productIds = await _context.Products
+                .AsNoTracking()
+                .Where(product =>
+                    product.IsActive
+                    && product.Id > lastProductId)
+                .OrderBy(product => product.Id)
+                .Select(product => product.Id)
+                .Take(batchSize)
                 .ToArrayAsync(cancellationToken);
 
-            var reachedLimit = products.Length > limit;
-            var scannedProducts = products
-                .Take(limit)
-                .ToArray();
-
-            var hiddenItems =
-                new List<ProductPublicationReconciliationItem>();
-            var now = _timeProvider.GetUtcNow().UtcDateTime;
-
-            foreach (var product in scannedProducts)
+            if (productIds.Length == 0)
             {
-                var review = BuildReview(product);
+                break;
+            }
 
-                if (review.CanPublish)
+            batchCount++;
+            lastProductId = productIds[^1];
+
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(
+                    IsolationLevel.Serializable,
+                    cancellationToken);
+
+            try
+            {
+                var products = await BuildProductQuery(tracking: true)
+                    .Where(product => productIds.Contains(product.Id))
+                    .OrderBy(product => product.Id)
+                    .ToArrayAsync(cancellationToken);
+
+                var now = _timeProvider.GetUtcNow().UtcDateTime;
+
+                foreach (var product in products)
                 {
-                    continue;
+                    scannedCount++;
+
+                    var review = BuildReview(product);
+
+                    if (review.CanPublish)
+                    {
+                        continue;
+                    }
+
+                    product.IsActive = false;
+                    product.UpdatedAt = now;
+
+                    hiddenItems.Add(
+                        new ProductPublicationReconciliationItem(
+                            product.Id,
+                            product.Name,
+                            review.Issues));
                 }
 
-                product.IsActive = false;
-                product.UpdatedAt = now;
+                if (_context.ChangeTracker.HasChanges())
+                {
+                    await _context.SaveChangesAsync(cancellationToken);
+                }
 
-                hiddenItems.Add(
-                    new ProductPublicationReconciliationItem(
-                        product.Id,
-                        product.Name,
-                        review.Issues));
+                await transaction.CommitAsync(cancellationToken);
+                _context.ChangeTracker.Clear();
             }
-
-            if (hiddenItems.Count > 0)
+            catch
             {
-                await _context.SaveChangesAsync(cancellationToken);
+                await transaction.RollbackAsync(CancellationToken.None);
+                throw;
             }
-
-            await transaction.CommitAsync(cancellationToken);
-
-            return new ProductPublicationReconciliationResult(
-                scannedProducts.Length,
-                hiddenItems.Count,
-                reachedLimit,
-                hiddenItems);
         }
-        catch
-        {
-            await transaction.RollbackAsync(CancellationToken.None);
-            throw;
-        }
+
+        return new ProductPublicationReconciliationResult(
+            scannedCount,
+            hiddenItems.Count,
+            batchCount,
+            hiddenItems);
     }
 
     private async Task<Product?> LoadProductAsync(

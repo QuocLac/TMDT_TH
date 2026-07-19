@@ -56,5 +56,5 @@ public sealed record ProductPublicationReconciliationItem(
 public sealed record ProductPublicationReconciliationResult(
     int ScannedCount,
     int HiddenCount,
-    bool ReachedLimit,
+    int BatchCount,
     IReadOnlyList<ProductPublicationReconciliationItem> HiddenItems);

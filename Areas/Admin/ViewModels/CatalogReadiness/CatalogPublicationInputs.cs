@@ -28,6 +28,6 @@ public sealed class CatalogPublicationReconciliationInput
     [Range(
         1,
         500,
-        ErrorMessage = "Mỗi lần chỉ được rà soát từ 1 đến 500 sản phẩm.")]
+        ErrorMessage = "Mỗi lượt xử lý phải từ 1 đến 500 sản phẩm.")]
     public int MaximumProducts { get; set; } = 200;
 }

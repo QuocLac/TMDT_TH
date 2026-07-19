@@ -1,0 +1,49 @@
+name: Catalog quality
+
+on:
+  push:
+    branches:
+      - ChatGPT
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore WebApplication2.sln
+
+      - name: Build
+        run: dotnet build WebApplication2.sln --configuration Release --no-restore
+
+      - name: Test catalog workflows
+        run: >
+          dotnet test Tests/WebApplication2.Tests/WebApplication2.Tests.csproj
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=catalog-tests.trx"
+          --results-directory TestResults
+          --collect "XPlat Code Coverage"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-test-results
+          path: TestResults
+          if-no-files-found: warn
+          retention-days: 14
