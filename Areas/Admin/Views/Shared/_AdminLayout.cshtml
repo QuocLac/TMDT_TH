@@ -85,6 +85,13 @@
                     <span>Quản lý sản phẩm</span>
                 </a>
                 <a asp-area="Admin"
+                   asp-controller="ProductOptions"
+                   asp-action="Index"
+                   class="admin-nav__link @ActiveClass("ProductOptions")"
+                   aria-current="@(currentController == "ProductOptions" ? "page" : null)">
+                    <span>Lựa chọn mua theo sản phẩm</span>
+                </a>
+                <a asp-area="Admin"
                    asp-controller="Categories"
                    asp-action="Index"
                    class="admin-nav__link @ActiveClass("Categories")"

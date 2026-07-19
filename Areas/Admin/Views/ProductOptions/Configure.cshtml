@@ -1,0 +1,387 @@
+@model WebApplication2.Areas.Admin.ViewModels.ProductOptions.ProductOptionConfigureViewModel
+@{
+    ViewData["Title"] = $"Lựa chọn mua - {Model.ProductName}";
+    var activeGroups = Model.Groups.Where(group => group.IsActive).ToArray();
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/product-options.css" asp-append-version="true" />
+}
+
+<section class="admin-page product-options-page">
+    <header class="admin-page-header admin-page-header--hero">
+        <div>
+            <p class="admin-page-kicker">@Model.CategoryName</p>
+            <h2>@Model.ProductName</h2>
+            <p class="admin-page-lead">
+                Tạo nhóm lựa chọn trước, sau đó gắn một giá trị của từng nhóm cho mỗi mã hàng.
+                Không tạo hai mã hàng có cùng một tổ hợp lựa chọn.
+            </p>
+        </div>
+        <div class="admin-page-header__actions">
+            <a asp-area="Admin"
+               asp-controller="Products"
+               asp-action="Edit"
+               asp-route-id="@Model.ProductId"
+               class="button button--secondary">
+                Chỉnh sửa sản phẩm
+            </a>
+            <a asp-action="Index" class="button button--secondary">
+                Danh sách cấu hình
+            </a>
+        </div>
+    </header>
+
+    <section class="admin-metric-grid admin-metric-grid--four">
+        <article class="admin-metric-card">
+            <div>
+                <span class="admin-metric-card__label">Nhóm đang dùng</span>
+                <strong class="admin-metric-card__value">@activeGroups.Length</strong>
+            </div>
+        </article>
+        <article class="admin-metric-card">
+            <div>
+                <span class="admin-metric-card__label">Giá trị lựa chọn</span>
+                <strong class="admin-metric-card__value">
+                    @activeGroups.Sum(group => group.Values.Count(value => value.IsActive))
+                </strong>
+            </div>
+        </article>
+        <article class="admin-metric-card">
+            <div>
+                <span class="admin-metric-card__label">Mã hàng</span>
+                <strong class="admin-metric-card__value">@Model.Items.Count</strong>
+            </div>
+        </article>
+        <article class="admin-metric-card admin-metric-card--warning">
+            <div>
+                <span class="admin-metric-card__label">Thiếu lựa chọn bắt buộc</span>
+                <strong class="admin-metric-card__value">
+                    @Model.Items.Count(item => !item.IsComplete)
+                </strong>
+            </div>
+        </article>
+    </section>
+
+    @if (Model.HasLegacySelectionData)
+    {
+        <section class="product-options-import">
+            <div>
+                <strong>Phát hiện dữ liệu màu sắc hoặc quy cách hiện có</strong>
+                <p>
+                    Có thể chuyển dữ liệu này thành nhóm lựa chọn mua mới.
+                    Hệ thống sẽ dừng nếu các mã hàng bị trùng tổ hợp.
+                </p>
+            </div>
+            <form asp-action="ImportExistingSelections"
+                  asp-route-productId="@Model.ProductId"
+                  method="post">
+                <button type="submit" class="button button--secondary">
+                    Chuyển dữ liệu hiện có
+                </button>
+            </form>
+        </section>
+    }
+
+    <div class="product-options-layout">
+        <section class="admin-panel product-options-create-panel">
+            <header class="admin-panel__header">
+                <div>
+                    <p class="admin-page-kicker">Nhóm lựa chọn mới</p>
+                    <h3>Tạo nhóm</h3>
+                    <p>Mỗi dòng trong ô giá trị là một lựa chọn khách hàng có thể chọn.</p>
+                </div>
+            </header>
+
+            <form asp-action="SaveGroup"
+                  method="post"
+                  class="product-option-group-form">
+                <input type="hidden" name="ProductId" value="@Model.ProductId" />
+                <input type="hidden" name="Id" value="0" />
+
+                <label>
+                    <span>Tên nhóm</span>
+                    <input name="Name"
+                           maxlength="120"
+                           required
+                           placeholder="Ví dụ: Màu sắc" />
+                </label>
+
+                <label>
+                    <span>Mã nhóm</span>
+                    <input name="Code"
+                           maxlength="80"
+                           placeholder="Để trống để hệ thống tự tạo" />
+                </label>
+
+                <label>
+                    <span>Thứ tự hiển thị</span>
+                    <input name="DisplayOrder"
+                           type="number"
+                           min="0"
+                           max="9999"
+                           value="10" />
+                </label>
+
+                <label class="product-option-group-form__wide">
+                    <span>Các giá trị</span>
+                    <textarea name="ValuesText"
+                              rows="7"
+                              required
+                              placeholder="Mỗi dòng là một giá trị, ví dụ:&#10;Đen&#10;Trắng&#10;Xanh navy"></textarea>
+                </label>
+
+                <div class="product-option-checks product-option-group-form__wide">
+                    <label>
+                        <input name="IsRequired" type="checkbox" value="true" checked />
+                        <input name="IsRequired" type="hidden" value="false" />
+                        Bắt buộc chọn
+                    </label>
+                    <label>
+                        <input name="IsActive" type="checkbox" value="true" checked />
+                        <input name="IsActive" type="hidden" value="false" />
+                        Đang sử dụng
+                    </label>
+                </div>
+
+                <button type="submit"
+                        class="button button--primary product-option-group-form__wide">
+                    Tạo nhóm lựa chọn
+                </button>
+            </form>
+        </section>
+
+        <section class="product-options-groups">
+            @if (Model.Groups.Count == 0)
+            {
+                <section class="admin-panel">
+                    <div class="admin-empty-state">
+                        <div>
+                            <strong>Chưa có nhóm lựa chọn mua</strong>
+                            <span>Tạo nhóm đầu tiên hoặc chuyển dữ liệu hiện có.</span>
+                        </div>
+                    </div>
+                </section>
+            }
+            else
+            {
+                @foreach (var group in Model.Groups)
+                {
+                    <section class="admin-panel product-option-group-card">
+                        <header class="admin-panel__header">
+                            <div>
+                                <p class="admin-page-kicker">@group.Code</p>
+                                <h3>@group.Name</h3>
+                                <p>
+                                    @group.Values.Count(value => value.IsActive) giá trị đang sử dụng
+                                    · @(group.IsRequired ? "Bắt buộc chọn" : "Có thể bỏ trống")
+                                </p>
+                            </div>
+                            <span class="admin-badge admin-badge--@(group.IsActive ? "success" : "neutral")">
+                                @(group.IsActive ? "Đang sử dụng" : "Đã tạm ngừng")
+                            </span>
+                        </header>
+
+                        <form asp-action="SaveGroup"
+                              method="post"
+                              class="product-option-group-form">
+                            <input type="hidden" name="ProductId" value="@Model.ProductId" />
+                            <input type="hidden" name="Id" value="@group.Id" />
+
+                            <label>
+                                <span>Tên nhóm</span>
+                                <input name="Name"
+                                       value="@group.Name"
+                                       maxlength="120"
+                                       required />
+                            </label>
+
+                            <label>
+                                <span>Mã nhóm</span>
+                                <input name="Code"
+                                       value="@group.Code"
+                                       maxlength="80"
+                                       required />
+                            </label>
+
+                            <label>
+                                <span>Thứ tự hiển thị</span>
+                                <input name="DisplayOrder"
+                                       type="number"
+                                       min="0"
+                                       max="9999"
+                                       value="@group.DisplayOrder" />
+                            </label>
+
+                            <label class="product-option-group-form__wide">
+                                <span>Các giá trị đang sử dụng</span>
+                                <textarea name="ValuesText"
+                                          rows="6"
+                                          required>@string.Join("\n", group.Values.Where(value => value.IsActive).OrderBy(value => value.DisplayOrder).Select(value => value.Label))</textarea>
+                                <small>
+                                    Bỏ một dòng sẽ ngừng sử dụng giá trị đó, không xóa dữ liệu lịch sử.
+                                </small>
+                            </label>
+
+                            <div class="product-option-checks product-option-group-form__wide">
+                                <label>
+                                    <input name="IsRequired"
+                                           type="checkbox"
+                                           value="true"
+                                           checked="@group.IsRequired" />
+                                    <input name="IsRequired" type="hidden" value="false" />
+                                    Bắt buộc chọn
+                                </label>
+                                <label>
+                                    <input name="IsActive"
+                                           type="checkbox"
+                                           value="true"
+                                           checked="@group.IsActive" />
+                                    <input name="IsActive" type="hidden" value="false" />
+                                    Đang sử dụng
+                                </label>
+                            </div>
+
+                            <div class="product-option-group-actions product-option-group-form__wide">
+                                <button type="submit" class="button button--primary">
+                                    Lưu nhóm
+                                </button>
+                            </div>
+                        </form>
+
+                        <form asp-action="ToggleGroup"
+                              asp-route-id="@group.Id"
+                              method="post"
+                              class="product-option-toggle-form">
+                            <input type="hidden" name="productId" value="@Model.ProductId" />
+                            <button type="submit" class="button button--secondary button--small">
+                                @(group.IsActive ? "Tạm ngừng nhóm" : "Sử dụng lại nhóm")
+                            </button>
+                        </form>
+                    </section>
+                }
+            }
+        </section>
+    </div>
+
+    <section class="admin-panel product-option-matrix">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">Liên kết mã hàng</p>
+                <h3>Tổ hợp lựa chọn mua</h3>
+                <p>
+                    Mỗi mã hàng chỉ được chọn một giá trị trong từng nhóm.
+                    Hai mã hàng không được có cùng tổ hợp.
+                </p>
+            </div>
+        </header>
+
+        @if (activeGroups.Length == 0)
+        {
+            <div class="admin-empty-state">
+                <div>
+                    <strong>Chưa có nhóm đang sử dụng</strong>
+                    <span>Hãy tạo hoặc kích hoạt ít nhất một nhóm lựa chọn.</span>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="admin-table-wrap">
+                <table class="admin-data-table">
+                    <thead>
+                        <tr>
+                            <th>Mã hàng</th>
+                            @foreach (var group in activeGroups)
+                            {
+                                <th>
+                                    @group.Name
+                                    @if (group.IsRequired)
+                                    {
+                                        <span aria-label="Bắt buộc">*</span>
+                                    }
+                                </th>
+                            }
+                            <th>Giá đang áp dụng</th>
+                            <th>Số lượng</th>
+                            <th>Trạng thái</th>
+                            <th class="u-text-end">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@item.Sku</strong>
+                                    <small class="admin-cell-secondary">
+                                        Hiện có: @item.LegacyLabel
+                                    </small>
+                                    <small class="admin-cell-secondary">
+                                        Mới: @item.SelectionLabel
+                                    </small>
+                                </td>
+
+                                @foreach (var group in activeGroups)
+                                {
+                                    item.SelectionByGroupId.TryGetValue(
+                                        group.Id,
+                                        out var selectedValueId);
+
+                                    <td>
+                                        <select name="Selections[@group.Id]"
+                                                form="selection-form-@item.VariantId">
+                                            <option value="">Chưa chọn</option>
+                                            @foreach (var value in group.Values.Where(value => value.IsActive))
+                                            {
+                                                if (value.Id == selectedValueId)
+                                                {
+                                                    <option value="@value.Id" selected>
+                                                        @value.Label
+                                                    </option>
+                                                }
+                                                else
+                                                {
+                                                    <option value="@value.Id">
+                                                        @value.Label
+                                                    </option>
+                                                }
+                                            }
+                                        </select>
+                                    </td>
+                                }
+
+                                <td>@item.CurrentPrice.ToString("N0") ₫</td>
+                                <td>@item.StockQuantity</td>
+                                <td>
+                                    <span class="admin-badge admin-badge--@(item.IsComplete ? "success" : "warning")">
+                                        @(item.IsComplete ? "Đã đủ lựa chọn" : "Thiếu lựa chọn")
+                                    </span>
+                                    <small class="admin-cell-secondary">
+                                        @(item.IsActive ? "Đang bán" : "Tạm ngừng bán")
+                                    </small>
+                                </td>
+                                <td class="u-text-end">
+                                    <form id="selection-form-@item.VariantId"
+                                          asp-action="SaveSelections"
+                                          method="post">
+                                        <input type="hidden"
+                                               name="ProductId"
+                                               value="@Model.ProductId" />
+                                        <input type="hidden"
+                                               name="VariantId"
+                                               value="@item.VariantId" />
+                                        <button type="submit"
+                                                class="button button--primary button--small">
+                                            Lưu tổ hợp
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</section>

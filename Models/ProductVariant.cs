@@ -50,4 +50,6 @@ public sealed class ProductVariant : BaseEntity
     public ICollection<PriceHistory> PriceHistories { get; set; } = [];
 
     public ICollection<PriceCampaignItem> CampaignItems { get; set; } = [];
+
+    public ICollection<ProductVariantOptionSelection> OptionSelections { get; set; } = [];
 }

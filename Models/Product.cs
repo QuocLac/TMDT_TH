@@ -42,5 +42,7 @@ namespace WebApplication2.Models
         public ICollection<ProductImage> Images { get; set; } = [];
 
         public ICollection<ProductAttributeValue> AttributeValues { get; set; } = [];
+
+        public ICollection<ProductOptionGroup> OptionGroups { get; set; } = [];
     }
 }

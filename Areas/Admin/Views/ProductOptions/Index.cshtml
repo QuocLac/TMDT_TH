@@ -1,0 +1,142 @@
+@model WebApplication2.Areas.Admin.ViewModels.ProductOptions.ProductOptionIndexPageViewModel
+@{
+    ViewData["Title"] = "Cấu hình lựa chọn mua";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/product-options.css" asp-append-version="true" />
+}
+
+<section class="admin-page product-options-page">
+    <header class="admin-page-header admin-page-header--hero">
+        <div>
+            <p class="admin-page-kicker">Danh mục hàng hóa</p>
+            <h2>Lựa chọn mua theo từng sản phẩm</h2>
+            <p class="admin-page-lead">
+                Khai báo màu sắc, kích cỡ, dung lượng, hương vị hoặc quy cách đóng gói.
+                Mỗi tổ hợp được liên kết với một mã hàng có giá và số lượng bán riêng.
+            </p>
+        </div>
+        <a asp-area="Admin"
+           asp-controller="Products"
+           asp-action="Index"
+           class="button button--secondary">
+            Quản lý sản phẩm
+        </a>
+    </header>
+
+    <form method="get" class="admin-filter-panel product-options-search">
+        <label class="admin-filter-field">
+            <span>Tìm sản phẩm</span>
+            <input type="search"
+                   name="query"
+                   value="@Model.Query"
+                   placeholder="Tên sản phẩm, đường dẫn hoặc mã hàng" />
+        </label>
+        <button type="submit" class="button button--primary">Tìm kiếm</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Query))
+        {
+            <a asp-action="Index" class="button button--secondary">Xóa lọc</a>
+        }
+        <span>@Model.TotalItems sản phẩm</span>
+    </form>
+
+    <section class="admin-panel">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">Danh sách cấu hình</p>
+                <h3>Sản phẩm và mức độ hoàn thiện</h3>
+                <p>
+                    “Đã cấu hình” là số mã hàng đã có ít nhất một giá trị lựa chọn.
+                </p>
+            </div>
+        </header>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table">
+                <thead>
+                    <tr>
+                        <th>Sản phẩm</th>
+                        <th>Danh mục</th>
+                        <th class="u-text-center">Nhóm lựa chọn</th>
+                        <th class="u-text-center">Giá trị</th>
+                        <th class="u-text-center">Mã hàng</th>
+                        <th class="u-text-center">Đã cấu hình</th>
+                        <th>Trạng thái</th>
+                        <th class="u-text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="8">
+                                <div class="admin-empty-state admin-empty-state--compact">
+                                    <div>
+                                        <strong>Không tìm thấy sản phẩm</strong>
+                                        <span>Hãy đổi từ khóa hoặc tạo sản phẩm mới.</span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="product-options-product">
+                                        <img src="@item.ImageUrl" alt="" loading="lazy" />
+                                        <div>
+                                            <strong>@item.ProductName</strong>
+                                            <small>@(item.BrandName ?? "Không công bố thương hiệu")</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>@item.CategoryName</td>
+                                <td class="u-text-center">@item.OptionGroupCount</td>
+                                <td class="u-text-center">@item.OptionValueCount</td>
+                                <td class="u-text-center">@item.SellableItemCount</td>
+                                <td class="u-text-center">
+                                    <strong>@item.ConfiguredItemCount / @item.SellableItemCount</strong>
+                                </td>
+                                <td>
+                                    <span class="admin-badge admin-badge--@(item.IsActive ? "success" : "neutral")">
+                                        @(item.IsActive ? "Đang hiển thị" : "Đang ẩn")
+                                    </span>
+                                </td>
+                                <td class="u-text-end">
+                                    <a asp-action="Configure"
+                                       asp-route-productId="@item.ProductId"
+                                       class="button button--primary button--small">
+                                        Cấu hình
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav class="admin-pagination" aria-label="Phân trang">
+            <a asp-action="Index"
+               asp-route-query="@Model.Query"
+               asp-route-page="@(Model.Page - 1)"
+               class="button button--secondary @(Model.Page <= 1 ? "disabled" : null)">
+                Trang trước
+            </a>
+            <span>Trang @Model.Page / @Model.TotalPages</span>
+            <a asp-action="Index"
+               asp-route-query="@Model.Query"
+               asp-route-page="@(Model.Page + 1)"
+               class="button button--secondary @(Model.Page >= Model.TotalPages ? "disabled" : null)">
+                Trang sau
+            </a>
+        </nav>
+    }
+</section>

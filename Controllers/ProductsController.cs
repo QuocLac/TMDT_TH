@@ -81,6 +81,57 @@ public sealed class ProductsController : Controller
             return NotFound();
         }
 
+        var variantIds = product.Variants
+            .Select(item => item.Id)
+            .ToArray();
+
+        var selectionRows = await _context
+            .Set<ProductVariantOptionSelection>()
+            .AsNoTracking()
+            .Where(selection =>
+                variantIds.Contains(selection.VariantId)
+                && selection.OptionGroup.IsActive
+                && selection.OptionValue.IsActive)
+            .Select(selection => new
+            {
+                selection.VariantId,
+                GroupOrder = selection.OptionGroup.DisplayOrder,
+                GroupId = selection.OptionGroupId,
+                ValueOrder = selection.OptionValue.DisplayOrder,
+                selection.OptionValue.Label
+            })
+            .OrderBy(selection => selection.GroupOrder)
+            .ThenBy(selection => selection.GroupId)
+            .ThenBy(selection => selection.ValueOrder)
+            .ToArrayAsync(cancellationToken);
+
+        var selectionLabelByVariantId = selectionRows
+            .GroupBy(row => row.VariantId)
+            .ToDictionary(
+                group => group.Key,
+                group => string.Join(
+                    " · ",
+                    group.Select(item => item.Label)));
+
+        var variants = product.Variants
+            .Select(item => new ProductVariantDetailsViewModel
+            {
+                Id = item.Id,
+                Sku = item.Sku,
+                SelectionLabel = selectionLabelByVariantId.TryGetValue(
+                    item.Id,
+                    out var dynamicLabel)
+                    && !string.IsNullOrWhiteSpace(dynamicLabel)
+                        ? dynamicLabel
+                        : item.SelectionLabel,
+                ImageUrl = item.ImageUrl,
+                OriginalPrice = item.OriginalPrice,
+                EffectivePrice = item.EffectivePrice,
+                IsOnSale = item.IsOnSale,
+                StockQuantity = item.StockQuantity
+            })
+            .ToArray();
+
         var specificationRows = await _context.Set<ProductAttributeValue>()
             .AsNoTracking()
             .Where(value =>
@@ -169,7 +220,7 @@ public sealed class ProductsController : Controller
                     IsMain = true
                 }]
                 : product.Images,
-            Variants = product.Variants,
+            Variants = variants,
             SpecificationGroups = specificationGroups
         };
 
