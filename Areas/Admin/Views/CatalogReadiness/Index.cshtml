@@ -85,6 +85,33 @@
         <span>@Model.TotalItems kết quả</span>
     </form>
 
+    <form id="catalog-publication-bulk-form"
+          asp-area="Admin"
+          asp-controller="CatalogPublishing"
+          asp-action="Bulk"
+          method="post"
+          class="catalog-readiness-bulk">
+        <input type="hidden" name="Query" value="@Model.Query" />
+        <input type="hidden" name="Status" value="@Model.Status" />
+        <input type="hidden" name="Page" value="@Model.Page" />
+        <div>
+            <strong>Thao tác với sản phẩm đã chọn</strong>
+            <span>Tối đa 100 sản phẩm mỗi lần.</span>
+        </div>
+        <button type="submit"
+                name="Operation"
+                value="publish"
+                class="button button--primary">
+            Hiển thị sản phẩm đạt yêu cầu
+        </button>
+        <button type="submit"
+                name="Operation"
+                value="hide"
+                class="button button--secondary">
+            Ẩn sản phẩm đã chọn
+        </button>
+    </form>
+
     <section class="catalog-readiness-list">
         @if (Model.Items.Count == 0)
         {
@@ -101,6 +128,14 @@
             {
                 <article class="catalog-readiness-card">
                     <header>
+                        <label class="catalog-readiness-card__select">
+                            <input type="checkbox"
+                                   name="ProductIds"
+                                   value="@item.ProductId"
+                                   form="catalog-publication-bulk-form"
+                                   aria-label="Chọn @item.ProductName" />
+                            <span>Chọn</span>
+                        </label>
                         <img src="@item.ImageUrl"
                              alt=""
                              loading="lazy" />
@@ -185,9 +220,42 @@
                            asp-route-slug="@item.ProductSlug"
                            target="_blank"
                            rel="noopener"
-                           class="button button--primary button--small">
+                           class="button button--secondary button--small">
                             Xem trang bán
                         </a>
+
+                        @if (item.ProductIsActive)
+                        {
+                            <form asp-area="Admin"
+                                  asp-controller="CatalogPublishing"
+                                  asp-action="Hide"
+                                  asp-route-productId="@item.ProductId"
+                                  method="post">
+                                <input type="hidden" name="Query" value="@Model.Query" />
+                                <input type="hidden" name="Status" value="@Model.Status" />
+                                <input type="hidden" name="Page" value="@Model.Page" />
+                                <button type="submit"
+                                        class="button button--secondary button--small">
+                                    Ẩn sản phẩm
+                                </button>
+                            </form>
+                        }
+                        else
+                        {
+                            <form asp-area="Admin"
+                                  asp-controller="CatalogPublishing"
+                                  asp-action="Publish"
+                                  asp-route-productId="@item.ProductId"
+                                  method="post">
+                                <input type="hidden" name="Query" value="@Model.Query" />
+                                <input type="hidden" name="Status" value="@Model.Status" />
+                                <input type="hidden" name="Page" value="@Model.Page" />
+                                <button type="submit"
+                                        class="button button--primary button--small">
+                                    Kiểm tra và hiển thị
+                                </button>
+                            </form>
+                        }
                     </footer>
                 </article>
             }

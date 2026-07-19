@@ -201,6 +201,10 @@ public sealed class CatalogReadinessController : Controller
         product =>
             product.IsActive
             && product.Images.Any(image => image.IsMain)
+            && product.MetaTitle != null
+            && product.MetaTitle != ""
+            && product.MetaDescription != null
+            && product.MetaDescription != ""
             && product.Variants.Any(item =>
                 item.IsActive
                 && item.StockQuantity > 0
