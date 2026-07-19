@@ -98,6 +98,72 @@ public sealed class CatalogPublishingController : Controller
         return RedirectToReadiness(input);
     }
 
+    [HttpPost("reconcile")]
+    public async Task<IActionResult> Reconcile(
+        CatalogPublicationReconciliationInput input,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            TempData["ErrorMessage"] =
+                "Số lượng sản phẩm cần rà soát không hợp lệ.";
+            return RedirectToReadiness(input);
+        }
+
+        try
+        {
+            var result = await _publication.ReconcilePublishedAsync(
+                input.MaximumProducts,
+                cancellationToken);
+
+            TempData["SuccessMessage"] = result.HiddenCount == 0
+                ? $"Đã rà soát {result.ScannedCount} sản phẩm đang hiển thị. "
+                  + "Không phát hiện sản phẩm cần ẩn."
+                : $"Đã rà soát {result.ScannedCount} sản phẩm và tự động ẩn "
+                  + $"{result.HiddenCount} sản phẩm không còn đáp ứng điều kiện bán.";
+
+            if (result.HiddenCount > 0)
+            {
+                var examples = result.HiddenItems
+                    .Take(3)
+                    .Select(item =>
+                        $"{item.ProductName}: "
+                        + string.Join(" ", item.Issues.Take(2)))
+                    .ToArray();
+
+                TempData["ErrorMessage"] =
+                    "Các sản phẩm đã được ẩn để tránh tiếp tục bán khi dữ liệu "
+                    + "không còn hợp lệ. "
+                    + string.Join(" | ", examples);
+            }
+
+            if (result.ReachedLimit)
+            {
+                TempData["ErrorMessage"] =
+                    (TempData["ErrorMessage"] as string ?? string.Empty)
+                    + " Vẫn còn sản phẩm chưa được rà soát; hãy chạy lại thao tác.";
+            }
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Concurrent catalog reconciliation.");
+            TempData["ErrorMessage"] =
+                "Dữ liệu vừa thay đổi trong lúc rà soát. Hãy chạy lại thao tác.";
+        }
+        catch (DbUpdateException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Database rejected catalog reconciliation.");
+            TempData["ErrorMessage"] =
+                "Không thể hoàn tất rà soát sản phẩm đang hiển thị.";
+        }
+
+        return RedirectToReadiness(input);
+    }
+
     [HttpPost("bulk")]
     public async Task<IActionResult> Bulk(
         CatalogPublicationBulkInput input,

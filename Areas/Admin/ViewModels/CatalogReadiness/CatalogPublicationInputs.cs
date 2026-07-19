@@ -20,3 +20,14 @@ public sealed class CatalogPublicationBulkInput
     [Required]
     public string Operation { get; set; } = string.Empty;
 }
+
+
+public sealed class CatalogPublicationReconciliationInput
+    : CatalogPublicationReturnInput
+{
+    [Range(
+        1,
+        500,
+        ErrorMessage = "Mỗi lần chỉ được rà soát từ 1 đến 500 sản phẩm.")]
+    public int MaximumProducts { get; set; } = 200;
+}

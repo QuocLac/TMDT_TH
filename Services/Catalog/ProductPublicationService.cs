@@ -194,6 +194,75 @@ public sealed class ProductPublicationService
         }
     }
 
+    public async Task<ProductPublicationReconciliationResult>
+        ReconcilePublishedAsync(
+            int maximumProducts,
+            CancellationToken cancellationToken)
+    {
+        var limit = Math.Clamp(maximumProducts, 1, 500);
+
+        await using var transaction =
+            await _context.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable,
+                cancellationToken);
+
+        try
+        {
+            var products = await BuildProductQuery(tracking: true)
+                .Where(product => product.IsActive)
+                .OrderBy(product => product.UpdatedAt ?? product.CreatedAt)
+                .ThenBy(product => product.Id)
+                .Take(limit + 1)
+                .ToArrayAsync(cancellationToken);
+
+            var reachedLimit = products.Length > limit;
+            var scannedProducts = products
+                .Take(limit)
+                .ToArray();
+
+            var hiddenItems =
+                new List<ProductPublicationReconciliationItem>();
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+
+            foreach (var product in scannedProducts)
+            {
+                var review = BuildReview(product);
+
+                if (review.CanPublish)
+                {
+                    continue;
+                }
+
+                product.IsActive = false;
+                product.UpdatedAt = now;
+
+                hiddenItems.Add(
+                    new ProductPublicationReconciliationItem(
+                        product.Id,
+                        product.Name,
+                        review.Issues));
+            }
+
+            if (hiddenItems.Count > 0)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+
+            return new ProductPublicationReconciliationResult(
+                scannedProducts.Length,
+                hiddenItems.Count,
+                reachedLimit,
+                hiddenItems);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
     private async Task<Product?> LoadProductAsync(
         int productId,
         bool tracking,

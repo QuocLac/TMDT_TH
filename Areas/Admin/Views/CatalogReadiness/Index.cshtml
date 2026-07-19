@@ -19,12 +19,29 @@
                 bắt buộc hoặc thiếu thông tin theo ngành hàng trước khi khách hàng nhìn thấy.
             </p>
         </div>
-        <a asp-area="Admin"
-           asp-controller="Products"
-           asp-action="Create"
-           class="button button--primary">
-            Tạo sản phẩm
-        </a>
+        <div class="admin-page-header__actions">
+            <form asp-area="Admin"
+                  asp-controller="CatalogPublishing"
+                  asp-action="Reconcile"
+                  method="post"
+                  data-catalog-reconcile-form>
+                <input type="hidden" name="Query" value="@Model.Query" />
+                <input type="hidden" name="Status" value="@Model.Status" />
+                <input type="hidden" name="Page" value="@Model.Page" />
+                <input type="hidden" name="MaximumProducts" value="200" />
+                <button type="submit"
+                        class="button button--secondary"
+                        data-confirm-message="Rà soát các sản phẩm đang hiển thị và tự động ẩn sản phẩm không còn đủ điều kiện bán?">
+                    Rà soát sản phẩm đang hiển thị
+                </button>
+            </form>
+            <a asp-area="Admin"
+               asp-controller="Products"
+               asp-action="Create"
+               class="button button--primary">
+                Tạo sản phẩm
+            </a>
+        </div>
     </header>
 
     <section class="catalog-readiness-summary">
@@ -96,18 +113,31 @@
         <input type="hidden" name="Page" value="@Model.Page" />
         <div>
             <strong>Thao tác với sản phẩm đã chọn</strong>
-            <span>Tối đa 100 sản phẩm mỗi lần.</span>
+            <span>
+                <strong data-catalog-selected-count>0</strong>
+                sản phẩm được chọn · tối đa 100 sản phẩm mỗi lần.
+            </span>
         </div>
+        <label class="catalog-readiness-bulk__select-all">
+            <input type="checkbox" data-catalog-select-all />
+            <span>Chọn tất cả trên trang</span>
+        </label>
         <button type="submit"
                 name="Operation"
                 value="publish"
-                class="button button--primary">
+                class="button button--primary"
+                data-catalog-bulk-action
+                data-confirm-message="Kiểm tra và hiển thị các sản phẩm đã chọn nếu đủ điều kiện?"
+                disabled>
             Hiển thị sản phẩm đạt yêu cầu
         </button>
         <button type="submit"
                 name="Operation"
                 value="hide"
-                class="button button--secondary">
+                class="button button--secondary"
+                data-catalog-bulk-action
+                data-confirm-message="Ẩn toàn bộ sản phẩm đã chọn khỏi cửa hàng?"
+                disabled>
             Ẩn sản phẩm đã chọn
         </button>
     </form>
@@ -133,6 +163,7 @@
                                    name="ProductIds"
                                    value="@item.ProductId"
                                    form="catalog-publication-bulk-form"
+                                   data-catalog-product-select
                                    aria-label="Chọn @item.ProductName" />
                             <span>Chọn</span>
                         </label>
@@ -283,3 +314,9 @@
         </nav>
     }
 </section>
+
+
+@section Scripts {
+    <script src="~/js/pages/admin/catalog-readiness.js"
+            asp-append-version="true"></script>
+}

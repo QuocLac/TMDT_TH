@@ -15,6 +15,10 @@ public interface IProductPublicationService
         IReadOnlyCollection<int> productIds,
         bool publish,
         CancellationToken cancellationToken);
+
+    Task<ProductPublicationReconciliationResult> ReconcilePublishedAsync(
+        int maximumProducts,
+        CancellationToken cancellationToken);
 }
 
 public sealed record ProductPublicationReview(
@@ -42,3 +46,15 @@ public sealed record ProductPublicationBatchResult(
     int ChangedCount,
     int FailedCount,
     IReadOnlyList<ProductPublicationBatchItemResult> Items);
+
+
+public sealed record ProductPublicationReconciliationItem(
+    int ProductId,
+    string ProductName,
+    IReadOnlyList<string> Issues);
+
+public sealed record ProductPublicationReconciliationResult(
+    int ScannedCount,
+    int HiddenCount,
+    bool ReachedLimit,
+    IReadOnlyList<ProductPublicationReconciliationItem> HiddenItems);
