@@ -105,6 +105,13 @@
                    aria-current="@(currentController == "ProductInformation" ? "page" : null)">
                     <span>Thông tin theo ngành hàng</span>
                 </a>
+                <a asp-area="Admin"
+                   asp-controller="CatalogReadiness"
+                   asp-action="Index"
+                   class="admin-nav__link @ActiveClass("CatalogReadiness")"
+                   aria-current="@(currentController == "CatalogReadiness" ? "page" : null)">
+                    <span>Chất lượng dữ liệu sản phẩm</span>
+                </a>
 
                 <p class="admin-nav__label">Vận hành sau bán</p>
                 <a asp-area="Admin"

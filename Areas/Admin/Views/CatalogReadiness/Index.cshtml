@@ -1,0 +1,217 @@
+@model WebApplication2.Areas.Admin.ViewModels.CatalogReadiness.CatalogReadinessPageViewModel
+@{
+    ViewData["Title"] = "Chất lượng dữ liệu sản phẩm";
+}
+
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/pages/admin/catalog-readiness.css"
+          asp-append-version="true" />
+}
+
+<section class="admin-page catalog-readiness-page">
+    <header class="admin-page-header admin-page-header--hero">
+        <div>
+            <p class="admin-page-kicker">Kiểm soát danh mục hàng hóa</p>
+            <h2>Chất lượng dữ liệu sản phẩm</h2>
+            <p class="admin-page-lead">
+                Phát hiện sản phẩm thiếu ảnh, thiếu mã hàng có thể bán, thiếu lựa chọn
+                bắt buộc hoặc thiếu thông tin theo ngành hàng trước khi khách hàng nhìn thấy.
+            </p>
+        </div>
+        <a asp-area="Admin"
+           asp-controller="Products"
+           asp-action="Create"
+           class="button button--primary">
+            Tạo sản phẩm
+        </a>
+    </header>
+
+    <section class="catalog-readiness-summary">
+        <a asp-action="Index"
+           asp-route-query="@Model.Query"
+           class="catalog-readiness-summary__item @(Model.Status == "all" ? "is-active" : null)">
+            <span>Tất cả</span>
+            <strong>@Model.Summary.TotalProductCount</strong>
+        </a>
+        <a asp-action="Index"
+           asp-route-query="@Model.Query"
+           asp-route-status="ready"
+           class="catalog-readiness-summary__item @(Model.Status == "ready" ? "is-active" : null)">
+            <span>Sẵn sàng bán</span>
+            <strong>@Model.Summary.ReadyCount</strong>
+        </a>
+        <a asp-action="Index"
+           asp-route-query="@Model.Query"
+           asp-route-status="attention"
+           class="catalog-readiness-summary__item @(Model.Status == "attention" ? "is-active" : null)">
+            <span>Cần hoàn thiện</span>
+            <strong>@Model.Summary.AttentionCount</strong>
+        </a>
+        <a asp-action="Index"
+           asp-route-query="@Model.Query"
+           asp-route-status="unavailable"
+           class="catalog-readiness-summary__item @(Model.Status == "unavailable" ? "is-active" : null)">
+            <span>Chưa thể bán</span>
+            <strong>@Model.Summary.UnavailableCount</strong>
+        </a>
+        <a asp-action="Index"
+           asp-route-query="@Model.Query"
+           asp-route-status="hidden"
+           class="catalog-readiness-summary__item @(Model.Status == "hidden" ? "is-active" : null)">
+            <span>Đang ẩn</span>
+            <strong>@Model.Summary.HiddenCount</strong>
+        </a>
+    </section>
+
+    <form method="get" class="admin-filter-panel catalog-readiness-filter">
+        <input type="hidden" name="status" value="@Model.Status" />
+        <label class="admin-filter-field">
+            <span>Tìm sản phẩm</span>
+            <input type="search"
+                   name="query"
+                   value="@Model.Query"
+                   placeholder="Tên sản phẩm, đường dẫn hoặc mã hàng" />
+        </label>
+        <button type="submit" class="button button--primary">Tìm kiếm</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Query))
+        {
+            <a asp-action="Index"
+               asp-route-status="@Model.Status"
+               class="button button--secondary">
+                Xóa từ khóa
+            </a>
+        }
+        <span>@Model.TotalItems kết quả</span>
+    </form>
+
+    <section class="catalog-readiness-list">
+        @if (Model.Items.Count == 0)
+        {
+            <div class="admin-empty-state">
+                <div>
+                    <strong>Không có sản phẩm trong nhóm này</strong>
+                    <span>Hãy đổi bộ lọc hoặc từ khóa tìm kiếm.</span>
+                </div>
+            </div>
+        }
+        else
+        {
+            @foreach (var item in Model.Items)
+            {
+                <article class="catalog-readiness-card">
+                    <header>
+                        <img src="@item.ImageUrl"
+                             alt=""
+                             loading="lazy" />
+                        <div>
+                            <div class="catalog-readiness-card__title">
+                                <h3>@item.ProductName</h3>
+                                <span class="catalog-readiness-state catalog-readiness-state--@item.State">
+                                    @item.StateLabel
+                                </span>
+                            </div>
+                            <p>
+                                @item.CategoryName ·
+                                @(item.BrandName ?? "Không công bố thương hiệu")
+                            </p>
+                            <small>/products/@item.ProductSlug</small>
+                        </div>
+                    </header>
+
+                    <div class="catalog-readiness-card__metrics">
+                        <div>
+                            <span>Mã hàng</span>
+                            <strong>@item.ActiveItemCount / @item.ItemCount đang bán</strong>
+                        </div>
+                        <div>
+                            <span>Còn số lượng bán</span>
+                            <strong>@item.InStockItemCount</strong>
+                        </div>
+                        <div>
+                            <span>Nhóm bắt buộc</span>
+                            <strong>@item.RequiredOptionGroupCount</strong>
+                        </div>
+                        <div>
+                            <span>Thông tin bắt buộc</span>
+                            <strong>
+                                @(item.RequiredInformationCount - item.MissingRequiredInformationCount)
+                                / @item.RequiredInformationCount
+                            </strong>
+                        </div>
+                    </div>
+
+                    <div class="catalog-readiness-card__issues">
+                        @if (item.Issues.Count == 0)
+                        {
+                            <span class="catalog-readiness-issue catalog-readiness-issue--ready">
+                                Không phát hiện vấn đề cần xử lý
+                            </span>
+                        }
+                        else
+                        {
+                            @foreach (var issue in item.Issues)
+                            {
+                                <span class="catalog-readiness-issue">@issue</span>
+                            }
+                        }
+                    </div>
+
+                    <footer>
+                        <a asp-area="Admin"
+                           asp-controller="Products"
+                           asp-action="Edit"
+                           asp-route-id="@item.ProductId"
+                           class="button button--secondary button--small">
+                            Nội dung và hình ảnh
+                        </a>
+                        <a asp-area="Admin"
+                           asp-controller="ProductOptions"
+                           asp-action="Configure"
+                           asp-route-productId="@item.ProductId"
+                           class="button button--secondary button--small">
+                            Lựa chọn mua và mã hàng
+                        </a>
+                        <a asp-area="Admin"
+                           asp-controller="ProductInformation"
+                           asp-action="EditProduct"
+                           asp-route-productId="@item.ProductId"
+                           class="button button--secondary button--small">
+                            Thông tin ngành hàng
+                        </a>
+                        <a asp-area=""
+                           asp-controller="Products"
+                           asp-action="Details"
+                           asp-route-slug="@item.ProductSlug"
+                           target="_blank"
+                           rel="noopener"
+                           class="button button--primary button--small">
+                            Xem trang bán
+                        </a>
+                    </footer>
+                </article>
+            }
+        }
+    </section>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav class="admin-pagination" aria-label="Phân trang">
+            <a asp-action="Index"
+               asp-route-query="@Model.Query"
+               asp-route-status="@Model.Status"
+               asp-route-page="@(Model.Page - 1)"
+               class="button button--secondary @(Model.Page <= 1 ? "disabled" : null)">
+                Trang trước
+            </a>
+            <span>Trang @Model.Page / @Model.TotalPages</span>
+            <a asp-action="Index"
+               asp-route-query="@Model.Query"
+               asp-route-status="@Model.Status"
+               asp-route-page="@(Model.Page + 1)"
+               class="button button--secondary @(Model.Page >= Model.TotalPages ? "disabled" : null)">
+                Trang sau
+            </a>
+        </nav>
+    }
+</section>

@@ -260,7 +260,7 @@ public sealed class ProductOptionCombinationGenerator
             .Select(group => group.Name)
             .ToArray();
 
-        var total = groups.Count == 0
+        var total = groups.Length == 0
             ? 0L
             : 1L;
 
