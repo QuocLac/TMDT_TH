@@ -12,8 +12,8 @@ using WebApplication2.Models;
 namespace WebApplication2.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260711122736_RestoreApplicationDbContextSnapshot")]
-    partial class RestoreApplicationDbContextSnapshot
+    [Migration("20260719171054_InitialCommerceSchema")]
+    partial class InitialCommerceSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -46,12 +46,49 @@ namespace WebApplication2.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<int>("FailedAccessCount")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastLoginAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LockoutEndAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NormalizedEmail")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("NormalizedUsername")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("PasswordChangedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)")
+                        .HasDefaultValue("Customer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SecurityStamp")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
@@ -66,7 +103,22 @@ namespace WebApplication2.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("Accounts");
+                    b.HasIndex("NormalizedEmail")
+                        .IsUnique()
+                        .HasFilter("[NormalizedEmail] IS NOT NULL");
+
+                    b.HasIndex("NormalizedUsername")
+                        .IsUnique()
+                        .HasFilter("[NormalizedUsername] IS NOT NULL");
+
+                    b.HasIndex("Role", "IsActive");
+
+                    b.ToTable("Accounts", t =>
+                        {
+                            t.HasCheckConstraint("CK_Account_FailedAccessCount", "[FailedAccessCount] >= 0");
+
+                            t.HasCheckConstraint("CK_Account_Role", "[Role] IN ('Customer','Admin')");
+                        });
                 });
 
             modelBuilder.Entity("WebApplication2.Models.Address", b =>
@@ -93,8 +145,22 @@ namespace WebApplication2.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int?>("DistrictId")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsDefault")
                         .HasColumnType("bit");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("ProvinceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RecipientName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Street")
                         .IsRequired()
@@ -104,14 +170,25 @@ namespace WebApplication2.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("ValidatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Ward")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("WardCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("CustomerId", "IsDefault")
+                        .IsUnique()
+                        .HasFilter("[IsDefault] = 1");
 
                     b.ToTable("Addresses");
                 });
@@ -171,6 +248,23 @@ namespace WebApplication2.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
 
+                    b.Property<int>("DisplayOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("IconKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasDefaultValue("folder");
+
+                    b.Property<bool>("IsVisible")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("MetaDescription")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -199,12 +293,15 @@ namespace WebApplication2.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ParentId");
-
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("Categories");
+                    b.HasIndex("ParentId", "IsVisible", "DisplayOrder");
+
+                    b.ToTable("Categories", t =>
+                        {
+                            t.HasCheckConstraint("CK_Category_DisplayOrder", "[DisplayOrder] >= 0 AND [DisplayOrder] <= 9999");
+                        });
                 });
 
             modelBuilder.Entity("WebApplication2.Models.Customer", b =>
@@ -499,13 +596,13 @@ namespace WebApplication2.Migrations
 
                     b.ToTable("InventoryMovements", t =>
                         {
-                            t.HasCheckConstraint("CK_InventoryMovement_MovementType", "[MovementType] IN ('ReservationCreated','ReservationReleased','ReservationExpired','ManualIncrease','ManualDecrease','ReturnRestocked','ReturnWriteOff')");
+                            t.HasCheckConstraint("CK_InventoryMovement_MovementType", "[MovementType] IN ('ReservationCreated','ReservationReleased','ReservationExpired','ManualIncrease','ManualDecrease','ReturnReceived','ReturnRestocked','ReturnWriteOff')");
 
                             t.HasCheckConstraint("CK_InventoryMovement_QuantityAfter", "[QuantityAfter] >= 0");
 
                             t.HasCheckConstraint("CK_InventoryMovement_QuantityBefore", "[QuantityBefore] >= 0");
 
-                            t.HasCheckConstraint("CK_InventoryMovement_QuantityDelta", "[QuantityDelta] <> 0");
+                            t.HasCheckConstraint("CK_InventoryMovement_QuantityDelta", "([MovementType] IN ('ReturnReceived','ReturnWriteOff') AND [QuantityDelta] = 0) OR ([MovementType] NOT IN ('ReturnReceived','ReturnWriteOff') AND [QuantityDelta] <> 0)");
 
                             t.HasCheckConstraint("CK_InventoryMovement_QuantityEquation", "[QuantityAfter] = [QuantityBefore] + [QuantityDelta]");
                         });
@@ -1623,6 +1720,281 @@ namespace WebApplication2.Migrations
                     b.ToTable("PromotionCustomers");
                 });
 
+            modelBuilder.Entity("WebApplication2.Models.ReturnEvidence", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Caption")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<long>("ReturnRequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReturnRequestId", "CreatedAt");
+
+                    b.ToTable("ReturnEvidence", t =>
+                        {
+                            t.HasCheckConstraint("CK_ReturnEvidence_Type", "[Type] IN ('Image','Video')");
+                        });
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ReturnInspection", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("Inspector")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<long>("ReturnRequestId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("ReturnRequestId", "CreatedAt");
+
+                    b.ToTable("ReturnInspections", t =>
+                        {
+                            t.HasCheckConstraint("CK_ReturnInspection_Result", "[Result] IN ('Accepted','PartiallyAccepted','Rejected')");
+                        });
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ReturnItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AcceptedQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ApprovedQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ConditionCode")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InspectionNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("OrderItemId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ReceivedQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("RefundAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("RejectedQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RequestedQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RestockQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<long>("ReturnRequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("WriteOffQuantity")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderItemId");
+
+                    b.HasIndex("ReturnRequestId", "OrderItemId")
+                        .IsUnique();
+
+                    b.ToTable("ReturnItems", t =>
+                        {
+                            t.HasCheckConstraint("CK_ReturnItem_AcceptedRejected", "[AcceptedQuantity] >= 0 AND [RejectedQuantity] >= 0 AND [AcceptedQuantity] + [RejectedQuantity] <= [ReceivedQuantity]");
+
+                            t.HasCheckConstraint("CK_ReturnItem_ApprovedQuantity", "[ApprovedQuantity] >= 0 AND [ApprovedQuantity] <= [RequestedQuantity]");
+
+                            t.HasCheckConstraint("CK_ReturnItem_ConditionCode", "[ConditionCode] IS NULL OR [ConditionCode] IN ('Restockable','Damaged','MissingParts','WrongItem','Mixed','WriteOff')");
+
+                            t.HasCheckConstraint("CK_ReturnItem_Disposition", "[RestockQuantity] >= 0 AND [WriteOffQuantity] >= 0 AND [RestockQuantity] + [WriteOffQuantity] = [AcceptedQuantity]");
+
+                            t.HasCheckConstraint("CK_ReturnItem_ReceivedQuantity", "[ReceivedQuantity] >= 0 AND [ReceivedQuantity] <= [ApprovedQuantity]");
+
+                            t.HasCheckConstraint("CK_ReturnItem_RefundAmount", "[RefundAmount] >= 0");
+
+                            t.HasCheckConstraint("CK_ReturnItem_RequestedQuantity", "[RequestedQuantity] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ReturnRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("InspectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InspectionResult")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("OrderId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReasonCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("ReasonText")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("ReturnWindowExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReviewedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("OrderId", "Status", "RequestedAt");
+
+                    b.ToTable("ReturnRequests", t =>
+                        {
+                            t.HasCheckConstraint("CK_ReturnRequest_InspectionResult", "[InspectionResult] IS NULL OR [InspectionResult] IN ('Accepted','PartiallyAccepted','Rejected')");
+
+                            t.HasCheckConstraint("CK_ReturnRequest_Status", "[Status] IN ('Requested','UnderReview','Approved','Rejected','AwaitingReturnShipment','AwaitingPickup','ReturnInTransit','ReceivedAtWarehouse','Inspecting','RefundPending','RejectedAfterInspection','Refunded','Closed','Cancelled')");
+
+                            t.HasCheckConstraint("CK_ReturnRequest_Window", "[RequestedAt] <= [ReturnWindowExpiresAt]");
+                        });
+                });
+
             modelBuilder.Entity("WebApplication2.Models.Shipment", b =>
                 {
                     b.Property<long>("Id")
@@ -1703,6 +2075,9 @@ namespace WebApplication2.Migrations
                     b.Property<DateTime?>("ProviderUpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<long?>("ReturnRequestId")
+                        .HasColumnType("bigint");
+
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
@@ -1749,6 +2124,8 @@ namespace WebApplication2.Migrations
 
                     b.HasIndex("ParentShipmentId");
 
+                    b.HasIndex("ReturnRequestId");
+
                     b.HasIndex("OrderId", "Direction")
                         .IsUnique()
                         .HasFilter("[Direction] = 'Outbound' AND [Status] <> 'Cancelled' AND [Status] <> 'Returned'");
@@ -1760,6 +2137,10 @@ namespace WebApplication2.Migrations
                     b.HasIndex("Provider", "TrackingCode")
                         .IsUnique()
                         .HasFilter("[TrackingCode] IS NOT NULL");
+
+                    b.HasIndex("ReturnRequestId", "Direction")
+                        .IsUnique()
+                        .HasFilter("[Direction] = 'Return' AND [ReturnRequestId] IS NOT NULL AND [Status] <> 'Cancelled' AND [Status] <> 'Returned'");
 
                     b.HasIndex("Direction", "Status", "CreatedAt");
 
@@ -1773,13 +2154,13 @@ namespace WebApplication2.Migrations
 
                             t.HasCheckConstraint("CK_Shipment_Direction", "[Direction] IN ('Outbound','Return')");
 
+                            t.HasCheckConstraint("CK_Shipment_DirectionOwnership", "([Direction] = 'Outbound' AND [ParentShipmentId] IS NULL AND [ReturnRequestId] IS NULL) OR ([Direction] = 'Return' AND [ParentShipmentId] IS NOT NULL AND [ReturnRequestId] IS NOT NULL)");
+
                             t.HasCheckConstraint("CK_Shipment_Fee", "[Fee] >= 0");
 
                             t.HasCheckConstraint("CK_Shipment_HeightCm", "[HeightCm] >= 0");
 
                             t.HasCheckConstraint("CK_Shipment_LengthCm", "[LengthCm] >= 0");
-
-                            t.HasCheckConstraint("CK_Shipment_ParentDirection", "([Direction] = 'Outbound' AND [ParentShipmentId] IS NULL) OR ([Direction] = 'Return' AND [ParentShipmentId] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_Shipment_ReturnCodAmount", "[Direction] = 'Outbound' OR [CodAmount] = 0");
 
@@ -1942,7 +2323,7 @@ namespace WebApplication2.Migrations
                     b.HasOne("WebApplication2.Models.OrderItem", "OrderItem")
                         .WithMany("CancellationItems")
                         .HasForeignKey("OrderItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("CancellationRequest");
@@ -2127,6 +2508,58 @@ namespace WebApplication2.Migrations
                     b.Navigation("Promotion");
                 });
 
+            modelBuilder.Entity("WebApplication2.Models.ReturnEvidence", b =>
+                {
+                    b.HasOne("WebApplication2.Models.ReturnRequest", "ReturnRequest")
+                        .WithMany("Evidence")
+                        .HasForeignKey("ReturnRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReturnRequest");
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ReturnInspection", b =>
+                {
+                    b.HasOne("WebApplication2.Models.ReturnRequest", "ReturnRequest")
+                        .WithMany("Inspections")
+                        .HasForeignKey("ReturnRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReturnRequest");
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ReturnItem", b =>
+                {
+                    b.HasOne("WebApplication2.Models.OrderItem", "OrderItem")
+                        .WithMany("ReturnItems")
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WebApplication2.Models.ReturnRequest", "ReturnRequest")
+                        .WithMany("Items")
+                        .HasForeignKey("ReturnRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OrderItem");
+
+                    b.Navigation("ReturnRequest");
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ReturnRequest", b =>
+                {
+                    b.HasOne("WebApplication2.Models.Order", "Order")
+                        .WithMany("ReturnRequests")
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
             modelBuilder.Entity("WebApplication2.Models.Shipment", b =>
                 {
                     b.HasOne("WebApplication2.Models.Order", "Order")
@@ -2140,9 +2573,16 @@ namespace WebApplication2.Migrations
                         .HasForeignKey("ParentShipmentId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("WebApplication2.Models.ReturnRequest", "ReturnRequest")
+                        .WithMany("Shipments")
+                        .HasForeignKey("ReturnRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Order");
 
                     b.Navigation("ParentShipment");
+
+                    b.Navigation("ReturnRequest");
                 });
 
             modelBuilder.Entity("WebApplication2.Models.StockReservation", b =>
@@ -2174,8 +2614,7 @@ namespace WebApplication2.Migrations
 
             modelBuilder.Entity("WebApplication2.Models.Account", b =>
                 {
-                    b.Navigation("Customer")
-                        .IsRequired();
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("WebApplication2.Models.Brand", b =>
@@ -2205,6 +2644,8 @@ namespace WebApplication2.Migrations
 
                     b.Navigation("PaymentTransactions");
 
+                    b.Navigation("ReturnRequests");
+
                     b.Navigation("Shipments");
 
                     b.Navigation("StatusHistory");
@@ -2220,6 +2661,8 @@ namespace WebApplication2.Migrations
             modelBuilder.Entity("WebApplication2.Models.OrderItem", b =>
                 {
                     b.Navigation("CancellationItems");
+
+                    b.Navigation("ReturnItems");
 
                     b.Navigation("StockReservations");
                 });
@@ -2252,6 +2695,17 @@ namespace WebApplication2.Migrations
                     b.Navigation("ProductPromotions");
 
                     b.Navigation("PromotionCustomers");
+                });
+
+            modelBuilder.Entity("WebApplication2.Models.ReturnRequest", b =>
+                {
+                    b.Navigation("Evidence");
+
+                    b.Navigation("Inspections");
+
+                    b.Navigation("Items");
+
+                    b.Navigation("Shipments");
                 });
 
             modelBuilder.Entity("WebApplication2.Models.Shipment", b =>

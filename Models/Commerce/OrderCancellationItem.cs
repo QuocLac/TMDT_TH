@@ -14,6 +14,8 @@ public sealed class OrderCancellationItem
     public OrderCancellationRequest CancellationRequest { get; set; } = null!;
 
     public int OrderItemId { get; set; }
+
+    [DeleteBehavior(DeleteBehavior.Restrict)]
     public OrderItem OrderItem { get; set; } = null!;
 
     public int RequestedQuantity { get; set; }
