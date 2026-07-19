@@ -66,15 +66,21 @@ builder.Services.AddScoped<IPasswordHasher<Account>, PasswordHasher<Account>>();
 builder.Services.AddScoped<IAccountAuthenticationService, AccountAuthenticationService>();
 builder.Services.AddScoped<ICustomerAccountService, CustomerAccountService>();
 
+var adminBootstrapSection =
+    builder.Configuration.GetSection(AdminBootstrapOptions.SectionName);
+var adminBootstrapOptions =
+    adminBootstrapSection.Get<AdminBootstrapOptions>() ?? new AdminBootstrapOptions();
+var hasInvalidAdminBootstrapConfiguration =
+    adminBootstrapOptions.Enabled && !adminBootstrapOptions.IsConfigured;
+
 builder.Services
     .AddOptions<AdminBootstrapOptions>()
-    .Bind(builder.Configuration.GetSection(AdminBootstrapOptions.SectionName))
-    .Validate(
-        options => options.IsConfigured,
-        $"Configuration section '{AdminBootstrapOptions.SectionName}' is invalid. "
-        + "When enabled, provide Username, Email, FullName, PhoneNumber and a Password of at least 12 characters.")
-    .ValidateOnStart();
-builder.Services.AddHostedService<AdminAccountBootstrapper>();
+    .Bind(adminBootstrapSection);
+
+if (adminBootstrapOptions.Enabled && adminBootstrapOptions.IsConfigured)
+{
+    builder.Services.AddHostedService<AdminAccountBootstrapper>();
+}
 
 builder.Services.Configure<ProductImageStorageOptions>(
     builder.Configuration.GetSection(ProductImageStorageOptions.SectionName));
@@ -173,6 +179,15 @@ builder.Services.AddScoped<IPriceCampaignWorkflowService, ReliablePriceCampaignW
 builder.Services.AddHostedService<PriceCampaignWorker>();
 
 var app = builder.Build();
+
+if (hasInvalidAdminBootstrapConfiguration)
+{
+    app.Logger.LogError(
+        "Bootstrap Admin is enabled but its configuration is incomplete. "
+        + "The bootstrapper was skipped so the application can start. "
+        + "Configure Username, Email, FullName, PhoneNumber and a Password of at least 12 characters, "
+        + "or set Authentication:BootstrapAdmin:Enabled to false.");
+}
 
 if (!app.Environment.IsDevelopment())
 {
