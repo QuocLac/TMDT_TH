@@ -162,22 +162,41 @@ public sealed class OrdersController : Controller
             return NotFound();
         }
 
-        var selectedLines = input.Lines
-            .Where(item => item.Quantity > 0)
-            .GroupBy(item => item.OrderItemId)
-            .Select(group => new CustomerCancellationLineInputModel
-            {
-                OrderItemId = group.Key,
-                Quantity = group.Sum(item => item.Quantity)
-            })
-            .ToArray();
+        OrderCancellationSummary? cancellationSummary = null;
+        try
+        {
+            cancellationSummary = await _cancellationService.GetSummaryAsync(
+                input.OrderId,
+                cancellationToken);
+        }
+        catch (OrderCancellationException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.DetailMessage);
+        }
 
-        if (selectedLines.Length == 0)
+        var canCancelWholeOrder = cancellationSummary is not null
+            && cancellationSummary.CanRequest
+            && cancellationSummary.Items.Count > 0
+            && cancellationSummary.Items.All(item =>
+                item.OrderedQuantity > 0
+                && item.ApprovedCancelledQuantity == 0
+                && item.PendingQuantity == 0
+                && item.CancellableQuantity == item.OrderedQuantity);
+
+        if (!canCancelWholeOrder)
         {
             ModelState.AddModelError(
                 string.Empty,
-                "Hãy chọn ít nhất một sản phẩm và số lượng cần hủy.");
+                "FastBuy chỉ hỗ trợ hủy toàn bộ đơn hàng. Đơn có sản phẩm đã hủy, đang chờ hủy hoặc không còn đủ số lượng sẽ không thể tạo yêu cầu mới.");
         }
+
+        var wholeOrderLines = cancellationSummary?.Items
+            .OrderBy(item => item.OrderItemId)
+            .Select(item => new CancellationRequestLineCommand(
+                item.OrderItemId,
+                item.OrderedQuantity))
+            .ToArray()
+            ?? [];
 
         if (!TryDecodeRowVersion(input.OrderRowVersion, out var rowVersion))
         {
@@ -205,10 +224,7 @@ public sealed class OrdersController : Controller
                     input.ReasonText,
                     ResolveActor(customerId),
                     input.IdempotencyKey,
-                    selectedLines.Select(item =>
-                        new CancellationRequestLineCommand(
-                            item.OrderItemId,
-                            item.Quantity)).ToArray()),
+                    wholeOrderLines),
                 cancellationToken);
 
             TempData["SuccessMessage"] =
@@ -301,12 +317,6 @@ public sealed class OrdersController : Controller
             item => item.OrderItemId,
             item => item.CancellableQuantity)
             ?? new Dictionary<int, int>();
-        var postedQuantities = cancellationForm?.Lines
-            .GroupBy(item => item.OrderItemId)
-            .ToDictionary(
-                group => group.Key,
-                group => Math.Max(0, group.Sum(item => item.Quantity)))
-            ?? new Dictionary<int, int>();
 
         var latestPayment = order.PaymentTransactions
             .Where(item => !item.Method.Equals(
@@ -349,9 +359,21 @@ public sealed class OrdersController : Controller
                 && latestPayment?.Method.Equals(
                     "VNPAY",
                     StringComparison.OrdinalIgnoreCase) == true,
-            CanRequestCancellation = cancellation?.CanRequest == true,
-            CancellationMessage = cancellation?.IneligibilityMessage
-                ?? cancellationLoadError,
+            CanRequestCancellation = cancellation?.CanRequest == true
+                && cancellation!.Items.Count > 0
+                && cancellation.Items.All(item =>
+                    item.OrderedQuantity > 0
+                    && item.ApprovedCancelledQuantity == 0
+                    && item.PendingQuantity == 0
+                    && item.CancellableQuantity == item.OrderedQuantity),
+            CancellationMessage = cancellation?.CanRequest == true
+                && cancellation!.Items.Any(item =>
+                    item.ApprovedCancelledQuantity > 0
+                    || item.PendingQuantity > 0
+                    || item.CancellableQuantity != item.OrderedQuantity)
+                    ? "FastBuy chỉ hỗ trợ hủy toàn bộ đơn hàng. Đơn này đã có số lượng được hủy, đang chờ hủy hoặc không còn nguyên vẹn nên không thể tạo yêu cầu hủy mới."
+                    : cancellation?.IneligibilityMessage
+                        ?? cancellationLoadError,
             CanRequestReturn = returnEligibility?.IsEligible == true,
             ReturnMessage = returnEligibility?.Message,
             CancelReason = order.CancelReason,
@@ -378,14 +400,15 @@ public sealed class OrdersController : Controller
                 IdempotencyKey = string.IsNullOrWhiteSpace(cancellationForm?.IdempotencyKey)
                     ? Guid.NewGuid().ToString("N")
                     : cancellationForm.IdempotencyKey,
-                Lines = order.Items.OrderBy(item => item.Id).Select(item =>
-                    new CustomerCancellationLineInputModel
+                Lines = cancellation?.Items
+                    .OrderBy(item => item.OrderItemId)
+                    .Select(item => new CustomerCancellationLineInputModel
                     {
-                        OrderItemId = item.Id,
-                        Quantity = Math.Min(
-                            cancellableByItem.GetValueOrDefault(item.Id),
-                            postedQuantities.GetValueOrDefault(item.Id))
-                    }).ToList()
+                        OrderItemId = item.OrderItemId,
+                        Quantity = item.OrderedQuantity
+                    })
+                    .ToList()
+                    ?? []
             },
             Progress = BuildProgress(order),
             Items = order.Items.OrderBy(item => item.Id).Select(item =>

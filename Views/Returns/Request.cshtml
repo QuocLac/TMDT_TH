@@ -3,13 +3,23 @@
 @{
     ViewData["Title"] = "Yêu cầu hoàn trả";
     var culture = CultureInfo.GetCultureInfo("vi-VN");
+    var canReturnWholeOrder = Model.Eligibility.IsEligible
+        && Model.Eligibility.Items.Count > 0
+        && Model.Eligibility.Items.All(item =>
+            item.PurchasedQuantity > 0
+            && item.CancelledQuantity == 0
+            && item.ReservedReturnQuantity == 0
+            && item.AvailableQuantity == item.PurchasedQuantity);
 }
 
 <section class="return-page shell-container">
     <header class="return-hero">
         <p class="eyebrow">Đơn hàng @Model.Eligibility.OrderCode</p>
-        <h1>Yêu cầu hoàn trả</h1>
-        <p>@Model.Eligibility.Message</p>
+        <h1>Yêu cầu hoàn trả toàn bộ đơn</h1>
+        <p>
+            FastBuy chỉ tiếp nhận hoàn trả toàn bộ sản phẩm và toàn bộ số lượng
+            trong đơn hàng. Không thể tách riêng từng sản phẩm.
+        </p>
         @if (Model.Eligibility.DeliveredAt.HasValue)
         {
             <div class="return-deadline">
@@ -26,14 +36,21 @@
         <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
     }
 
-    @if (!Model.Eligibility.IsEligible)
+    @if (!canReturnWholeOrder)
     {
         <section class="return-card return-empty">
-            <h2>Không thể gửi yêu cầu</h2>
-            <p>Mã kiểm tra: <code>@(Model.Eligibility.ErrorCode ?? "RETURN_NOT_ELIGIBLE")</code></p>
-            <a asp-controller="Checkout" asp-action="Success"
+            <h2>Không thể hoàn trả toàn bộ đơn</h2>
+            <p>
+                @(Model.Eligibility.IsEligible
+                    ? "Đơn có sản phẩm đã hủy, đã hoàn hoặc đang nằm trong yêu cầu hoàn trả khác."
+                    : Model.Eligibility.Message)
+            </p>
+            <a asp-controller="Orders"
+               asp-action="Details"
                asp-route-publicToken="@Model.Eligibility.OrderPublicToken"
-               class="button button--primary">Quay lại đơn hàng</a>
+               class="button button--primary">
+                Quay lại chi tiết đơn
+            </a>
         </section>
     }
     else
@@ -45,10 +62,10 @@
             <section class="return-card">
                 <div class="return-card__heading">
                     <div>
-                        <p class="eyebrow">Sản phẩm</p>
-                        <h2>Chọn số lượng cần hoàn</h2>
+                        <p class="eyebrow">Toàn bộ đơn hàng</p>
+                        <h2>Sản phẩm sẽ được hoàn trả</h2>
                     </div>
-                    <span>Không vượt số lượng còn khả dụng</span>
+                    <span>@Model.Eligibility.Items.Sum(item => item.PurchasedQuantity) sản phẩm</span>
                 </div>
 
                 <div class="return-lines">
@@ -61,24 +78,18 @@
                             <div class="return-line__content">
                                 <strong>@item.ProductName</strong>
                                 <span>@item.VariantDescription · @item.Sku</span>
-                                <small>
-                                    Đã mua @item.PurchasedQuantity · Đã hủy @item.CancelledQuantity ·
-                                    Đang giữ bởi return khác @item.ReservedReturnQuantity
-                                </small>
+                                <small>Hoàn toàn bộ số lượng @item.PurchasedQuantity</small>
                                 <b>@item.UnitPrice.ToString("N0", culture) ₫</b>
                             </div>
-                            <label>
-                                <span>Số lượng hoàn</span>
-                                <input type="hidden" name="Form.Lines[@index].OrderItemId"
+                            <div>
+                                <input type="hidden"
+                                       name="Form.Lines[@index].OrderItemId"
                                        value="@item.OrderItemId" />
-                                <input type="number"
+                                <input type="hidden"
                                        name="Form.Lines[@index].Quantity"
-                                       value="@Model.Form.Lines.FirstOrDefault(line => line.OrderItemId == item.OrderItemId)?.Quantity"
-                                       min="0"
-                                       max="@item.AvailableQuantity"
-                                       @(item.AvailableQuantity == 0 ? "disabled" : null) />
-                                <small>Còn @item.AvailableQuantity</small>
-                            </label>
+                                       value="@item.PurchasedQuantity" />
+                                <strong>@item.PurchasedQuantity</strong>
+                            </div>
                         </article>
                     }
                 </div>
@@ -99,7 +110,7 @@
                 <label>
                     <span>Mô tả chi tiết</span>
                     <textarea asp-for="Form.ReasonText" rows="5"
-                              placeholder="Mô tả tình trạng sản phẩm và mong muốn xử lý..."></textarea>
+                              placeholder="Mô tả tình trạng đơn hàng và mong muốn xử lý..."></textarea>
                     <span asp-validation-for="Form.ReasonText" class="text-danger"></span>
                 </label>
                 <label>
@@ -109,14 +120,16 @@
                     <small>File thực tế phải được tải lên kho media an toàn trước khi gắn URL.</small>
                 </label>
                 <div class="return-policy-note">
-                    <strong>Quy tắc xử lý</strong>
+                    <strong>Quy tắc xử lý toàn đơn</strong>
                     <p>
-                        Gửi yêu cầu không làm tăng tồn kho. Tồn kho chỉ được cập nhật sau khi
-                        GHN giao hàng về kho và nhân viên hoàn tất kiểm định từng dòng.
+                        Yêu cầu áp dụng cho toàn bộ đơn. Tồn kho chỉ được cập nhật sau khi
+                        đơn vị vận chuyển giao hàng về kho và nhân viên hoàn tất kiểm định.
                     </p>
                 </div>
-                <button type="submit" class="button button--primary">
-                    Gửi yêu cầu hoàn trả
+                <button type="submit"
+                        class="button button--primary"
+                        onclick="return confirm('Gửi yêu cầu hoàn trả toàn bộ đơn hàng này?');">
+                    Gửi yêu cầu hoàn trả toàn bộ đơn
                 </button>
             </section>
         </form>

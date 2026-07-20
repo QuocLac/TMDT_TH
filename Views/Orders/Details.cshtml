@@ -364,10 +364,10 @@
             {
                 <section class="customer-order-section customer-order-cancellation">
                     <p class="eyebrow">Thay đổi đơn</p>
-                    <h2>Yêu cầu hủy sản phẩm</h2>
+                    <h2>Yêu cầu hủy toàn bộ đơn</h2>
                     <p>
-                        Chọn đúng sản phẩm và số lượng cần hủy. Yêu cầu sẽ được kiểm tra
-                        trước khi cập nhật đơn và hoàn tiền.
+                        Khi gửi yêu cầu, toàn bộ sản phẩm và toàn bộ số lượng trong đơn
+                        sẽ được hủy cùng nhau. FastBuy không hỗ trợ tách riêng sản phẩm.
                     </p>
 
                     <form asp-action="RequestCancellation"
@@ -385,16 +385,15 @@
                                 var item = Model.Items[index];
                                 <div>
                                     <input asp-for="Cancellation.Lines[index].OrderItemId" type="hidden" />
+                                    <input asp-for="Cancellation.Lines[index].Quantity" type="hidden" />
                                     <label>
                                         <span>
                                             <strong>@item.ProductName</strong>
-                                            <small>Có thể yêu cầu hủy tối đa @item.CancellableQuantity</small>
+                                            <small>
+                                                @item.VariantDescription · Toàn bộ số lượng @item.Quantity
+                                            </small>
                                         </span>
-                                        <input asp-for="Cancellation.Lines[index].Quantity"
-                                               type="number"
-                                               min="0"
-                                               max="@item.CancellableQuantity"
-                                               inputmode="numeric" />
+                                        <strong>@item.Quantity</strong>
                                     </label>
                                 </div>
                             }
@@ -425,8 +424,8 @@
 
                         <button type="submit"
                                 class="button button--danger"
-                                onclick="return confirm('Gửi yêu cầu hủy các sản phẩm đã chọn?');">
-                            Gửi yêu cầu hủy
+                                onclick="return confirm('Hủy toàn bộ sản phẩm và toàn bộ số lượng trong đơn hàng này?');">
+                            Gửi yêu cầu hủy toàn bộ đơn
                         </button>
                     </form>
                 </section>

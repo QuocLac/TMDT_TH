@@ -52,11 +52,14 @@ public sealed class ReturnsController : Controller
             {
                 OrderPublicToken = publicToken,
                 IdempotencyKey = Guid.NewGuid().ToString("N"),
-                Lines = eligibility.Items.Select(item => new CreateReturnLineInput
-                {
-                    OrderItemId = item.OrderItemId,
-                    Quantity = 0
-                }).ToList()
+                Lines = eligibility.Items
+                    .OrderBy(item => item.OrderItemId)
+                    .Select(item => new CreateReturnLineInput
+                    {
+                        OrderItemId = item.OrderItemId,
+                        Quantity = item.PurchasedQuantity
+                    })
+                    .ToList()
             },
             null));
     }
@@ -79,20 +82,29 @@ public sealed class ReturnsController : Controller
             return NotFound();
         }
 
-        if (!eligibility.IsEligible)
-        {
-            ModelState.AddModelError(string.Empty, eligibility.Message);
-        }
+        var canReturnWholeOrder = eligibility.IsEligible
+            && eligibility.Items.Count > 0
+            && eligibility.Items.All(item =>
+                item.PurchasedQuantity > 0
+                && item.CancelledQuantity == 0
+                && item.ReservedReturnQuantity == 0
+                && item.AvailableQuantity == item.PurchasedQuantity);
 
-        var selectedLines = input.Lines
-            .Where(item => item.Quantity > 0)
-            .ToArray();
-        if (selectedLines.Length == 0)
+        if (!canReturnWholeOrder)
         {
             ModelState.AddModelError(
                 string.Empty,
-                "Hãy chọn ít nhất một sản phẩm và số lượng cần hoàn trả.");
+                eligibility.IsEligible
+                    ? "FastBuy chỉ hỗ trợ hoàn trả toàn bộ đơn hàng. Đơn có sản phẩm đã hủy, đã hoàn hoặc đang nằm trong yêu cầu hoàn trả khác sẽ không thể tạo yêu cầu mới."
+                    : eligibility.Message);
         }
+
+        var wholeOrderLines = eligibility.Items
+            .OrderBy(item => item.OrderItemId)
+            .Select(item => new ReturnRequestLineCommand(
+                item.OrderItemId,
+                item.PurchasedQuantity))
+            .ToArray();
 
         if (!ModelState.IsValid)
         {
@@ -111,9 +123,7 @@ public sealed class ReturnsController : Controller
                     input.ReasonText,
                     User.Identity?.Name ?? eligibility.CustomerEmail,
                     input.IdempotencyKey,
-                    selectedLines.Select(item => new ReturnRequestLineCommand(
-                        item.OrderItemId,
-                        item.Quantity)).ToArray(),
+                    wholeOrderLines,
                     ParseEvidence(input.EvidenceUrls)),
                 cancellationToken);
 
