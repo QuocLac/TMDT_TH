@@ -16,6 +16,7 @@ using WebApplication2.Services.Identity;
 using WebApplication2.Services.Media;
 using WebApplication2.Services.Payments.VnPay;
 using WebApplication2.Services.Pricing;
+using WebApplication2.Services.Reviews;
 using WebApplication2.Services.Shipping;
 using WebApplication2.Services.Shipping.Ghn;
 
@@ -101,6 +102,7 @@ builder.Services.AddSession(options =>
 });
 
 builder.Services.AddScoped<IProductOptionReadService, ProductOptionReadService>();
+builder.Services.AddScoped<IProductReviewService, ProductReviewService>();
 builder.Services.AddScoped<IProductPublicationService, ProductPublicationService>();
 builder.Services.AddScoped<IProductOptionIntegrityService, ProductOptionIntegrityService>();
 builder.Services.AddScoped<IProductOptionCombinationGenerator, ProductOptionCombinationGenerator>();

@@ -44,5 +44,7 @@ namespace WebApplication2.Models
         public ICollection<ProductAttributeValue> AttributeValues { get; set; } = [];
 
         public ICollection<ProductOptionGroup> OptionGroups { get; set; } = [];
+
+        public ICollection<ProductReview> Reviews { get; set; } = [];
     }
 }

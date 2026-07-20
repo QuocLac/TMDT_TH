@@ -1,0 +1,94 @@
+@model WebApplication2.ViewModels.Storefront.Reviews.MyProductReviewsPageViewModel
+@{
+    ViewData["Title"] = "Đánh giá của tôi";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/reviews.css" asp-append-version="true" />
+}
+
+<section class="review-page shell-container">
+    <header class="review-page__header">
+        <div>
+            <p>Lịch sử đóng góp</p>
+            <h1>Đánh giá của tôi</h1>
+            <span>Theo dõi trạng thái kiểm duyệt và phản hồi từ FastBuy.</span>
+        </div>
+        <a asp-action="Eligible" class="button button--primary">
+            Sản phẩm chờ đánh giá
+        </a>
+    </header>
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="review-empty">
+            <strong>Bạn chưa gửi đánh giá nào</strong>
+            <span>Đánh giá sẽ giúp người mua khác lựa chọn sản phẩm phù hợp hơn.</span>
+        </div>
+    }
+    else
+    {
+        <div class="my-review-list">
+            @foreach (var review in Model.Items)
+            {
+                <article class="my-review-card">
+                    <header>
+                        <img src="@review.ImageUrl" alt="" loading="lazy" />
+                        <div>
+                            <p>Đơn @review.OrderCode</p>
+                            <h2>
+                                <a asp-controller="Products"
+                                   asp-action="Details"
+                                   asp-route-slug="@review.ProductSlug">
+                                    @review.ProductName
+                                </a>
+                            </h2>
+                            <span>@(review.SelectionLabel ?? "Lựa chọn tiêu chuẩn")</span>
+                        </div>
+                        <span class="review-status review-status--@review.Status.ToString().ToLowerInvariant()">
+                            @review.Status
+                        </span>
+                    </header>
+
+                    <div class="my-review-card__rating">
+                        @string.Concat(Enumerable.Repeat("★", review.Rating))
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(review.Title))
+                    {
+                        <h3>@review.Title</h3>
+                    }
+
+                    <p>@review.Content</p>
+
+                    @if (!string.IsNullOrWhiteSpace(review.ModerationNote))
+                    {
+                        <div class="my-review-card__note">
+                            <strong>Ghi chú kiểm duyệt</strong>
+                            <span>@review.ModerationNote</span>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(review.ReplyContent))
+                    {
+                        <div class="my-review-card__reply">
+                            <strong>Phản hồi từ FastBuy</strong>
+                            <p>@review.ReplyContent</p>
+                        </div>
+                    }
+
+                    @if (review.CanEdit)
+                    {
+                        <footer>
+                            <a asp-action="Edit"
+                               asp-route-orderItemId="@review.OrderItemId"
+                               class="button button--secondary button--small">
+                                Chỉnh sửa
+                            </a>
+                        </footer>
+                    }
+                </article>
+            }
+        </div>
+    }
+</section>

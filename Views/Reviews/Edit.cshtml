@@ -1,0 +1,99 @@
+@model WebApplication2.ViewModels.Storefront.Reviews.ProductReviewEditorPageViewModel
+@{
+    ViewData["Title"] = Model.Item.ReviewId.HasValue
+        ? "Chỉnh sửa đánh giá"
+        : "Viết đánh giá";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/reviews.css" asp-append-version="true" />
+}
+
+<section class="review-page shell-container">
+    <header class="review-page__header">
+        <div>
+            <p>Đơn @Model.Item.OrderCode</p>
+            <h1>@ViewData["Title"]</h1>
+            <span>@Model.Item.Message</span>
+        </div>
+        <a asp-action="Eligible" class="button button--secondary">
+            Quay lại
+        </a>
+    </header>
+
+    <article class="review-editor">
+        <div class="review-editor__product">
+            <img src="@Model.Item.ImageUrl" alt="" />
+            <div>
+                <h2>@Model.Item.ProductName</h2>
+                <p>@(Model.Item.SelectionLabel ?? "Lựa chọn tiêu chuẩn")</p>
+                <small>Mã hàng: @Model.Item.Sku</small>
+            </div>
+        </div>
+
+        @if (!Model.Item.CanSubmit)
+        {
+            <div class="review-editor__blocked">
+                @Model.Item.Message
+            </div>
+        }
+        else
+        {
+            <form method="post" class="review-form">
+                <div asp-validation-summary="ModelOnly" class="review-validation"></div>
+                <input asp-for="Form.RowVersion" type="hidden" />
+
+                <fieldset>
+                    <legend>Mức độ hài lòng</legend>
+                    <div class="review-rating-input">
+                        @for (var rating = 5; rating >= 1; rating--)
+                        {
+                            <label>
+                                <input asp-for="Form.Rating"
+                                       type="radio"
+                                       value="@rating" />
+                                <span>@rating sao</span>
+                            </label>
+                        }
+                    </div>
+                    <span asp-validation-for="Form.Rating"></span>
+                </fieldset>
+
+                <label>
+                    <span>Tiêu đề ngắn</span>
+                    <input asp-for="Form.Title"
+                           maxlength="120"
+                           placeholder="Ví dụ: Sản phẩm đúng mô tả" />
+                    <span asp-validation-for="Form.Title"></span>
+                </label>
+
+                <label>
+                    <span>Nội dung đánh giá</span>
+                    <textarea asp-for="Form.Content"
+                              rows="8"
+                              minlength="20"
+                              maxlength="2000"
+                              placeholder="Chia sẻ trải nghiệm thực tế về chất lượng, độ phù hợp và cách đóng gói"></textarea>
+                    <small>
+                        Tối thiểu 20 ký tự. Không đăng thông tin cá nhân hoặc liên kết quảng cáo.
+                    </small>
+                    <span asp-validation-for="Form.Content"></span>
+                </label>
+
+                <label>
+                    <span>Hình ảnh hoặc video</span>
+                    <textarea asp-for="Form.MediaUrls"
+                              rows="5"
+                              placeholder="Mỗi dòng là một đường dẫn HTTPS. Tối đa 5 tệp."></textarea>
+                    <small>
+                        Hỗ trợ ảnh và video; nội dung phải liên quan trực tiếp tới sản phẩm nhận được.
+                    </small>
+                </label>
+
+                <button type="submit" class="button button--primary">
+                    Gửi đánh giá
+                </button>
+            </form>
+        }
+    </article>
+</section>

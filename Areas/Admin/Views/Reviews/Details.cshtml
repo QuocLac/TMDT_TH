@@ -1,0 +1,146 @@
+@model WebApplication2.Areas.Admin.ViewModels.Reviews.ReviewAdminDetailsViewModel
+@{
+    ViewData["Title"] = $"Đánh giá #{Model.Id}";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/admin/reviews.css" asp-append-version="true" />
+}
+
+<section class="admin-page review-admin-page">
+    <header class="admin-page-header admin-page-header--hero">
+        <div>
+            <p class="admin-page-kicker">Đơn @Model.OrderCode</p>
+            <h2>@Model.ProductName</h2>
+            <p class="admin-page-lead">
+                @Model.CustomerName · @Model.CustomerEmail · @Model.Sku
+            </p>
+        </div>
+        <a asp-action="Index" class="button button--secondary">
+            Danh sách đánh giá
+        </a>
+    </header>
+
+    <div class="review-admin-layout">
+        <article class="admin-panel review-admin-content">
+            <header class="admin-panel__header">
+                <div>
+                    <p class="admin-page-kicker">Nội dung khách hàng</p>
+                    <h3>@Model.Rating sao · @Model.Status</h3>
+                    <p>
+                        Gửi lúc @Model.SubmittedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                    </p>
+                </div>
+            </header>
+
+            @if (!string.IsNullOrWhiteSpace(Model.SelectionLabel))
+            {
+                <p class="review-admin-selection">
+                    Lựa chọn mua: @Model.SelectionLabel
+                </p>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.Title))
+            {
+                <h4>@Model.Title</h4>
+            }
+
+            <p class="review-admin-body">@Model.Content</p>
+
+            @if (Model.Media.Count > 0)
+            {
+                <div class="review-admin-media">
+                    @foreach (var media in Model.Media)
+                    {
+                        <a href="@media.Url"
+                           target="_blank"
+                           rel="noopener noreferrer">
+                            @media.Type · Mở nội dung
+                        </a>
+                    }
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.ModerationNote))
+            {
+                <div class="review-admin-note">
+                    <strong>Ghi chú kiểm duyệt</strong>
+                    <p>@Model.ModerationNote</p>
+                </div>
+            }
+        </article>
+
+        <aside class="review-admin-actions">
+            <section class="admin-panel">
+                <header class="admin-panel__header">
+                    <div>
+                        <h3>Kiểm duyệt</h3>
+                        <p>Admin không được sửa số sao hoặc nội dung của khách hàng.</p>
+                    </div>
+                </header>
+
+                <form asp-action="Moderate"
+                      asp-route-id="@Model.Id"
+                      method="post"
+                      class="review-admin-form">
+                    <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
+
+                    <label>
+                        <span>Ghi chú</span>
+                        <textarea name="Note"
+                                  rows="5"
+                                  maxlength="500"
+                                  placeholder="Bắt buộc khi ẩn hoặc từ chối"></textarea>
+                    </label>
+
+                    <div class="review-admin-action-grid">
+                        <button type="submit"
+                                name="Action"
+                                value="Publish"
+                                class="button button--primary">
+                            Cho phép hiển thị
+                        </button>
+                        <button type="submit"
+                                name="Action"
+                                value="Hide"
+                                class="button button--secondary">
+                            Ẩn đánh giá
+                        </button>
+                        <button type="submit"
+                                name="Action"
+                                value="Reject"
+                                class="button button--secondary">
+                            Từ chối
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="admin-panel">
+                <header class="admin-panel__header">
+                    <div>
+                        <h3>Phản hồi công khai</h3>
+                        <p>Chỉ đánh giá đang hiển thị mới có thể nhận phản hồi.</p>
+                    </div>
+                </header>
+
+                <form asp-action="Reply"
+                      asp-route-id="@Model.Id"
+                      method="post"
+                      class="review-admin-form">
+                    <label>
+                        <span>Nội dung phản hồi</span>
+                        <textarea name="Content"
+                                  rows="7"
+                                  minlength="10"
+                                  maxlength="1000"
+                                  required>@Model.ReplyContent</textarea>
+                    </label>
+                    <button type="submit" class="button button--primary">
+                        Lưu phản hồi
+                    </button>
+                </form>
+            </section>
+        </aside>
+    </div>
+</section>

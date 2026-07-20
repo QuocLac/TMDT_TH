@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Tài khoản của tôi";
 }
+
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/storefront/account.css" asp-append-version="true" />
 }
@@ -16,6 +17,8 @@
         <nav>
             <a asp-action="Profile" class="is-active">Thông tin cá nhân</a>
             <a asp-action="Addresses">Sổ địa chỉ</a>
+            <a asp-controller="Reviews" asp-action="Eligible">Sản phẩm chờ đánh giá</a>
+            <a asp-controller="Reviews" asp-action="Mine">Đánh giá của tôi</a>
             <a asp-action="ChangePassword">Đổi mật khẩu</a>
         </nav>
         <form asp-action="Logout" method="post">

@@ -128,6 +128,13 @@
                    aria-current="@(currentController == "Returns" ? "page" : null)">
                     <span>Hoàn trả và kiểm định</span>
                 </a>
+                <a asp-area="Admin"
+                   asp-controller="Reviews"
+                   asp-action="Index"
+                   class="admin-nav__link @ActiveClass("Reviews")"
+                   aria-current="@(currentController == "Reviews" ? "page" : null)">
+                    <span>Đánh giá sản phẩm</span>
+                </a>
 
                 <p class="admin-nav__label">Giá bán</p>
                 <a asp-area="Admin"

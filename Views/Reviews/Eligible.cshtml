@@ -1,0 +1,64 @@
+@model WebApplication2.ViewModels.Storefront.Reviews.ReviewableItemsPageViewModel
+@{
+    ViewData["Title"] = "Sản phẩm chờ đánh giá";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/reviews.css" asp-append-version="true" />
+}
+
+<section class="review-page shell-container">
+    <header class="review-page__header">
+        <div>
+            <p>Trải nghiệm mua hàng đã xác minh</p>
+            <h1>Sản phẩm chờ đánh giá</h1>
+            <span>
+                Mỗi sản phẩm trong đơn được đánh giá một lần trong 60 ngày kể từ lúc giao thành công.
+            </span>
+        </div>
+        <a asp-action="Mine" class="button button--secondary">
+            Đánh giá của tôi
+        </a>
+    </header>
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="review-empty">
+            <strong>Chưa có sản phẩm đủ điều kiện đánh giá</strong>
+            <span>Sản phẩm sẽ xuất hiện tại đây sau khi đơn được giao và hoàn tất.</span>
+        </div>
+    }
+    else
+    {
+        <div class="review-order-items">
+            @foreach (var item in Model.Items)
+            {
+                <article class="review-order-item">
+                    <img src="@item.ImageUrl" alt="" loading="lazy" />
+                    <div>
+                        <p>Đơn @item.OrderCode</p>
+                        <h2>@item.ProductName</h2>
+                        <span>@(item.SelectionLabel ?? "Lựa chọn tiêu chuẩn")</span>
+                        <small>@item.StateMessage</small>
+                    </div>
+                    <div class="review-order-item__action">
+                        @if (item.CanCreate || item.CanEdit)
+                        {
+                            <a asp-action="Edit"
+                               asp-route-orderItemId="@item.OrderItemId"
+                               class="button button--primary">
+                                @(item.HasReview ? "Chỉnh sửa đánh giá" : "Viết đánh giá")
+                            </a>
+                        }
+                        else if (item.HasReview)
+                        {
+                            <span class="review-status review-status--@item.ReviewStatus?.ToString().ToLowerInvariant()">
+                                @item.ReviewStatus
+                            </span>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>

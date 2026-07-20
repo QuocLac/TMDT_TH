@@ -1,0 +1,80 @@
+@model WebApplication2.ViewModels.Storefront.Reviews.ProductReviewPublicPageViewModel
+@{
+    ViewData["Title"] = $"Đánh giá - {Model.Page.ProductName}";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/storefront/reviews.css" asp-append-version="true" />
+}
+
+<section class="review-page shell-container">
+    <header class="review-page__header">
+        <div>
+            <p>Đánh giá đã xác minh</p>
+            <h1>@Model.Page.ProductName</h1>
+            <span>
+                @Model.Page.Summary.AverageRating.ToString("0.0")/5 từ
+                @Model.Page.Summary.TotalCount đánh giá.
+            </span>
+        </div>
+        <a asp-controller="Products"
+           asp-action="Details"
+           asp-route-slug="@Model.Page.ProductSlug"
+           class="button button--secondary">
+            Xem sản phẩm
+        </a>
+    </header>
+
+    <div class="public-review-list">
+        @foreach (var review in Model.Page.Items)
+        {
+            <article class="product-review-card">
+                <header>
+                    <div>
+                        <strong>@review.ReviewerName</strong>
+                        <span class="product-review-card__verified">Đã mua hàng</span>
+                    </div>
+                    <time>@review.SubmittedAt.ToLocalTime().ToString("dd/MM/yyyy")</time>
+                </header>
+                <div class="product-review-card__rating">
+                    @string.Concat(Enumerable.Repeat("★", review.Rating))
+                </div>
+                @if (!string.IsNullOrWhiteSpace(review.Title))
+                {
+                    <h2>@review.Title</h2>
+                }
+                <p>@review.Content</p>
+                @if (!string.IsNullOrWhiteSpace(review.SelectionLabel))
+                {
+                    <small>Lựa chọn mua: @review.SelectionLabel</small>
+                }
+                @if (!string.IsNullOrWhiteSpace(review.ReplyContent))
+                {
+                    <div class="product-review-card__reply">
+                        <strong>Phản hồi từ FastBuy</strong>
+                        <p>@review.ReplyContent</p>
+                    </div>
+                }
+            </article>
+        }
+    </div>
+
+    @if (Model.Page.TotalPages > 1)
+    {
+        <nav class="review-pagination" aria-label="Phân trang đánh giá">
+            <a asp-action="Product"
+               asp-route-productId="@Model.Page.ProductId"
+               asp-route-page="@(Model.Page.Page - 1)"
+               class="button button--secondary @(Model.Page.Page <= 1 ? "disabled" : null)">
+                Trang trước
+            </a>
+            <span>Trang @Model.Page.Page / @Model.Page.TotalPages</span>
+            <a asp-action="Product"
+               asp-route-productId="@Model.Page.ProductId"
+               asp-route-page="@(Model.Page.Page + 1)"
+               class="button button--secondary @(Model.Page.Page >= Model.Page.TotalPages ? "disabled" : null)">
+                Trang sau
+            </a>
+        </nav>
+    }
+</section>

@@ -1,0 +1,128 @@
+@model WebApplication2.ViewModels.Storefront.Reviews.ProductReviewComponentViewModel
+@{
+    var summary = Model.Summary;
+}
+
+<section class="product-reviews surface-card" id="product-reviews">
+    <header class="product-reviews__header">
+        <div>
+            <p class="product-reviews__eyebrow">Đánh giá từ khách đã mua</p>
+            <h2>Đánh giá sản phẩm</h2>
+        </div>
+        @if (summary.TotalCount > 0)
+        {
+            <a asp-controller="Reviews"
+               asp-action="Product"
+               asp-route-productId="@summary.ProductId"
+               class="button button--secondary button--small">
+                Xem tất cả
+            </a>
+        }
+    </header>
+
+    @if (summary.TotalCount == 0)
+    {
+        <div class="product-reviews__empty">
+            <strong>Chưa có đánh giá đã được xác minh</strong>
+            <span>Đánh giá chỉ được ghi nhận từ khách hàng đã nhận sản phẩm.</span>
+        </div>
+    }
+    else
+    {
+        <div class="product-reviews__summary">
+            <div class="product-reviews__score">
+                <strong>@summary.AverageRating.ToString("0.0")</strong>
+                <span>/ 5</span>
+                <small>@summary.TotalCount đánh giá</small>
+            </div>
+
+            <div class="product-reviews__distribution">
+                @for (var rating = 5; rating >= 1; rating--)
+                {
+                    var count = summary.RatingCounts.GetValueOrDefault(rating);
+                    var percentage = summary.TotalCount == 0
+                        ? 0
+                        : (int)Math.Round(count * 100d / summary.TotalCount);
+
+                    <div>
+                        <span>@rating sao</span>
+                        <progress max="100" value="@percentage"></progress>
+                        <small>@count</small>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <div class="product-review-list">
+            @foreach (var review in summary.Items)
+            {
+                <article class="product-review-card">
+                    <header>
+                        <div>
+                            <strong>@review.ReviewerName</strong>
+                            <span class="product-review-card__verified">
+                                Đã mua hàng
+                            </span>
+                        </div>
+                        <time datetime="@review.SubmittedAt.ToString("O")">
+                            @review.SubmittedAt.ToLocalTime().ToString("dd/MM/yyyy")
+                        </time>
+                    </header>
+
+                    <div class="product-review-card__rating"
+                         aria-label="@review.Rating trên 5 sao">
+                        @string.Concat(Enumerable.Repeat("★", review.Rating))
+                        <span>@string.Concat(Enumerable.Repeat("☆", 5 - review.Rating))</span>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(review.SelectionLabel))
+                    {
+                        <p class="product-review-card__selection">
+                            Lựa chọn mua: @review.SelectionLabel
+                        </p>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(review.Title))
+                    {
+                        <h3>@review.Title</h3>
+                    }
+
+                    <p class="product-review-card__content">@review.Content</p>
+
+                    @if (review.Media.Count > 0)
+                    {
+                        <div class="product-review-card__media">
+                            @foreach (var media in review.Media)
+                            {
+                                if (media.Type == WebApplication2.Models.Enums.ProductReviewMediaType.Video)
+                                {
+                                    <video controls preload="metadata">
+                                        <source src="@media.Url" />
+                                    </video>
+                                }
+                                else
+                                {
+                                    <a href="@media.Url"
+                                       target="_blank"
+                                       rel="noopener noreferrer">
+                                        <img src="@media.Url"
+                                             alt="Hình ảnh đánh giá"
+                                             loading="lazy" />
+                                    </a>
+                                }
+                            }
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(review.ReplyContent))
+                    {
+                        <div class="product-review-card__reply">
+                            <strong>Phản hồi từ FastBuy</strong>
+                            <p>@review.ReplyContent</p>
+                        </div>
+                    }
+                </article>
+            }
+        </div>
+    }
+</section>

@@ -8,12 +8,15 @@ public sealed class OrderItem
     public int Id { get; set; }
 
     public int OrderId { get; set; }
+
     public Order Order { get; set; } = null!;
 
     public int ProductId { get; set; }
+
     public Product Product { get; set; } = null!;
 
     public int ProductVariantId { get; set; }
+
     public ProductVariant ProductVariant { get; set; } = null!;
 
     [Required, MaxLength(255)]
@@ -48,6 +51,10 @@ public sealed class OrderItem
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<StockReservation> StockReservations { get; set; } = [];
+
     public ICollection<OrderCancellationItem> CancellationItems { get; set; } = [];
+
     public ICollection<ReturnItem> ReturnItems { get; set; } = [];
+
+    public ProductReview? Review { get; set; }
 }

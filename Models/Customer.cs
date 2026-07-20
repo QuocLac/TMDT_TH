@@ -9,6 +9,7 @@ public class Customer : BaseEntity
     public int Id { get; set; }
 
     public int AccountId { get; set; }
+
     public Account Account { get; set; } = null!;
 
     [Required, MaxLength(100)]
@@ -20,5 +21,8 @@ public class Customer : BaseEntity
     public CustomerTier Tier { get; set; } = CustomerTier.Standard;
 
     public ICollection<Address> Addresses { get; set; } = [];
+
     public ICollection<PromotionCustomer> PromotionCustomers { get; set; } = [];
+
+    public ICollection<ProductReview> Reviews { get; set; } = [];
 }

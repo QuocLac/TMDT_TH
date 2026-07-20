@@ -205,12 +205,15 @@
             </div>
         </section>
     }
+
+    <vc:product-reviews product-id="@Model.Id"></vc:product-reviews>
 </div>
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/storefront/product-details.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/storefront/product-specifications.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/storefront/product-purchase.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/storefront/reviews.css" asp-append-version="true" />
 }
 
 @section Scripts {
