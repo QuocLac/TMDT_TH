@@ -1,3 +1,4 @@
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment HostEnvironment
 @inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @using System.Security.Claims
 @{
@@ -75,6 +76,17 @@
                    aria-current="@(currentController == "Orders" ? "page" : null)">
                     <span>Xử lý đơn hàng</span>
                 </a>
+
+                @if (HostEnvironment.IsDevelopment())
+                {
+                    <a asp-area="Admin"
+                       asp-controller="PaymentSimulation"
+                       asp-action="Index"
+                       class="admin-nav__link @ActiveClass("PaymentSimulation")"
+                       aria-current="@(currentController == "PaymentSimulation" ? "page" : null)">
+                        <span>Mô phỏng thanh toán</span>
+                    </a>
+                }
 
                 <p class="admin-nav__label">Hàng hóa</p>
                 <a asp-area="Admin"

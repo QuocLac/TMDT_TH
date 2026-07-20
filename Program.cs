@@ -14,6 +14,7 @@ using WebApplication2.Services.Commerce.Orders;
 using WebApplication2.Services.Commerce.Returns;
 using WebApplication2.Services.Identity;
 using WebApplication2.Services.Media;
+using WebApplication2.Services.Payments.Simulation;
 using WebApplication2.Services.Payments.VnPay;
 using WebApplication2.Services.Pricing;
 using WebApplication2.Services.Reviews;
@@ -180,6 +181,7 @@ builder.Services
 
 builder.Services.AddSingleton<IVnPayGateway, VnPayGateway>();
 builder.Services.AddScoped<IVnPayPaymentService, VnPayPaymentService>();
+builder.Services.AddScoped<IDevelopmentPaymentSimulator, DevelopmentPaymentSimulator>();
 builder.Services.AddHostedService<VnPayPaymentExpirationWorker>();
 
 builder.Services.AddScoped<EffectivePriceService>();

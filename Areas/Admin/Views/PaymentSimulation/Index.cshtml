@@ -1,0 +1,231 @@
+@model WebApplication2.Areas.Admin.ViewModels.PaymentSimulation.PaymentSimulationPageViewModel
+@using WebApplication2.Models.Enums
+@{
+    ViewData["Title"] = "Mô phỏng thanh toán";
+}
+
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/pages/admin/payment-simulation.css"
+          asp-append-version="true" />
+}
+
+<section class="admin-page payment-simulation-page">
+    <header class="admin-page-header admin-page-header--hero">
+        <div>
+            <p class="admin-page-kicker">Chỉ dùng khi phát triển</p>
+            <h2>Mô phỏng thanh toán và hoàn tiền</h2>
+            <p class="admin-page-lead">
+                Dùng khi localhost không nhận được callback từ VNPay.
+                Công cụ chỉ thay đổi dữ liệu sandbox, không chuyển tiền thật.
+            </p>
+        </div>
+    </header>
+
+    <div class="payment-simulation-warning">
+        <strong>Development mode</strong>
+        <p>
+            Các thao tác bên dưới ghi timeline, cập nhật tồn kho và trạng thái
+            giống kết quả provider thành công. Endpoint tự trả về 404 ngoài
+            môi trường Development.
+        </p>
+    </div>
+
+    <section class="admin-panel payment-simulation-section">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">VNPay callback</p>
+                <h3>Đơn đang chờ thanh toán</h3>
+                <p>@Model.PendingPayments.Count đơn có giao dịch VNPay Pending.</p>
+            </div>
+        </header>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table">
+                <thead>
+                    <tr>
+                        <th>Đơn hàng</th>
+                        <th>Khách hàng</th>
+                        <th>Tham chiếu</th>
+                        <th>Tạo lúc</th>
+                        <th class="u-text-end">Số tiền</th>
+                        <th class="u-text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.PendingPayments.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6">
+                                <div class="admin-empty-state admin-empty-state--compact">
+                                    <div>
+                                        <strong>Không có đơn VNPay bị treo</strong>
+                                        <span>Các đơn PendingPayment sẽ xuất hiện tại đây.</span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.PendingPayments)
+                        {
+                            <tr>
+                                <td>
+                                    <a asp-area="Admin"
+                                       asp-controller="Orders"
+                                       asp-action="Details"
+                                       asp-route-id="@item.OrderId">
+                                        <strong>@item.OrderCode</strong>
+                                    </a>
+                                    <small>Payment #@item.PaymentTransactionId</small>
+                                </td>
+                                <td>@item.CustomerName</td>
+                                <td><code>@item.MerchantReference</code></td>
+                                <td>@item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                <td class="u-text-end">
+                                    @item.Amount.ToString("N0") @item.Currency
+                                </td>
+                                <td class="u-text-end">
+                                    <form asp-action="ConfirmPayment"
+                                          asp-route-orderId="@item.OrderId"
+                                          method="post"
+                                          data-simulation-confirm="Xác nhận mô phỏng thanh toán thành công cho @item.OrderCode?">
+                                        <button type="submit"
+                                                class="button button--primary button--small">
+                                            Xác nhận đã thanh toán
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="admin-panel payment-simulation-section">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">Refund callback</p>
+                <h3>Yêu cầu chờ hoàn tiền</h3>
+                <p>
+                    RefundPending được mô phỏng thành Refunded;
+                    sau đó đóng hồ sơ bằng thao tác riêng.
+                </p>
+            </div>
+        </header>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table">
+                <thead>
+                    <tr>
+                        <th>Yêu cầu</th>
+                        <th>Đơn hàng</th>
+                        <th>Khách hàng</th>
+                        <th>Trạng thái</th>
+                        <th class="u-text-end">Tiền hoàn</th>
+                        <th class="u-text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Refunds.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6">
+                                <div class="admin-empty-state admin-empty-state--compact">
+                                    <div>
+                                        <strong>Không có yêu cầu chờ mô phỏng</strong>
+                                        <span>
+                                            Yêu cầu RefundPending hoặc Refunded sẽ xuất hiện tại đây.
+                                        </span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.Refunds)
+                        {
+                            <tr>
+                                <td>
+                                    <a asp-area="Admin"
+                                       asp-controller="Returns"
+                                       asp-action="Details"
+                                       asp-route-id="@item.ReturnRequestId">
+                                        <strong>@item.ReturnCode</strong>
+                                    </a>
+                                </td>
+                                <td>
+                                    <a asp-area="Admin"
+                                       asp-controller="Orders"
+                                       asp-action="Details"
+                                       asp-route-id="@item.OrderId">
+                                        @item.OrderCode
+                                    </a>
+                                </td>
+                                <td>@item.CustomerName</td>
+                                <td>
+                                    <span class="admin-badge">
+                                        @item.Status
+                                    </span>
+                                </td>
+                                <td class="u-text-end">
+                                    @item.RefundAmount.ToString("N0") ₫
+                                </td>
+                                <td class="u-text-end">
+                                    @if (item.Status == ReturnRequestStatus.RefundPending)
+                                    {
+                                        <form asp-action="ConfirmRefund"
+                                              asp-route-returnRequestId="@item.ReturnRequestId"
+                                              method="post"
+                                              data-simulation-confirm='Xác nhận mô phỏng hoàn @item.RefundAmount.ToString("N0") ₫ cho @item.ReturnCode?'>
+                                            <button type="submit"
+                                                    class="button button--primary button--small">
+                                                Giả lập hoàn tiền thành công
+                                            </button>
+                                        </form>
+                                    }
+                                    else if (item.Status == ReturnRequestStatus.Refunded)
+                                    {
+                                        <form asp-action="CloseRefund"
+                                              asp-route-returnRequestId="@item.ReturnRequestId"
+                                              method="post"
+                                              data-simulation-confirm="Đóng hồ sơ hoàn trả @item.ReturnCode?">
+                                            <button type="submit"
+                                                    class="button button--secondary button--small">
+                                                Đóng yêu cầu
+                                            </button>
+                                        </form>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</section>
+
+@section Scripts {
+    <script>
+        (() => {
+            "use strict";
+
+            document.addEventListener("submit", (event) => {
+                const form = event.target.closest("[data-simulation-confirm]");
+                if (!form) {
+                    return;
+                }
+
+                const message = form.dataset.simulationConfirm;
+                if (message && !window.confirm(message)) {
+                    event.preventDefault();
+                }
+            });
+        })();
+    </script>
+}
