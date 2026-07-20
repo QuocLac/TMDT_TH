@@ -1,13 +1,16 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebApplication2.Models;
 using WebApplication2.Models.Enums;
 using WebApplication2.Services.Commerce.Flows;
 using WebApplication2.Services.Commerce.Returns;
+using WebApplication2.Services.Identity;
 using WebApplication2.ViewModels.Storefront.Returns;
 
 namespace WebApplication2.Controllers;
 
+[Authorize]
 [Route("returns")]
 public sealed class ReturnsController : Controller
 {
@@ -30,6 +33,11 @@ public sealed class ReturnsController : Controller
         Guid publicToken,
         CancellationToken cancellationToken)
     {
+        if (!await OwnsOrderAsync(publicToken, cancellationToken))
+        {
+            return NotFound();
+        }
+
         var eligibility = await _workflow.GetEligibilityAsync(
             publicToken,
             cancellationToken);
@@ -58,6 +66,11 @@ public sealed class ReturnsController : Controller
         [Bind(Prefix = "Form")] CreateReturnRequestInput input,
         CancellationToken cancellationToken)
     {
+        if (!await OwnsOrderAsync(input.OrderPublicToken, cancellationToken))
+        {
+            return NotFound();
+        }
+
         var eligibility = await _workflow.GetEligibilityAsync(
             input.OrderPublicToken,
             cancellationToken);
@@ -68,9 +81,7 @@ public sealed class ReturnsController : Controller
 
         if (!eligibility.IsEligible)
         {
-            ModelState.AddModelError(
-                string.Empty,
-                eligibility.Message);
+            ModelState.AddModelError(string.Empty, eligibility.Message);
         }
 
         var selectedLines = input.Lines
@@ -98,7 +109,7 @@ public sealed class ReturnsController : Controller
                     input.OrderPublicToken,
                     input.ReasonCode,
                     input.ReasonText,
-                    eligibility.CustomerEmail,
+                    User.Identity?.Name ?? eligibility.CustomerEmail,
                     input.IdempotencyKey,
                     selectedLines.Select(item => new ReturnRequestLineCommand(
                         item.OrderItemId,
@@ -131,6 +142,7 @@ public sealed class ReturnsController : Controller
         Guid publicToken,
         CancellationToken cancellationToken)
     {
+        var customerId = RequireCustomerId();
         var request = await _context.ReturnRequests
             .AsNoTracking()
             .Include(item => item.Order)
@@ -139,7 +151,8 @@ public sealed class ReturnsController : Controller
             .Include(item => item.Shipments)
             .SingleOrDefaultAsync(
                 item => item.Code == returnCode
-                    && item.Order.PublicToken == publicToken,
+                    && item.Order.PublicToken == publicToken
+                    && item.Order.CustomerId == customerId,
                 cancellationToken);
 
         if (request is null)
@@ -179,6 +192,28 @@ public sealed class ReturnsController : Controller
         });
     }
 
+    private async Task<bool> OwnsOrderAsync(
+        Guid publicToken,
+        CancellationToken cancellationToken)
+    {
+        if (publicToken == Guid.Empty)
+        {
+            return false;
+        }
+
+        var customerId = RequireCustomerId();
+        return await _context.Orders
+            .AsNoTracking()
+            .AnyAsync(
+                item => item.PublicToken == publicToken
+                    && item.CustomerId == customerId,
+                cancellationToken);
+    }
+
+    private int RequireCustomerId() => User.GetCustomerId()
+        ?? throw new InvalidOperationException(
+            "Authenticated account has no CustomerId claim.");
+
     private static IReadOnlyList<ReturnEvidenceCommand> ParseEvidence(
         string? raw)
     {
@@ -212,19 +247,17 @@ public sealed class ReturnsController : Controller
     private static ReturnRequestPageViewModel BuildRequestPage(
         ReturnEligibilitySnapshot eligibility,
         CreateReturnRequestInput form,
-        string? error) =>
-        new()
-        {
-            Eligibility = eligibility,
-            Form = form,
-            ErrorMessage = error
-        };
+        string? error) => new()
+    {
+        Eligibility = eligibility,
+        Form = form,
+        ErrorMessage = error
+    };
 
-    private string FirstModelError() =>
-        ModelState.Values
-            .SelectMany(item => item.Errors)
-            .Select(item => item.ErrorMessage)
-            .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item))
+    private string FirstModelError() => ModelState.Values
+        .SelectMany(item => item.Errors)
+        .Select(item => item.ErrorMessage)
+        .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item))
         ?? "Yêu cầu hoàn trả chưa hợp lệ.";
 
     private void LogFlow(CommerceFlowException exception)

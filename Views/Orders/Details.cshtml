@@ -1,0 +1,451 @@
+@using System.Globalization
+@model WebApplication2.ViewModels.Storefront.Orders.CustomerOrderDetailsViewModel
+@{
+    ViewData["Title"] = $"Đơn hàng {Model.Code}";
+    var culture = CultureInfo.GetCultureInfo("vi-VN");
+}
+
+<section class="customer-orders-page customer-order-details shell-container">
+    <header class="customer-order-details__hero">
+        <div>
+            <a asp-action="Index" class="customer-order-back">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                Đơn hàng của tôi
+            </a>
+            <p class="eyebrow">Chi tiết đơn hàng</p>
+            <h1>@Model.Code</h1>
+            <p>Đặt lúc @Model.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</p>
+        </div>
+        <span class="customer-status customer-status--@Model.StatusTone">
+            @Model.StatusText
+        </span>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="customer-order-alert customer-order-alert--danger" role="alert">
+            <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+            <div>
+                <strong>Chưa thể hoàn tất thao tác</strong>
+                <span>@Model.ErrorMessage</span>
+            </div>
+        </div>
+    }
+
+    @if (Model.OrderStatus == OrderStatus.Cancelled)
+    {
+        <div class="customer-order-alert customer-order-alert--danger">
+            <i class="fa-solid fa-ban" aria-hidden="true"></i>
+            <div>
+                <strong>Đơn hàng đã hủy</strong>
+                <span>@(Model.CancelReason ?? "Đơn hàng không còn được tiếp tục xử lý.")</span>
+            </div>
+        </div>
+    }
+
+    <ol class="customer-order-progress">
+        @foreach (var step in Model.Progress)
+        {
+            <li class="@(step.IsComplete ? "is-complete" : null) @(step.IsCurrent ? "is-current" : null)">
+                <span>
+                    @if (step.IsComplete && !step.IsCurrent)
+                    {
+                        <i class="fa-solid fa-check" aria-hidden="true"></i>
+                    }
+                    else
+                    {
+                        @step.Position
+                    }
+                </span>
+                <div>
+                    <strong>@step.Title</strong>
+                    <small>@step.Description</small>
+                </div>
+            </li>
+        }
+    </ol>
+
+    <div class="customer-order-details__layout">
+        <main>
+            <section class="customer-order-section">
+                <header>
+                    <div>
+                        <p class="eyebrow">Sản phẩm</p>
+                        <h2>@Model.Items.Sum(item => item.Quantity) sản phẩm trong đơn</h2>
+                    </div>
+                </header>
+
+                <div class="customer-order-lines">
+                    @foreach (var item in Model.Items)
+                    {
+                        <article class="customer-order-line">
+                            <img src="@(string.IsNullOrWhiteSpace(item.ImageUrl)
+                                           ? "/images/no-image.png"
+                                           : item.ImageUrl)"
+                                 alt=""
+                                 width="84"
+                                 height="84" />
+                            <div class="customer-order-line__copy">
+                                <strong>@item.ProductName</strong>
+                                <span>
+                                    @(string.IsNullOrWhiteSpace(item.VariantDescription)
+                                        ? "Lựa chọn tiêu chuẩn"
+                                        : item.VariantDescription)
+                                </span>
+                                <small>SKU: @item.Sku</small>
+                            </div>
+                            <dl>
+                                <div><dt>Đơn giá</dt><dd>@item.UnitPrice.ToString("N0", culture) ₫</dd></div>
+                                <div><dt>Số lượng</dt><dd>@item.Quantity</dd></div>
+                                <div><dt>Thành tiền</dt><dd>@item.LineTotal.ToString("N0", culture) ₫</dd></div>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            </section>
+
+            <section class="customer-order-section">
+                <header>
+                    <div>
+                        <p class="eyebrow">Tiến trình</p>
+                        <h2>Lịch sử đơn hàng</h2>
+                    </div>
+                </header>
+
+                @if (Model.Timeline.Count == 0)
+                {
+                    <p class="customer-order-muted">Chưa có cập nhật tiến trình hiển thị cho khách hàng.</p>
+                }
+                else
+                {
+                    <div class="customer-order-timeline">
+                        @foreach (var item in Model.Timeline)
+                        {
+                            <article>
+                                <span aria-hidden="true"></span>
+                                <div>
+                                    <small>
+                                        @item.CategoryText ·
+                                        @item.OccurredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    </small>
+                                    <strong>@item.Title</strong>
+                                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                                    {
+                                        <p>@item.Description</p>
+                                    }
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            @if (Model.CancellationRequests.Count > 0)
+            {
+                <section class="customer-order-section">
+                    <header><div><p class="eyebrow">Hủy đơn</p><h2>Yêu cầu đã gửi</h2></div></header>
+                    <div class="customer-request-list">
+                        @foreach (var request in Model.CancellationRequests)
+                        {
+                            <article>
+                                <header>
+                                    <div>
+                                        <strong>Yêu cầu #@request.Id</strong>
+                                        <small>@request.RequestedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                                    </div>
+                                    <span class="customer-status customer-status--@request.StatusTone">
+                                        @request.StatusText
+                                    </span>
+                                </header>
+                                <p>@request.ReasonText</p>
+                                <ul>
+                                    @foreach (var item in request.Items)
+                                    {
+                                        <li>
+                                            @item.ProductName (@item.Sku): yêu cầu @item.RequestedQuantity,
+                                            đã duyệt @item.ApprovedQuantity
+                                        </li>
+                                    }
+                                </ul>
+                                @if (!string.IsNullOrWhiteSpace(request.ReviewNote))
+                                {
+                                    <small>Phản hồi: @request.ReviewNote</small>
+                                }
+                                @if (request.RefundAmount > 0)
+                                {
+                                    <strong class="customer-request-refund">
+                                        Giá trị hoàn: @request.RefundAmount.ToString("N0", culture) ₫
+                                    </strong>
+                                }
+                            </article>
+                        }
+                    </div>
+                </section>
+            }
+
+            @if (Model.ReturnRequests.Count > 0)
+            {
+                <section class="customer-order-section">
+                    <header><div><p class="eyebrow">Hoàn trả</p><h2>Yêu cầu hoàn trả</h2></div></header>
+                    <div class="customer-request-list">
+                        @foreach (var request in Model.ReturnRequests)
+                        {
+                            <article>
+                                <header>
+                                    <div>
+                                        <strong>@request.Code</strong>
+                                        <small>@request.RequestedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small>
+                                    </div>
+                                    <span class="customer-status customer-status--@request.StatusTone">
+                                        @request.StatusText
+                                    </span>
+                                </header>
+                                <p>@request.ReasonText</p>
+                                <dl class="customer-request-metrics">
+                                    <div><dt>Số lượng</dt><dd>@request.RequestedQuantity</dd></div>
+                                    <div><dt>Giá trị hoàn</dt><dd>@request.RefundAmount.ToString("N0", culture) ₫</dd></div>
+                                    <div><dt>Mã vận đơn hoàn</dt><dd>@(request.TrackingCode ?? "Chưa tạo")</dd></div>
+                                </dl>
+                                <a asp-controller="Returns"
+                                   asp-action="Confirmation"
+                                   asp-route-returnCode="@request.Code"
+                                   asp-route-publicToken="@Model.PublicToken">
+                                    Xem tiến trình hoàn trả
+                                </a>
+                            </article>
+                        }
+                    </div>
+                </section>
+            }
+
+            @if (Model.Payments.Count > 0)
+            {
+                <section class="customer-order-section">
+                    <header><div><p class="eyebrow">Thanh toán</p><h2>Lịch sử giao dịch</h2></div></header>
+                    <div class="customer-payment-list">
+                        @foreach (var payment in Model.Payments)
+                        {
+                            <article>
+                                <div>
+                                    <strong>@payment.MethodText</strong>
+                                    <span>
+                                        @payment.Provider · Lần @payment.AttemptNumber ·
+                                        @payment.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    </span>
+                                    @if (!string.IsNullOrWhiteSpace(payment.FailureMessage))
+                                    {
+                                        <small>@payment.FailureMessage</small>
+                                    }
+                                </div>
+                                <div>
+                                    <span class="customer-status customer-status--@payment.StatusTone">
+                                        @payment.StatusText
+                                    </span>
+                                    <b>@payment.Amount.ToString("N0", culture) ₫</b>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                </section>
+            }
+        </main>
+
+        <aside>
+            <section class="customer-order-section customer-order-summary">
+                <p class="eyebrow">Thanh toán</p>
+                <h2>Tóm tắt đơn hàng</h2>
+                <dl>
+                    <div><dt>Tạm tính</dt><dd>@Model.Subtotal.ToString("N0", culture) ₫</dd></div>
+                    <div><dt>Phí giao hàng</dt><dd>@Model.ShippingFee.ToString("N0", culture) ₫</dd></div>
+                    @if (Model.DiscountTotal > 0)
+                    {
+                        <div><dt>Giảm giá</dt><dd>-@Model.DiscountTotal.ToString("N0", culture) ₫</dd></div>
+                    }
+                    @if (Model.TaxTotal > 0)
+                    {
+                        <div><dt>Thuế</dt><dd>@Model.TaxTotal.ToString("N0", culture) ₫</dd></div>
+                    }
+                    <div class="is-total"><dt>Tổng thanh toán</dt><dd>@Model.GrandTotal.ToString("N0", culture) ₫</dd></div>
+                </dl>
+                <div class="customer-order-summary__method">
+                    <span>Phương thức</span>
+                    <strong>@Model.PaymentMethodText</strong>
+                </div>
+                <div class="customer-order-summary__badges">
+                    <span class="customer-status customer-status--@WebApplication2.ViewModels.Storefront.Orders.CustomerOrderDisplay.Tone(Model.PaymentStatus)">
+                        @Model.PaymentStatusText
+                    </span>
+                    <span class="customer-status customer-status--@WebApplication2.ViewModels.Storefront.Orders.CustomerOrderDisplay.Tone(Model.FulfillmentStatus)">
+                        @Model.FulfillmentStatusText
+                    </span>
+                </div>
+
+                @if (Model.CanRetryPayment)
+                {
+                    <form asp-controller="Checkout"
+                          asp-action="RetryPayment"
+                          asp-route-publicToken="@Model.PublicToken"
+                          method="post">
+                        <button type="submit" class="button button--primary">Tiếp tục thanh toán VNPay</button>
+                    </form>
+                }
+
+                @if (Model.CanRequestReturn)
+                {
+                    <a asp-controller="Returns"
+                       asp-action="RequestReturn"
+                       asp-route-publicToken="@Model.PublicToken"
+                       class="button button--secondary">
+                        Yêu cầu hoàn trả
+                    </a>
+                }
+                else if (!string.IsNullOrWhiteSpace(Model.ReturnMessage))
+                {
+                    <small class="customer-order-muted">@Model.ReturnMessage</small>
+                }
+
+                @if (Model.OrderStatus is OrderStatus.Completed or OrderStatus.Closed)
+                {
+                    <a asp-controller="Reviews" asp-action="Eligible" class="button button--ghost">
+                        Đánh giá sản phẩm
+                    </a>
+                }
+            </section>
+
+            <section class="customer-order-section customer-order-recipient">
+                <p class="eyebrow">Người nhận</p>
+                <h2>Thông tin giao hàng</h2>
+                <dl>
+                    <div><dt>Họ và tên</dt><dd>@Model.CustomerName</dd></div>
+                    <div><dt>Số điện thoại</dt><dd>@Model.CustomerPhone</dd></div>
+                    <div><dt>Email</dt><dd>@Model.CustomerEmail</dd></div>
+                    <div><dt>Địa chỉ</dt><dd>@Model.ShippingAddress</dd></div>
+                </dl>
+            </section>
+
+            <section class="customer-order-section customer-order-shipment">
+                <p class="eyebrow">Vận chuyển</p>
+                <h2>Thông tin giao hàng</h2>
+                @if (Model.Shipment is null)
+                {
+                    <p class="customer-order-muted">
+                        Vận đơn chưa được tạo. FastBuy sẽ cập nhật khi đơn sẵn sàng bàn giao.
+                    </p>
+                }
+                else
+                {
+                    <span class="customer-status customer-status--@Model.Shipment.StatusTone">
+                        @Model.Shipment.StatusText
+                    </span>
+                    <dl>
+                        <div><dt>Đơn vị vận chuyển</dt><dd>@Model.Shipment.Provider</dd></div>
+                        <div><dt>Gói dịch vụ</dt><dd>@(Model.Shipment.ServiceName ?? "Chưa xác định")</dd></div>
+                        <div><dt>Mã vận đơn</dt><dd>@(Model.Shipment.TrackingCode ?? "Chưa có")</dd></div>
+                        @if (Model.Shipment.EstimatedDeliveryAt.HasValue)
+                        {
+                            <div>
+                                <dt>Dự kiến giao</dt>
+                                <dd>@Model.Shipment.EstimatedDeliveryAt.Value.ToLocalTime().ToString("dd/MM/yyyy")</dd>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(Model.Shipment.CurrentHub))
+                        {
+                            <div><dt>Điểm xử lý hiện tại</dt><dd>@Model.Shipment.CurrentHub</dd></div>
+                        }
+                    </dl>
+                    @if (!string.IsNullOrWhiteSpace(Model.Shipment.ProviderReason))
+                    {
+                        <p class="customer-order-muted">@Model.Shipment.ProviderReason</p>
+                    }
+                }
+            </section>
+
+            @if (Model.CanRequestCancellation)
+            {
+                <section class="customer-order-section customer-order-cancellation">
+                    <p class="eyebrow">Thay đổi đơn</p>
+                    <h2>Yêu cầu hủy sản phẩm</h2>
+                    <p>
+                        Chọn đúng sản phẩm và số lượng cần hủy. Yêu cầu sẽ được kiểm tra
+                        trước khi cập nhật đơn và hoàn tiền.
+                    </p>
+
+                    <form asp-action="RequestCancellation"
+                          asp-route-publicToken="@Model.PublicToken"
+                          method="post">
+                        <input asp-for="Cancellation.OrderId" type="hidden" />
+                        <input asp-for="Cancellation.OrderPublicToken" type="hidden" />
+                        <input asp-for="Cancellation.OrderRowVersion" type="hidden" />
+                        <input asp-for="Cancellation.IdempotencyKey" type="hidden" />
+                        <div asp-validation-summary="ModelOnly" class="customer-order-form-error"></div>
+
+                        <div class="customer-cancellation-lines">
+                            @for (var index = 0; index < Model.Items.Count; index++)
+                            {
+                                var item = Model.Items[index];
+                                <div>
+                                    <input asp-for="Cancellation.Lines[index].OrderItemId" type="hidden" />
+                                    <label>
+                                        <span>
+                                            <strong>@item.ProductName</strong>
+                                            <small>Có thể yêu cầu hủy tối đa @item.CancellableQuantity</small>
+                                        </span>
+                                        <input asp-for="Cancellation.Lines[index].Quantity"
+                                               type="number"
+                                               min="0"
+                                               max="@item.CancellableQuantity"
+                                               inputmode="numeric" />
+                                    </label>
+                                </div>
+                            }
+                        </div>
+
+                        <label class="customer-order-field">
+                            <span>Lý do</span>
+                            <select asp-for="Cancellation.ReasonCode" required>
+                                <option value="">Chọn lý do</option>
+                                <option value="ChangedMind">Thay đổi nhu cầu</option>
+                                <option value="WrongAddress">Sai địa chỉ nhận hàng</option>
+                                <option value="DuplicateOrder">Đặt trùng đơn</option>
+                                <option value="PaymentIssue">Vấn đề thanh toán</option>
+                                <option value="Other">Lý do khác</option>
+                            </select>
+                            <span asp-validation-for="Cancellation.ReasonCode"></span>
+                        </label>
+
+                        <label class="customer-order-field">
+                            <span>Mô tả chi tiết</span>
+                            <textarea asp-for="Cancellation.ReasonText"
+                                      rows="4"
+                                      maxlength="500"
+                                      placeholder="Nêu rõ lý do để FastBuy xử lý chính xác"
+                                      required></textarea>
+                            <span asp-validation-for="Cancellation.ReasonText"></span>
+                        </label>
+
+                        <button type="submit"
+                                class="button button--danger"
+                                onclick="return confirm('Gửi yêu cầu hủy các sản phẩm đã chọn?');">
+                            Gửi yêu cầu hủy
+                        </button>
+                    </form>
+                </section>
+            }
+            else if (!string.IsNullOrWhiteSpace(Model.CancellationMessage)
+                     && Model.OrderStatus != OrderStatus.Cancelled)
+            {
+                <section class="customer-order-section">
+                    <p class="eyebrow">Hủy đơn</p>
+                    <h2>Không thể gửi yêu cầu mới</h2>
+                    <p class="customer-order-muted">@Model.CancellationMessage</p>
+                </section>
+            }
+        </aside>
+    </div>
+</section>
+
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/pages/storefront/customer-orders.css"
+          asp-append-version="true" />
+}

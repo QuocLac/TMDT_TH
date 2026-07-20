@@ -107,6 +107,13 @@
                 </a>
             }
 
+            <a asp-controller="Orders"
+               asp-action="Details"
+               asp-route-publicToken="@Model.PublicToken"
+               class="button button--glass">
+                Quản lý đơn hàng
+            </a>
+
             <a asp-controller="Cart"
                asp-action="Index"
                class="button button--glass">

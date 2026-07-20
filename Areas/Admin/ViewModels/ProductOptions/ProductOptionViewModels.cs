@@ -151,7 +151,6 @@ public sealed class ProductVariantSelectionInput
     public Dictionary<int, int?> Selections { get; set; } = [];
 }
 
-
 public sealed class ProductOptionCombinationPreviewViewModel
 {
     public int ActiveGroupCount { get; init; }
@@ -189,7 +188,9 @@ public sealed class ProductOptionCombinationGenerateInput
         typeof(decimal),
         "0.01",
         "9999999999999999",
-        ErrorMessage = "Giá niêm yết phải lớn hơn 0.")]
+        ErrorMessage = "Giá niêm yết phải lớn hơn 0.",
+        ParseLimitsInInvariantCulture = true,
+        ConvertValueInInvariantCulture = true)]
     public decimal ListPrice { get; set; }
 
     [Range(

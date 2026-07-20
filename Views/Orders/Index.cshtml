@@ -1,0 +1,217 @@
+@using System.Globalization
+@model WebApplication2.ViewModels.Storefront.Orders.CustomerOrderIndexViewModel
+@{
+    ViewData["Title"] = "Đơn hàng của tôi";
+    var culture = CultureInfo.GetCultureInfo("vi-VN");
+    var tabs = new[]
+    {
+        new { Key = "all", Label = "Tất cả", Count = Model.Summary.All },
+        new { Key = "payment", Label = "Chờ thanh toán", Count = Model.Summary.AwaitingPayment },
+        new { Key = "processing", Label = "Đang xử lý", Count = Model.Summary.Processing },
+        new { Key = "shipping", Label = "Đang giao", Count = Model.Summary.Shipping },
+        new { Key = "completed", Label = "Hoàn tất", Count = Model.Summary.Completed },
+        new { Key = "cancelled", Label = "Đã hủy", Count = Model.Summary.Cancelled },
+        new { Key = "returns", Label = "Hoàn trả", Count = Model.Summary.Returns }
+    };
+}
+
+<section class="customer-orders-page shell-container">
+    <header class="customer-orders-hero">
+        <div>
+            <p class="eyebrow">Tài khoản khách hàng</p>
+            <h1>Đơn hàng của tôi</h1>
+            <p>
+                Theo dõi thanh toán, chuẩn bị hàng, vận chuyển, hủy đơn và hoàn trả
+                trong cùng một nơi.
+            </p>
+        </div>
+        <a asp-controller="Account"
+           asp-action="Profile"
+           class="button button--glass">
+            Quản lý tài khoản
+        </a>
+    </header>
+
+    <nav class="customer-order-tabs" aria-label="Lọc đơn hàng">
+        @foreach (var tab in tabs)
+        {
+            <a asp-action="Index"
+               asp-route-status="@tab.Key"
+               asp-route-query="@Model.Query"
+               class="@(Model.Status == tab.Key ? "is-active" : null)">
+                <span>@tab.Label</span>
+                <b>@tab.Count</b>
+            </a>
+        }
+    </nav>
+
+    <form asp-action="Index" method="get" class="customer-order-search">
+        <input type="hidden" name="status" value="@Model.Status" />
+        <label>
+            <span class="visually-hidden">Tìm đơn hàng</span>
+            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+            <input type="search"
+                   name="query"
+                   value="@Model.Query"
+                   placeholder="Tìm theo mã đơn, tên sản phẩm hoặc SKU"
+                   autocomplete="off" />
+        </label>
+        <button type="submit" class="button button--primary">Tìm kiếm</button>
+        @if (!string.IsNullOrWhiteSpace(Model.Query))
+        {
+            <a asp-action="Index"
+               asp-route-status="@Model.Status"
+               class="button button--ghost">
+                Xóa tìm kiếm
+            </a>
+        }
+    </form>
+
+    @if (Model.Orders.Count == 0)
+    {
+        <section class="customer-order-empty">
+            <span aria-hidden="true"><i class="fa-solid fa-box-open"></i></span>
+            <h2>Chưa có đơn hàng phù hợp</h2>
+            <p>
+                Không tìm thấy đơn theo bộ lọc hiện tại. Bạn có thể đổi trạng thái
+                hoặc tiếp tục khám phá sản phẩm.
+            </p>
+            <a asp-controller="Home"
+               asp-action="Index"
+               class="button button--primary">
+                Tiếp tục mua sắm
+            </a>
+        </section>
+    }
+    else
+    {
+        <div class="customer-order-list">
+            @foreach (var order in Model.Orders)
+            {
+                <article class="customer-order-card">
+                    <header>
+                        <div>
+                            <span>Mã đơn</span>
+                            <a asp-action="Details"
+                               asp-route-publicToken="@order.PublicToken">
+                                @order.Code
+                            </a>
+                            <small>
+                                Đặt lúc @order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                            </small>
+                        </div>
+                        <span class="customer-status customer-status--@order.StatusTone">
+                            @order.StatusText
+                        </span>
+                    </header>
+
+                    <div class="customer-order-card__body">
+                        <div class="customer-order-card__items">
+                            @foreach (var item in order.Items)
+                            {
+                                <div class="customer-order-preview-line">
+                                    <img src="@(string.IsNullOrWhiteSpace(item.ImageUrl)
+                                                   ? "/images/no-image.png"
+                                                   : item.ImageUrl)"
+                                         alt=""
+                                         width="64"
+                                         height="64" />
+                                    <div>
+                                        <strong>@item.ProductName</strong>
+                                        <span>
+                                            @(string.IsNullOrWhiteSpace(item.VariantDescription)
+                                                ? "Lựa chọn tiêu chuẩn"
+                                                : item.VariantDescription)
+                                            · Số lượng @item.Quantity
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (order.AdditionalItemCount > 0)
+                            {
+                                <small class="customer-order-more">
+                                    Và @order.AdditionalItemCount sản phẩm khác
+                                </small>
+                            }
+                        </div>
+
+                        <dl class="customer-order-card__summary">
+                            <div>
+                                <dt>Thanh toán</dt>
+                                <dd>@order.PaymentStatusText</dd>
+                            </div>
+                            <div>
+                                <dt>Giao hàng</dt>
+                                <dd>@order.FulfillmentStatusText</dd>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(order.TrackingCode))
+                            {
+                                <div>
+                                    <dt>Mã vận đơn</dt>
+                                    <dd>@order.TrackingCode</dd>
+                                </div>
+                            }
+                            <div class="is-total">
+                                <dt>Tổng thanh toán</dt>
+                                <dd>@order.GrandTotal.ToString("N0", culture) ₫</dd>
+                            </div>
+                        </dl>
+                    </div>
+
+                    <footer>
+                        <span>@order.TotalQuantity sản phẩm</span>
+                        <div>
+                            @if (order.CanRetryPayment)
+                            {
+                                <form asp-controller="Checkout"
+                                      asp-action="RetryPayment"
+                                      asp-route-publicToken="@order.PublicToken"
+                                      method="post">
+                                    <button type="submit"
+                                            class="button button--secondary">
+                                        Tiếp tục thanh toán
+                                    </button>
+                                </form>
+                            }
+                            <a asp-action="Details"
+                               asp-route-publicToken="@order.PublicToken"
+                               class="button button--primary">
+                                Xem chi tiết
+                            </a>
+                        </div>
+                    </footer>
+                </article>
+            }
+        </div>
+
+        @if (Model.TotalPages > 1)
+        {
+            <nav class="customer-order-pagination" aria-label="Phân trang đơn hàng">
+                <a asp-action="Index"
+                   asp-route-status="@Model.Status"
+                   asp-route-query="@Model.Query"
+                   asp-route-page="@(Model.Page - 1)"
+                   class="@(Model.Page <= 1 ? "is-disabled" : null)"
+                   aria-disabled="@(Model.Page <= 1)">
+                    Trước
+                </a>
+                <span>Trang @Model.Page / @Model.TotalPages</span>
+                <a asp-action="Index"
+                   asp-route-status="@Model.Status"
+                   asp-route-query="@Model.Query"
+                   asp-route-page="@(Model.Page + 1)"
+                   class="@(Model.Page >= Model.TotalPages ? "is-disabled" : null)"
+                   aria-disabled="@(Model.Page >= Model.TotalPages)">
+                    Sau
+                </a>
+            </nav>
+        }
+    }
+</section>
+
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/pages/storefront/customer-orders.css"
+          asp-append-version="true" />
+}

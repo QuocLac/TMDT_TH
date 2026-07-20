@@ -151,6 +151,7 @@
                 <a asp-area="" asp-controller="Cart" asp-action="Index"><span>Giỏ hàng</span></a>
                 @if (isAuthenticated)
                 {
+                    <a asp-area="" asp-controller="Orders" asp-action="Index"><span>Đơn hàng</span></a>
                     <a asp-area="" asp-controller="Account" asp-action="Profile"><span>Tài khoản</span></a>
                 }
                 @if (User.IsInRole(nameof(AccountRole.Admin)))
@@ -194,6 +195,10 @@
                 <a href="/#categories">Danh mục</a>
                 <a href="/#products">Sản phẩm</a>
                 <a asp-area="" asp-controller="Cart" asp-action="Index">Giỏ hàng</a>
+                @if (isAuthenticated)
+                {
+                    <a asp-area="" asp-controller="Orders" asp-action="Index">Đơn hàng của tôi</a>
+                }
             </nav>
             <section>
                 <h2>Hỗ trợ mua sắm</h2>

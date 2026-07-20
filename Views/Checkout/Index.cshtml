@@ -79,7 +79,7 @@
                value="@Model.CartVersion" />
         <input type="hidden"
                name="ExpectedShippingFee"
-               value="@Model.Form.ExpectedShippingFee.ToString(CultureInfo.InvariantCulture)"
+               value="@Model.Form.ExpectedShippingFee.ToString("G29", CultureInfo.CurrentCulture)"
                data-expected-shipping-fee />
         <input type="hidden"
                name="ShippingServiceId"
@@ -100,7 +100,7 @@
                    value="@Model.Items[index].Quantity" />
             <input type="hidden"
                    name="Items[@index].ExpectedUnitPrice"
-                   value="@Model.Items[index].UnitPrice.ToString(CultureInfo.InvariantCulture)" />
+                   value="@Model.Items[index].UnitPrice.ToString("G29", CultureInfo.CurrentCulture)" />
         }
 
         <div class="checkout-layout" data-reveal>

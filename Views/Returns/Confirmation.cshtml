@@ -1,20 +1,22 @@
 @using System.Globalization
+@using WebApplication2.ViewModels.Storefront.Orders
 @model WebApplication2.ViewModels.Storefront.Returns.ReturnConfirmationViewModel
 @{
     ViewData["Title"] = $"Hoàn trả {Model.ReturnCode}";
     var culture = CultureInfo.GetCultureInfo("vi-VN");
+    var statusText = CustomerOrderDisplay.ReturnStatusText(Model.Status);
 }
 
 <section class="return-page shell-container">
     <header class="return-hero is-confirmed">
-        <p class="eyebrow">Return @Model.ReturnCode</p>
+        <p class="eyebrow">Yêu cầu @Model.ReturnCode</p>
         <h1>Yêu cầu đã được ghi nhận</h1>
         <p>
-            Trạng thái hiện tại: <strong>@Model.Status</strong>.
+            Trạng thái hiện tại: <strong>@statusText</strong>.
             Mỗi bước duyệt, vận chuyển về kho, kiểm định và hoàn tiền được theo dõi độc lập.
         </p>
         <div class="checkout-success-actions">
-            <a asp-controller="Checkout" asp-action="Success"
+            <a asp-controller="Orders" asp-action="Details"
                asp-route-publicToken="@Model.OrderPublicToken"
                class="button button--primary">Mở đơn @Model.OrderCode</a>
             <a asp-controller="Home" asp-action="Index"
@@ -51,8 +53,8 @@
                 <div><dt>Lý do</dt><dd>@Model.ReasonCode</dd></div>
                 <div><dt>Mô tả</dt><dd>@Model.ReasonText</dd></div>
                 <div><dt>Gửi lúc</dt><dd>@Model.RequestedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
-                <div><dt>Hạn return</dt><dd>@Model.ReturnWindowExpiresAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
-                <div><dt>Tracking chiều về</dt><dd>@(Model.TrackingCode ?? "Chưa tạo")</dd></div>
+                <div><dt>Hạn hoàn trả</dt><dd>@Model.ReturnWindowExpiresAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
+                <div><dt>Mã vận đơn chiều về</dt><dd>@(Model.TrackingCode ?? "Chưa tạo")</dd></div>
             </dl>
         </aside>
     </div>

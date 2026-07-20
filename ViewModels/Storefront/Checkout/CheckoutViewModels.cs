@@ -241,7 +241,12 @@ public sealed class CheckoutPlaceOrderRequest
     public string PaymentMethod { get; set; } =
         OrderApplicationService.CodPaymentMethod;
 
-    [Range(typeof(decimal), "0", "9999999999999999")]
+    [Range(
+        typeof(decimal),
+        "0",
+        "9999999999999999",
+        ParseLimitsInInvariantCulture = true,
+        ConvertValueInInvariantCulture = true)]
     public decimal ExpectedShippingFee { get; set; }
 
     [Range(0, int.MaxValue)]
@@ -262,7 +267,12 @@ public sealed class CheckoutItemConfirmationRequest
     [Range(1, 99)]
     public int Quantity { get; set; }
 
-    [Range(typeof(decimal), "0.01", "9999999999999999")]
+    [Range(
+        typeof(decimal),
+        "0.01",
+        "9999999999999999",
+        ParseLimitsInInvariantCulture = true,
+        ConvertValueInInvariantCulture = true)]
     public decimal ExpectedUnitPrice { get; set; }
 }
 
