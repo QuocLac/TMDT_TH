@@ -17,7 +17,7 @@
             <h2>Mô phỏng thanh toán và hoàn tiền</h2>
             <p class="admin-page-lead">
                 Dùng khi localhost không nhận được callback từ VNPay.
-                Công cụ chỉ thay đổi dữ liệu sandbox, không chuyển tiền thật.
+                Công cụ chỉ thay đổi dữ liệu sandbox, tạo nhật ký giao dịch riêng và không chuyển tiền thật.
             </p>
         </div>
     </header>
@@ -111,7 +111,7 @@
                 <p class="admin-page-kicker">Refund callback</p>
                 <h3>Yêu cầu chờ hoàn tiền</h3>
                 <p>
-                    RefundPending được mô phỏng thành Refunded;
+                    RefundPending được mô phỏng thành Refunded và tạo một giao dịch hoàn tiền riêng;
                     sau đó đóng hồ sơ bằng thao tác riêng.
                 </p>
             </div>
