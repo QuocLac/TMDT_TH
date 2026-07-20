@@ -32,6 +32,151 @@
     </div>
 
     <section class="admin-panel payment-simulation-section">
+        <header class="admin-panel__header payment-reconciliation-heading">
+            <div>
+                <p class="admin-page-kicker">Consistency check</p>
+                <h3>Đối soát trạng thái bị lệch</h3>
+                <p>
+                    Phát hiện callback đã ghi một nửa, yêu cầu hoàn tiền bị treo
+                    hoặc dữ liệu cũ thiếu bút toán Refund.
+                </p>
+            </div>
+            @if (Model.Issues.Any(item => item.IsSafeAutomaticRepair))
+            {
+                <form asp-action="ReconcileSafe"
+                      method="post"
+                      data-simulation-confirm="Tự động sửa các sai lệch an toàn đang hiển thị?">
+                    <button type="submit" class="button button--primary">
+                        Sửa trạng thái an toàn
+                    </button>
+                </form>
+            }
+        </header>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table">
+                <thead>
+                    <tr>
+                        <th>Vấn đề</th>
+                        <th>Đối tượng</th>
+                        <th>Mô tả</th>
+                        <th class="u-text-end">Số tiền</th>
+                        <th class="u-text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Issues.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="5">
+                                <div class="admin-empty-state admin-empty-state--compact">
+                                    <div>
+                                        <strong>Không phát hiện sai lệch</strong>
+                                        <span>
+                                            Trạng thái đơn, giao dịch và hoàn trả đang nhất quán.
+                                        </span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var issue in Model.Issues)
+                        {
+                            <tr>
+                                <td>
+                                    <strong>@issue.Title</strong>
+                                    <small>
+                                        @(issue.IsSafeAutomaticRepair
+                                            ? "Có thể tự sửa"
+                                            : "Cần xác nhận riêng")
+                                    </small>
+                                </td>
+                                <td>
+                                    <a asp-area="Admin"
+                                       asp-controller="Orders"
+                                       asp-action="Details"
+                                       asp-route-id="@issue.OrderId">
+                                        @issue.OrderCode
+                                    </a>
+                                    @if (issue.ReturnRequestId.HasValue)
+                                    {
+                                        <small>
+                                            <a asp-area="Admin"
+                                               asp-controller="Returns"
+                                               asp-action="Details"
+                                               asp-route-id="@issue.ReturnRequestId">
+                                                @issue.ReturnCode
+                                            </a>
+                                        </small>
+                                    }
+                                </td>
+                                <td>@issue.Description</td>
+                                <td class="u-text-end">
+                                    @issue.Amount.ToString("N0") ₫
+                                </td>
+                                <td class="u-text-end">
+                                    @switch (issue.Type)
+                                    {
+                                        case WebApplication2.Services.Payments.Reconciliation.DevelopmentPaymentIssueType.PaidTransactionOrderPending:
+                                            <form asp-action="RepairPaidState"
+                                                  asp-route-orderId="@issue.OrderId"
+                                                  method="post"
+                                                  data-simulation-confirm="Sửa trạng thái đơn @issue.OrderCode theo giao dịch VNPay Paid?">
+                                                <button type="submit"
+                                                        class="button button--primary button--small">
+                                                    Sửa đơn
+                                                </button>
+                                            </form>
+                                            break;
+
+                                        case WebApplication2.Services.Payments.Reconciliation.DevelopmentPaymentIssueType.RefundLedgerReturnPending:
+                                            <form asp-action="RepairRefundState"
+                                                  asp-route-returnRequestId="@issue.ReturnRequestId"
+                                                  method="post"
+                                                  data-simulation-confirm="Đồng bộ @issue.ReturnCode sang Refunded?">
+                                                <button type="submit"
+                                                        class="button button--primary button--small">
+                                                    Sửa trạng thái hoàn
+                                                </button>
+                                            </form>
+                                            break;
+
+                                        case WebApplication2.Services.Payments.Reconciliation.DevelopmentPaymentIssueType.OrderPaymentStatusMismatch:
+                                            <form asp-action="RepairPaymentTotal"
+                                                  asp-route-orderId="@issue.OrderId"
+                                                  method="post"
+                                                  data-simulation-confirm="Tính lại trạng thái thanh toán của @issue.OrderCode từ sổ giao dịch?">
+                                                <button type="submit"
+                                                        class="button button--primary button--small">
+                                                    Đối chiếu lại
+                                                </button>
+                                            </form>
+                                            break;
+
+                                        case WebApplication2.Services.Payments.Reconciliation.DevelopmentPaymentIssueType.LegacyRefundLedgerMissing:
+                                            <form asp-action="BackfillRefundLedger"
+                                                  asp-route-returnRequestId="@issue.ReturnRequestId"
+                                                  method="post"
+                                                  data-simulation-confirm="Tạo bút toán lịch sử cho @issue.ReturnCode? Thao tác không gọi VNPay.">
+                                                <button type="submit"
+                                                        class="button button--secondary button--small">
+                                                    Tạo bút toán lịch sử
+                                                </button>
+                                            </form>
+                                            break;
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="admin-panel payment-simulation-section">
         <header class="admin-panel__header">
             <div>
                 <p class="admin-page-kicker">VNPay callback</p>

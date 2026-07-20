@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using WebApplication2.Areas.Admin.ViewModels.PaymentSimulation;
 using WebApplication2.Models;
 using WebApplication2.Models.Enums;
+using WebApplication2.Services.Payments.Reconciliation;
 using WebApplication2.Services.Payments.Simulation;
 
 namespace WebApplication2.Areas.Admin.Controllers;
@@ -15,15 +16,18 @@ public sealed class PaymentSimulationController : Controller
 
     private readonly ApplicationDbContext _context;
     private readonly IDevelopmentPaymentSimulator _simulator;
+    private readonly IDevelopmentPaymentReconciliationService _reconciliation;
     private readonly ILogger<PaymentSimulationController> _logger;
 
     public PaymentSimulationController(
         ApplicationDbContext context,
         IDevelopmentPaymentSimulator simulator,
+        IDevelopmentPaymentReconciliationService reconciliation,
         ILogger<PaymentSimulationController> logger)
     {
         _context = context;
         _simulator = simulator;
+        _reconciliation = reconciliation;
         _logger = logger;
     }
 
@@ -101,9 +105,93 @@ public sealed class PaymentSimulationController : Controller
         return View(new PaymentSimulationPageViewModel
         {
             PendingPayments = pendingPayments,
-            Refunds = refunds
+            Refunds = refunds,
+            Issues = await _reconciliation.ScanAsync(cancellationToken)
         });
     }
+
+    [HttpPost("reconcile-safe")]
+    public async Task<IActionResult> ReconcileSafe(
+        CancellationToken cancellationToken)
+    {
+        if (!_reconciliation.IsEnabled)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var result = await _reconciliation.RepairSafeIssuesAsync(
+                ResolveActor(),
+                cancellationToken);
+
+            TempData["SuccessMessage"] =
+                $"Đã rà soát {result.ScannedCount} sai lệch và sửa "
+                + $"{result.RepairedCount} trường hợp.";
+
+            if (result.FailedCount > 0)
+            {
+                TempData["ErrorMessage"] =
+                    $"{result.FailedCount} trường hợp chưa thể tự sửa. "
+                    + string.Join(" | ", result.Failures.Take(3));
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Development payment reconciliation failed.");
+
+            TempData["ErrorMessage"] =
+                "Không thể hoàn tất đối soát tự động.";
+        }
+
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost("orders/{orderId:int}/repair-paid-state")]
+    public Task<IActionResult> RepairPaidState(
+        int orderId,
+        CancellationToken cancellationToken) =>
+        ExecuteRepairAsync(
+            () => _reconciliation.RepairPaidOrderAsync(
+                orderId,
+                ResolveActor(),
+                cancellationToken),
+            "sửa trạng thái đơn đã thanh toán");
+
+    [HttpPost("orders/{orderId:int}/repair-payment-total")]
+    public Task<IActionResult> RepairPaymentTotal(
+        int orderId,
+        CancellationToken cancellationToken) =>
+        ExecuteRepairAsync(
+            () => _reconciliation.RepairOrderPaymentStatusAsync(
+                orderId,
+                ResolveActor(),
+                cancellationToken),
+            "đối chiếu tổng tiền hoàn");
+
+    [HttpPost("returns/{returnRequestId:long}/repair-state")]
+    public Task<IActionResult> RepairRefundState(
+        long returnRequestId,
+        CancellationToken cancellationToken) =>
+        ExecuteRepairAsync(
+            () => _reconciliation.RepairRefundStateAsync(
+                returnRequestId,
+                ResolveActor(),
+                cancellationToken),
+            "sửa trạng thái hoàn tiền");
+
+    [HttpPost("returns/{returnRequestId:long}/backfill-ledger")]
+    public Task<IActionResult> BackfillRefundLedger(
+        long returnRequestId,
+        CancellationToken cancellationToken) =>
+        ExecuteRepairAsync(
+            () => _reconciliation.BackfillLegacyRefundLedgerAsync(
+                returnRequestId,
+                ResolveActor(),
+                cancellationToken),
+            "tạo bút toán hoàn tiền lịch sử");
 
     [HttpPost("orders/{orderId:int}/confirm-payment")]
     public async Task<IActionResult> ConfirmPayment(
@@ -145,6 +233,46 @@ public sealed class PaymentSimulationController : Controller
                 cancellationToken),
             "đóng yêu cầu hoàn trả",
             cancellationToken);
+    }
+
+    private async Task<IActionResult> ExecuteRepairAsync(
+        Func<Task<DevelopmentPaymentRepairResult>> operation,
+        string operationName)
+    {
+        if (!_reconciliation.IsEnabled)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var result = await operation();
+            TempData[result.Success
+                ? "SuccessMessage"
+                : "ErrorMessage"] = result.Message;
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Concurrent reconciliation during {Operation}.",
+                operationName);
+
+            TempData["ErrorMessage"] =
+                "Dữ liệu vừa thay đổi. Hãy tải lại trang và thử lại.";
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(
+                exception,
+                "Reconciliation failed during {Operation}.",
+                operationName);
+
+            TempData["ErrorMessage"] =
+                $"Không thể {operationName}. Kiểm tra log ứng dụng.";
+        }
+
+        return RedirectToAction(nameof(Index));
     }
 
     private async Task<IActionResult> ExecuteAsync(

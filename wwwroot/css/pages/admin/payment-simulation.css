@@ -46,3 +46,37 @@
         width: 100%;
     }
 }
+
+
+.payment-reconciliation-heading {
+    align-items: center;
+}
+
+.payment-reconciliation-heading form {
+    flex: 0 0 auto;
+}
+
+.payment-simulation-section td > form {
+    margin-left: auto;
+}
+
+.payment-simulation-section td a {
+    color: var(--color-text-primary);
+    text-decoration: none;
+}
+
+.payment-simulation-section td a:hover {
+    text-decoration: underline;
+}
+
+@media (max-width: 48rem) {
+    .payment-reconciliation-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .payment-reconciliation-heading form,
+    .payment-reconciliation-heading .button {
+        width: 100%;
+    }
+}

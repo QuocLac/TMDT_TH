@@ -1,4 +1,5 @@
 using WebApplication2.Models.Enums;
+using WebApplication2.Services.Payments.Reconciliation;
 
 namespace WebApplication2.Areas.Admin.ViewModels.PaymentSimulation;
 
@@ -11,6 +12,12 @@ public sealed class PaymentSimulationPageViewModel
     } = [];
 
     public IReadOnlyList<PendingRefundSimulationItemViewModel> Refunds
+    {
+        get;
+        init;
+    } = [];
+
+    public IReadOnlyList<DevelopmentPaymentIssueSnapshot> Issues
     {
         get;
         init;
