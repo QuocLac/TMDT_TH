@@ -813,3 +813,40 @@
         flex: 1 1 0;
     }
 }
+
+
+/* Internal monochrome SVG category icon system. */
+.category-mono-icon-host {
+    display: grid;
+    place-items: center;
+}
+
+.category-mono-icon {
+    display: block;
+    width: 1.2rem;
+    height: 1.2rem;
+    overflow: visible;
+    color: inherit;
+    vector-effect: non-scaling-stroke;
+}
+
+.category-icon .category-mono-icon {
+    width: 1.3rem;
+    height: 1.3rem;
+}
+
+.category-selected-icon__preview .category-mono-icon {
+    width: 1.7rem;
+    height: 1.7rem;
+}
+
+.category-icon-option__preview .category-mono-icon {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.category-icon-option__preview,
+.category-selected-icon__preview,
+.category-icon {
+    font-family: inherit;
+}
