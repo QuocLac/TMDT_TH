@@ -5,6 +5,7 @@
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/storefront/reviews.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/storefront/review-experience.css" asp-append-version="true" />
 }
 
 <section class="review-page shell-container">
@@ -12,7 +13,10 @@
         <div>
             <p>Lịch sử đóng góp</p>
             <h1>Đánh giá của tôi</h1>
-            <span>Theo dõi trạng thái kiểm duyệt và phản hồi từ FastBuy.</span>
+            <span>
+                Mọi đánh giá từ giao dịch đã xác minh được đăng công khai ngay,
+                không qua bước duyệt hoặc ẩn.
+            </span>
         </div>
         <a asp-action="Eligible" class="button button--primary">
             Sản phẩm chờ đánh giá
@@ -39,14 +43,15 @@
                             <h2>
                                 <a asp-controller="Products"
                                    asp-action="Details"
-                                   asp-route-slug="@review.ProductSlug">
+                                   asp-route-slug="@review.ProductSlug"
+                                   asp-fragment="review-@review.ReviewId">
                                     @review.ProductName
                                 </a>
                             </h2>
                             <span>@(review.SelectionLabel ?? "Lựa chọn tiêu chuẩn")</span>
                         </div>
-                        <span class="review-status review-status--@review.Status.ToString().ToLowerInvariant()">
-                            @review.Status
+                        <span class="review-status review-status--published">
+                            Đang hiển thị công khai
                         </span>
                     </header>
 
@@ -61,32 +66,32 @@
 
                     <p>@review.Content</p>
 
-                    @if (!string.IsNullOrWhiteSpace(review.ModerationNote))
-                    {
-                        <div class="my-review-card__note">
-                            <strong>Ghi chú kiểm duyệt</strong>
-                            <span>@review.ModerationNote</span>
-                        </div>
-                    }
-
                     @if (!string.IsNullOrWhiteSpace(review.ReplyContent))
                     {
                         <div class="my-review-card__reply">
-                            <strong>Phản hồi từ FastBuy</strong>
+                            <strong>Phản hồi trước đây từ FastBuy</strong>
                             <p>@review.ReplyContent</p>
                         </div>
                     }
 
-                    @if (review.CanEdit)
-                    {
-                        <footer>
+                    <footer>
+                        <a asp-controller="Products"
+                           asp-action="Details"
+                           asp-route-slug="@review.ProductSlug"
+                           asp-fragment="review-@review.ReviewId"
+                           class="button button--primary button--small">
+                            Xem thảo luận công khai
+                        </a>
+
+                        @if (review.CanEdit)
+                        {
                             <a asp-action="Edit"
                                asp-route-orderItemId="@review.OrderItemId"
                                class="button button--secondary button--small">
                                 Chỉnh sửa
                             </a>
-                        </footer>
-                    }
+                        }
+                    </footer>
                 </article>
             }
         </div>

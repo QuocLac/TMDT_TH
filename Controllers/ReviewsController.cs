@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using WebApplication2.Models;
 using WebApplication2.Models.Enums;
 using WebApplication2.Services.Identity;
 using WebApplication2.Services.Reviews;
@@ -12,14 +13,20 @@ namespace WebApplication2.Controllers;
 [Route("reviews")]
 public sealed class ReviewsController : Controller
 {
+    private readonly ApplicationDbContext _context;
     private readonly IProductReviewService _reviews;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<ReviewsController> _logger;
 
     public ReviewsController(
+        ApplicationDbContext context,
         IProductReviewService reviews,
+        TimeProvider timeProvider,
         ILogger<ReviewsController> logger)
     {
+        _context = context;
         _reviews = reviews;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -27,10 +34,18 @@ public sealed class ReviewsController : Controller
     public async Task<IActionResult> Eligible(
         CancellationToken cancellationToken)
     {
+        var customerId = RequireCustomerId();
+        await ProductReviewExperienceQuery.NormalizeCustomerVisibilityAsync(
+            _context,
+            _timeProvider,
+            customerId,
+            orderItemId: null,
+            cancellationToken);
+
         return View(new ReviewableItemsPageViewModel
         {
             Items = await _reviews.GetReviewableItemsAsync(
-                RequireCustomerId(),
+                customerId,
                 cancellationToken)
         });
     }
@@ -39,10 +54,18 @@ public sealed class ReviewsController : Controller
     public async Task<IActionResult> Mine(
         CancellationToken cancellationToken)
     {
+        var customerId = RequireCustomerId();
+        await ProductReviewExperienceQuery.NormalizeCustomerVisibilityAsync(
+            _context,
+            _timeProvider,
+            customerId,
+            orderItemId: null,
+            cancellationToken);
+
         return View(new MyProductReviewsPageViewModel
         {
             Items = await _reviews.GetCustomerReviewsAsync(
-                RequireCustomerId(),
+                customerId,
                 cancellationToken)
         });
     }
@@ -52,8 +75,16 @@ public sealed class ReviewsController : Controller
         int orderItemId,
         CancellationToken cancellationToken)
     {
+        var customerId = RequireCustomerId();
+        await ProductReviewExperienceQuery.NormalizeCustomerVisibilityAsync(
+            _context,
+            _timeProvider,
+            customerId,
+            orderItemId,
+            cancellationToken);
+
         var item = await _reviews.GetEditorAsync(
-            RequireCustomerId(),
+            customerId,
             orderItemId,
             cancellationToken);
 
@@ -84,8 +115,16 @@ public sealed class ReviewsController : Controller
         ProductReviewInputModel form,
         CancellationToken cancellationToken)
     {
+        var customerId = RequireCustomerId();
+        await ProductReviewExperienceQuery.NormalizeCustomerVisibilityAsync(
+            _context,
+            _timeProvider,
+            customerId,
+            orderItemId,
+            cancellationToken);
+
         var item = await _reviews.GetEditorAsync(
-            RequireCustomerId(),
+            customerId,
             orderItemId,
             cancellationToken);
 
@@ -105,8 +144,8 @@ public sealed class ReviewsController : Controller
 
         try
         {
-            await _reviews.SubmitAsync(
-                RequireCustomerId(),
+            var reviewId = await _reviews.SubmitAsync(
+                customerId,
                 new SubmitProductReviewCommand(
                     orderItemId,
                     form.Rating,
@@ -116,8 +155,14 @@ public sealed class ReviewsController : Controller
                     ParseMedia(form.MediaUrls)),
                 cancellationToken);
 
+            await ProductReviewExperienceQuery.PublishImmediatelyAsync(
+                _context,
+                _timeProvider,
+                reviewId,
+                cancellationToken);
+
             TempData["SuccessMessage"] =
-                "Đánh giá đã được gửi và đang chờ kiểm duyệt.";
+                "Đánh giá đã được đăng công khai ngay lập tức.";
 
             return RedirectToAction(nameof(Mine));
         }
@@ -154,24 +199,134 @@ public sealed class ReviewsController : Controller
     }
 
     [AllowAnonymous]
+    [HttpGet("product/{productId:int}/feed")]
+    public async Task<IActionResult> Feed(
+        int productId,
+        int page = 1,
+        int? rating = null,
+        bool mediaOnly = false,
+        CancellationToken cancellationToken = default)
+    {
+        var feed = await ProductReviewExperienceQuery.GetPageAsync(
+            _context,
+            productId,
+            page,
+            ProductReviewTransparencyPolicy.InitialPageSize,
+            rating,
+            mediaOnly,
+            User.GetCustomerId(),
+            cancellationToken);
+
+        return feed is null
+            ? NotFound()
+            : PartialView(
+                "~/Views/Shared/_ProductReviewFeed.cshtml",
+                new ProductReviewFeedViewModel
+                {
+                    Feed = feed
+                });
+    }
+
+    [AllowAnonymous]
     [HttpGet("product/{productId:int}")]
     public async Task<IActionResult> Product(
         int productId,
-        int page = 1,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
-        var result = await _reviews.GetProductPageAsync(
-            productId,
-            page,
-            pageSize: 20,
-            cancellationToken);
+        var product = await _context.Products
+            .AsNoTracking()
+            .Where(item => item.Id == productId && item.IsActive)
+            .Select(item => item.Slug)
+            .SingleOrDefaultAsync(cancellationToken);
 
-        return result is null
-            ? NotFound()
-            : View(new ProductReviewPublicPageViewModel
-            {
-                Page = result
-            });
+        if (string.IsNullOrWhiteSpace(product))
+        {
+            return NotFound();
+        }
+
+        var productUrl = Url.Action(
+            "Details",
+            "Products",
+            new { slug = product })
+            ?? "/";
+
+        return Redirect(productUrl + "#product-reviews");
+    }
+
+    [HttpPost("{reviewId:long}/messages")]
+    public async Task<IActionResult> AddMessage(
+        long reviewId,
+        ProductReviewCustomerMessageInput form,
+        CancellationToken cancellationToken)
+    {
+        var customerId = RequireCustomerId();
+
+        if (!ModelState.IsValid)
+        {
+            TempData["ErrorMessage"] =
+                "Phản hồi cần từ 5 đến 1000 ký tự.";
+            return await RedirectToOwnedReviewAsync(
+                reviewId,
+                customerId,
+                cancellationToken);
+        }
+
+        try
+        {
+            var productSlug =
+                await ProductReviewConversationWorkflow
+                    .AddCustomerMessageAsync(
+                        _context,
+                        _timeProvider,
+                        reviewId,
+                        customerId,
+                        form.Content,
+                        cancellationToken);
+
+            TempData["SuccessMessage"] =
+                "Phản hồi của bạn đã được đăng công khai.";
+
+            var productUrl = Url.Action(
+                "Details",
+                "Products",
+                new { slug = productSlug })
+                ?? "/";
+
+            return Redirect(
+                productUrl + $"#review-{reviewId}");
+        }
+        catch (ProductReviewRuleException exception)
+        {
+            TempData["ErrorMessage"] = exception.Message;
+            return await RedirectToOwnedReviewAsync(
+                reviewId,
+                customerId,
+                cancellationToken);
+        }
+    }
+
+    private async Task<IActionResult> RedirectToOwnedReviewAsync(
+        long reviewId,
+        int customerId,
+        CancellationToken cancellationToken)
+    {
+        var slug =
+            await ProductReviewExperienceQuery
+                .GetOwnedReviewProductSlugAsync(
+                    _context,
+                    reviewId,
+                    customerId,
+                    cancellationToken);
+
+        return string.IsNullOrWhiteSpace(slug)
+            ? RedirectToAction(nameof(Mine))
+            : Redirect(
+                (Url.Action(
+                    "Details",
+                    "Products",
+                    new { slug })
+                    ?? "/")
+                + $"#review-{reviewId}");
     }
 
     private int RequireCustomerId() =>

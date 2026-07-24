@@ -31,7 +31,7 @@ public sealed class ProductReview : BaseEntity
     [Required, MaxLength(2000)]
     public string Content { get; set; } = string.Empty;
 
-    public ProductReviewStatus Status { get; set; } = ProductReviewStatus.Pending;
+    public ProductReviewStatus Status { get; set; } = ProductReviewStatus.Published;
 
     public bool IsVerifiedPurchase { get; set; } = true;
 
@@ -54,5 +54,8 @@ public sealed class ProductReview : BaseEntity
 
     public ICollection<ProductReviewMedia> Media { get; set; } = [];
 
+    // Kept for backward compatibility with replies created before conversation threads.
     public ProductReviewReply? Reply { get; set; }
+
+    public ICollection<ProductReviewMessage> Messages { get; set; } = [];
 }

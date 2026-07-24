@@ -1,44 +1,48 @@
 @model WebApplication2.Areas.Admin.ViewModels.Reviews.ReviewAdminIndexViewModel
-@using WebApplication2.Models.Enums
 @{
     ViewData["Title"] = "Đánh giá sản phẩm";
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/admin/reviews.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/admin/review-transparency.css" asp-append-version="true" />
 }
 
 <section class="admin-page review-admin-page">
     <header class="admin-page-header admin-page-header--hero">
         <div>
-            <p class="admin-page-kicker">Nội dung từ khách hàng</p>
+            <p class="admin-page-kicker">Tiếng nói người mua</p>
             <h2>Đánh giá sản phẩm</h2>
             <p class="admin-page-lead">
-                Kiểm duyệt đánh giá từ khách đã mua, xử lý nội dung vi phạm và phản hồi công khai.
+                Đánh giá đã mua hàng được hiển thị tự động.
+                Admin có thể phản hồi công khai nhưng không thể duyệt, ẩn,
+                từ chối hoặc sửa nội dung của khách hàng.
             </p>
         </div>
+        <span class="review-transparency-badge">
+            <i class="fa-solid fa-eye" aria-hidden="true"></i>
+            Không kiểm duyệt trước
+        </span>
     </header>
 
-    <form method="get" class="admin-filter-panel review-admin-filter">
+    <div class="review-transparency-notice">
+        <i class="fa-solid fa-shield-heart" aria-hidden="true"></i>
+        <div>
+            <strong>Nguyên tắc minh bạch</strong>
+            <span>
+                Hệ thống chỉ xác minh giao dịch mua hàng và giữ nguyên nội dung,
+                số sao, thời gian gửi cùng toàn bộ trao đổi công khai.
+            </span>
+        </div>
+    </div>
+
+    <form method="get" class="admin-filter-panel review-admin-filter review-admin-filter--transparent">
         <label class="admin-filter-field">
             <span>Tìm kiếm</span>
             <input type="search"
                    name="search"
                    value="@Model.Search"
                    placeholder="Sản phẩm, mã đơn, khách hàng hoặc email" />
-        </label>
-
-        <label class="admin-filter-field">
-            <span>Trạng thái</span>
-            <select name="status">
-                <option value="">Tất cả</option>
-                @foreach (var status in Enum.GetValues<ProductReviewStatus>())
-                {
-                    <option value="@status" selected="@(Model.Status == status)">
-                        @status
-                    </option>
-                }
-            </select>
         </label>
 
         <label class="admin-filter-field">
@@ -55,6 +59,7 @@
         </label>
 
         <button type="submit" class="button button--primary">Lọc</button>
+        <a asp-action="Index" class="button button--secondary">Xóa lọc</a>
     </form>
 
     <section class="admin-panel">
@@ -66,8 +71,7 @@
                         <th>Khách hàng</th>
                         <th>Đơn hàng</th>
                         <th>Số sao</th>
-                        <th>Trạng thái</th>
-                        <th>Phản hồi</th>
+                        <th>Thảo luận</th>
                         <th>Ngày gửi</th>
                         <th class="u-text-end">Thao tác</th>
                     </tr>
@@ -76,7 +80,7 @@
                     @if (Model.Items.Count == 0)
                     {
                         <tr>
-                            <td colspan="8">
+                            <td colspan="7">
                                 <div class="admin-empty-state admin-empty-state--compact">
                                     <div>
                                         <strong>Không tìm thấy đánh giá</strong>
@@ -96,17 +100,16 @@
                                 <td>@item.OrderCode</td>
                                 <td class="review-admin-stars">@item.Rating ★</td>
                                 <td>
-                                    <span class="admin-badge admin-badge--@item.Status.ToString().ToLowerInvariant()">
-                                        @item.Status
-                                    </span>
+                                    @(item.ConversationCount == 0
+                                        ? "Chưa có phản hồi"
+                                        : $"{item.ConversationCount} phản hồi")
                                 </td>
-                                <td>@(item.HasReply ? "Đã phản hồi" : "Chưa phản hồi")</td>
                                 <td>@item.SubmittedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
                                 <td class="u-text-end">
                                     <a asp-action="Details"
                                        asp-route-id="@item.Id"
                                        class="button button--primary button--small">
-                                        Xử lý
+                                        Xem và phản hồi
                                     </a>
                                 </td>
                             </tr>

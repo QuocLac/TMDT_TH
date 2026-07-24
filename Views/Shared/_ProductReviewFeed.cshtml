@@ -1,0 +1,196 @@
+@model WebApplication2.Services.Reviews.ProductReviewFeedViewModel
+@using WebApplication2.Models.Enums
+@{
+    var feed = Model.Feed;
+}
+
+<div class="review-experience__batch"
+     data-review-batch
+     data-page="@feed.Page"
+     data-total-pages="@feed.TotalPages"
+     data-filtered-count="@feed.FilteredCount">
+    @if (feed.Items.Count == 0)
+    {
+        <div class="review-experience__empty">
+            <span>
+                <i class="fa-regular fa-comment-dots" aria-hidden="true"></i>
+            </span>
+            <div>
+                <strong>
+                    @(feed.TotalCount == 0
+                        ? "Chưa có đánh giá cho sản phẩm này"
+                        : "Không có đánh giá phù hợp bộ lọc")
+                </strong>
+                <p>
+                    @(feed.TotalCount == 0
+                        ? "Sau khi nhận hàng, khách hàng có thể chia sẻ trải nghiệm và đánh giá sẽ xuất hiện ngay tại đây."
+                        : "Hãy chọn mức sao khác hoặc bỏ bộ lọc ảnh/video.")
+                </p>
+            </div>
+        </div>
+    }
+    else
+    {
+        @foreach (var review in feed.Items)
+        {
+            var longContent = review.Content.Length > 320;
+
+            <article class="review-card-modern"
+                     id="review-@review.ReviewId"
+                     data-review-card>
+                <header class="review-card-modern__header">
+                    <span class="review-card-modern__avatar" aria-hidden="true">
+                        @(string.IsNullOrWhiteSpace(review.ReviewerName)
+                            ? "K"
+                            : review.ReviewerName[0].ToString().ToUpperInvariant())
+                    </span>
+                    <div>
+                        <strong>@review.ReviewerName</strong>
+                        <span class="review-card-modern__verified">
+                            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                            Đã mua hàng
+                        </span>
+                    </div>
+                    <time datetime="@review.SubmittedAt.ToString("O")">
+                        @review.SubmittedAt.ToLocalTime().ToString("dd/MM/yyyy")
+                        @if (review.EditedAt.HasValue)
+                        {
+                            <small>· đã chỉnh sửa</small>
+                        }
+                    </time>
+                </header>
+
+                <div class="review-card-modern__rating"
+                     aria-label="@review.Rating trên 5 sao">
+                    @for (var star = 1; star <= 5; star++)
+                    {
+                        <i class="fa-solid fa-star @(star <= review.Rating ? "is-filled" : null)"
+                           aria-hidden="true"></i>
+                    }
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(review.SelectionLabel))
+                {
+                    <p class="review-card-modern__variant">
+                        Phân loại đã mua: <strong>@review.SelectionLabel</strong>
+                    </p>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(review.Title))
+                {
+                    <h3>@review.Title</h3>
+                }
+
+                <div class="review-card-modern__copy @(longContent ? "is-collapsed" : null)"
+                     data-review-copy>
+                    <p>@review.Content</p>
+                </div>
+
+                @if (longContent)
+                {
+                    <button type="button"
+                            class="review-card-modern__expand"
+                            data-review-expand
+                            aria-expanded="false">
+                        Xem thêm nội dung
+                    </button>
+                }
+
+                @if (review.Media.Count > 0)
+                {
+                    <div class="review-card-modern__media">
+                        @foreach (var media in review.Media)
+                        {
+                            <button type="button"
+                                    data-review-media-src="@media.Url"
+                                    data-review-media-type="@media.Type"
+                                    aria-label="Mở nội dung đánh giá">
+                                @if (media.Type == ProductReviewMediaType.Video)
+                                {
+                                    <video muted preload="metadata">
+                                        <source src="@media.Url" />
+                                    </video>
+                                    <span>
+                                        <i class="fa-solid fa-play" aria-hidden="true"></i>
+                                    </span>
+                                }
+                                else
+                                {
+                                    <img src="@media.Url"
+                                         alt="Ảnh do khách hàng cung cấp"
+                                         loading="lazy" />
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+
+                @if (review.Conversation.Count > 0)
+                {
+                    <section class="review-conversation"
+                             aria-label="Trao đổi về đánh giá">
+                        <header>
+                            <i class="fa-regular fa-comments" aria-hidden="true"></i>
+                            <strong>
+                                Trao đổi công khai
+                                <span>@review.Conversation.Count</span>
+                            </strong>
+                        </header>
+
+                        <div class="review-conversation__messages">
+                            @foreach (var message in review.Conversation)
+                            {
+                                <article class="review-message review-message--@message.AuthorType.ToString().ToLowerInvariant()">
+                                    <span class="review-message__role">
+                                        @(message.AuthorType == ProductReviewMessageAuthorType.Admin
+                                            ? "FastBuy"
+                                            : "Khách hàng")
+                                    </span>
+                                    <div>
+                                        <header>
+                                            <strong>@message.AuthorName</strong>
+                                            <time datetime="@message.SentAt.ToString("O")">
+                                                @message.SentAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                            </time>
+                                        </header>
+                                        <p>@message.Content</p>
+                                    </div>
+                                </article>
+                            }
+                        </div>
+                    </section>
+                }
+
+                @if (review.CanCustomerReply)
+                {
+                    <details class="review-customer-reply">
+                        <summary>
+                            <i class="fa-solid fa-reply" aria-hidden="true"></i>
+                            Phản hồi FastBuy
+                        </summary>
+                        <form asp-controller="Reviews"
+                              asp-action="AddMessage"
+                              asp-route-reviewId="@review.ReviewId"
+                              method="post">
+                            <label>
+                                <span>Phản hồi công khai</span>
+                                <textarea name="Content"
+                                          rows="3"
+                                          minlength="5"
+                                          maxlength="1000"
+                                          required
+                                          placeholder="Viết thêm thông tin hoặc trả lời phản hồi từ FastBuy…"></textarea>
+                            </label>
+                            <small>
+                                Nội dung sẽ xuất hiện công khai và không qua bước duyệt.
+                            </small>
+                            <button type="submit" class="button button--primary button--small">
+                                Đăng phản hồi
+                            </button>
+                        </form>
+                    </details>
+                }
+            </article>
+        }
+    }
+</div>

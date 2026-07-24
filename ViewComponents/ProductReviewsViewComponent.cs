@@ -1,26 +1,36 @@
 using Microsoft.AspNetCore.Mvc;
+using WebApplication2.Models;
+using WebApplication2.Services.Identity;
 using WebApplication2.Services.Reviews;
-using WebApplication2.ViewModels.Storefront.Reviews;
 
 namespace WebApplication2.ViewComponents;
 
 public sealed class ProductReviewsViewComponent : ViewComponent
 {
-    private readonly IProductReviewService _reviews;
+    private readonly ApplicationDbContext _context;
 
-    public ProductReviewsViewComponent(IProductReviewService reviews)
+    public ProductReviewsViewComponent(ApplicationDbContext context)
     {
-        _reviews = reviews;
+        _context = context;
     }
 
     public async Task<IViewComponentResult> InvokeAsync(int productId)
     {
-        return View(new ProductReviewComponentViewModel
-        {
-            Summary = await _reviews.GetProductSummaryAsync(
-                productId,
-                take: 8,
-                HttpContext.RequestAborted)
-        });
+        var feed = await ProductReviewExperienceQuery.GetPageAsync(
+            _context,
+            productId,
+            page: 1,
+            pageSize: ProductReviewTransparencyPolicy.InitialPageSize,
+            rating: null,
+            mediaOnly: false,
+            User.GetCustomerId(),
+            HttpContext.RequestAborted);
+
+        return feed is null
+            ? Content(string.Empty)
+            : View(new ProductReviewExperienceComponentViewModel
+            {
+                Feed = feed
+            });
     }
 }

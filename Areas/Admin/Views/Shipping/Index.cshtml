@@ -39,6 +39,40 @@
         </div>
     </header>
 
+    <section class="shipping-flow-guide" aria-label="Quy trình cập nhật trạng thái giao hàng">
+        <article>
+            <span>01</span>
+            <div>
+                <strong>Sẵn sàng bàn giao</strong>
+                <small>Kho hoàn tất chuẩn bị đơn.</small>
+            </div>
+        </article>
+        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        <article>
+            <span>02</span>
+            <div>
+                <strong>Tạo vận đơn GHN</strong>
+                <small>Mở vận đơn và xếp hàng tạo mã.</small>
+            </div>
+        </article>
+        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        <article>
+            <span>03</span>
+            <div>
+                <strong>GHN lấy và vận chuyển</strong>
+                <small>Webhook hoặc đồng bộ cập nhật trạng thái.</small>
+            </div>
+        </article>
+        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        <article>
+            <span>04</span>
+            <div>
+                <strong>Giao thành công</strong>
+                <small>Đơn và thanh toán được hoàn tất theo nghiệp vụ.</small>
+            </div>
+        </article>
+    </section>
+
     <section class="admin-metric-grid" aria-label="Tổng quan giao hàng trong danh sách">
         <article class="admin-metric-card admin-metric-card--warning">
             <span class="admin-metric-card__icon" aria-hidden="true">
@@ -143,11 +177,14 @@
             <div>
                 <p class="admin-page-kicker">Danh sách vận đơn</p>
                 <h3>Hoạt động giao nhận</h3>
-                <p>Mở chi tiết để tạo, đồng bộ hoặc yêu cầu hủy vận đơn theo trạng thái hợp lệ.</p>
+                <p>
+                    Đơn ở trạng thái “Sẵn sàng bàn giao” sẽ tiếp tục tại đây:
+                    mở vận đơn, lấy báo giá và xếp hàng tạo vận đơn GHN.
+                </p>
             </div>
         </header>
 
-        <div class="admin-table-wrap">
+        <div class="admin-table-wrap shipping-table-wrap">
             <table class="admin-data-table shipping-table">
                 <thead>
                     <tr>
@@ -158,7 +195,7 @@
                         <th>Mã vận đơn</th>
                         <th class="text-end">Phí / Thu hộ</th>
                         <th>Cập nhật gần nhất</th>
-                        <th></th>
+                        <th class="shipping-action-column">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -180,10 +217,34 @@
                     {
                         @foreach (var item in Model.Items)
                         {
+                            var nextAction = item.Status switch
+                            {
+                                ShipmentStatus.Draft => "Tạo vận đơn",
+                                ShipmentStatus.PendingCreation => "Kiểm tra tiến trình",
+                                ShipmentStatus.Created => "Theo dõi lấy hàng",
+                                ShipmentStatus.Picking => "Theo dõi lấy hàng",
+                                ShipmentStatus.InTransit => "Theo dõi giao hàng",
+                                ShipmentStatus.DeliveryFailed => "Xử lý sự cố",
+                                ShipmentStatus.Exception => "Kiểm tra lỗi",
+                                _ => "Xem chi tiết"
+                            };
+
                             <tr>
                                 <td>
-                                    <span class="admin-cell-primary">@item.OrderCode</span>
-                                    <span class="admin-cell-secondary">Đơn #@item.OrderId · Vận đơn nội bộ #@item.Id</span>
+                                    <a asp-action="Details"
+                                       asp-route-id="@item.Id"
+                                       class="shipping-order-link">
+                                        @item.OrderCode
+                                    </a>
+                                    <span class="admin-cell-secondary">
+                                        Đơn #@item.OrderId · Vận đơn nội bộ #@item.Id
+                                    </span>
+                                    <a asp-action="Details"
+                                       asp-route-id="@item.Id"
+                                       class="shipping-inline-action">
+                                        @nextAction
+                                        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                                    </a>
                                 </td>
                                 <td>
                                     <span class="admin-cell-primary">@item.CustomerName</span>
@@ -213,16 +274,17 @@
                                 </td>
                                 <td>
                                     <span class="admin-cell-primary">
-                                        @(item.UpdatedAt ?? item.CreatedAt)
+                                        @((item.UpdatedAt ?? item.CreatedAt)
                                             .ToLocalTime()
-                                            .ToString("dd/MM/yyyy HH:mm")
+                                            .ToString("dd/MM/yyyy HH:mm"))
                                     </span>
                                 </td>
-                                <td class="text-end">
+                                <td class="text-end shipping-action-column">
                                     <a asp-action="Details"
                                        asp-route-id="@item.Id"
-                                       class="admin-row-action"
+                                       class="shipping-row-action"
                                        aria-label="Mở vận đơn của @item.OrderCode">
+                                        <span>@nextAction</span>
                                         <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
                                     </a>
                                 </td>

@@ -1,128 +1,140 @@
-@model WebApplication2.ViewModels.Storefront.Reviews.ProductReviewComponentViewModel
+@model WebApplication2.Services.Reviews.ProductReviewExperienceComponentViewModel
 @{
-    var summary = Model.Summary;
+    var feed = Model.Feed;
 }
 
-<section class="product-reviews surface-card" id="product-reviews">
-    <header class="product-reviews__header">
+<link rel="stylesheet"
+      href="~/css/pages/storefront/review-experience.css"
+      asp-append-version="true" />
+
+<section class="review-experience surface-card"
+         id="product-reviews"
+         data-review-experience
+         data-feed-url="@Url.Action("Feed", "Reviews", new { productId = feed.ProductId })">
+    <header class="review-experience__header">
         <div>
-            <p class="product-reviews__eyebrow">Đánh giá từ khách đã mua</p>
+            <p class="review-experience__eyebrow">
+                Trải nghiệm thật từ người đã nhận hàng
+            </p>
             <h2>Đánh giá sản phẩm</h2>
+            <p>
+                Đánh giá từ giao dịch đã xác minh được hiển thị ngay,
+                không qua bước duyệt hoặc ẩn bởi quản trị viên.
+            </p>
         </div>
-        @if (summary.TotalCount > 0)
-        {
-            <a asp-controller="Reviews"
-               asp-action="Product"
-               asp-route-productId="@summary.ProductId"
-               class="button button--secondary button--small">
-                Xem tất cả
-            </a>
-        }
+        <span class="review-experience__transparency">
+            <i class="fa-solid fa-eye" aria-hidden="true"></i>
+            Công khai minh bạch
+        </span>
     </header>
 
-    @if (summary.TotalCount == 0)
-    {
-        <div class="product-reviews__empty">
-            <strong>Chưa có đánh giá đã được xác minh</strong>
-            <span>Đánh giá chỉ được ghi nhận từ khách hàng đã nhận sản phẩm.</span>
-        </div>
-    }
-    else
-    {
-        <div class="product-reviews__summary">
-            <div class="product-reviews__score">
-                <strong>@summary.AverageRating.ToString("0.0")</strong>
-                <span>/ 5</span>
-                <small>@summary.TotalCount đánh giá</small>
-            </div>
-
-            <div class="product-reviews__distribution">
-                @for (var rating = 5; rating >= 1; rating--)
+    <div class="review-experience__overview">
+        <div class="review-experience__score">
+            <strong>@feed.AverageRating.ToString("0.0")</strong>
+            <div class="review-experience__stars"
+                 aria-label="@feed.AverageRating.ToString("0.0") trên 5 sao">
+                @for (var star = 1; star <= 5; star++)
                 {
-                    var count = summary.RatingCounts.GetValueOrDefault(rating);
-                    var percentage = summary.TotalCount == 0
-                        ? 0
-                        : (int)Math.Round(count * 100d / summary.TotalCount);
-
-                    <div>
-                        <span>@rating sao</span>
-                        <progress max="100" value="@percentage"></progress>
-                        <small>@count</small>
-                    </div>
+                    <i class="fa-solid fa-star @(star <= Math.Round(feed.AverageRating) ? "is-filled" : null)"
+                       aria-hidden="true"></i>
                 }
             </div>
+            <span>@feed.TotalCount đánh giá đã mua hàng</span>
         </div>
 
-        <div class="product-review-list">
-            @foreach (var review in summary.Items)
+        <div class="review-experience__distribution">
+            @for (var rating = 5; rating >= 1; rating--)
             {
-                <article class="product-review-card">
-                    <header>
-                        <div>
-                            <strong>@review.ReviewerName</strong>
-                            <span class="product-review-card__verified">
-                                Đã mua hàng
-                            </span>
-                        </div>
-                        <time datetime="@review.SubmittedAt.ToString("O")">
-                            @review.SubmittedAt.ToLocalTime().ToString("dd/MM/yyyy")
-                        </time>
-                    </header>
+                var count = feed.RatingCounts.GetValueOrDefault(rating);
+                var percentage = feed.TotalCount == 0
+                    ? 0
+                    : (int)Math.Round(count * 100d / feed.TotalCount);
 
-                    <div class="product-review-card__rating"
-                         aria-label="@review.Rating trên 5 sao">
-                        @string.Concat(Enumerable.Repeat("★", review.Rating))
-                        <span>@string.Concat(Enumerable.Repeat("☆", 5 - review.Rating))</span>
-                    </div>
-
-                    @if (!string.IsNullOrWhiteSpace(review.SelectionLabel))
-                    {
-                        <p class="product-review-card__selection">
-                            Lựa chọn mua: @review.SelectionLabel
-                        </p>
-                    }
-
-                    @if (!string.IsNullOrWhiteSpace(review.Title))
-                    {
-                        <h3>@review.Title</h3>
-                    }
-
-                    <p class="product-review-card__content">@review.Content</p>
-
-                    @if (review.Media.Count > 0)
-                    {
-                        <div class="product-review-card__media">
-                            @foreach (var media in review.Media)
-                            {
-                                if (media.Type == WebApplication2.Models.Enums.ProductReviewMediaType.Video)
-                                {
-                                    <video controls preload="metadata">
-                                        <source src="@media.Url" />
-                                    </video>
-                                }
-                                else
-                                {
-                                    <a href="@media.Url"
-                                       target="_blank"
-                                       rel="noopener noreferrer">
-                                        <img src="@media.Url"
-                                             alt="Hình ảnh đánh giá"
-                                             loading="lazy" />
-                                    </a>
-                                }
-                            }
-                        </div>
-                    }
-
-                    @if (!string.IsNullOrWhiteSpace(review.ReplyContent))
-                    {
-                        <div class="product-review-card__reply">
-                            <strong>Phản hồi từ FastBuy</strong>
-                            <p>@review.ReplyContent</p>
-                        </div>
-                    }
-                </article>
+                <button type="button"
+                        data-review-rating="@rating"
+                        aria-label="Lọc đánh giá @rating sao">
+                    <span>@rating <i class="fa-solid fa-star" aria-hidden="true"></i></span>
+                    <span class="review-experience__bar">
+                        <i style="width:@percentage%"></i>
+                    </span>
+                    <small>@count</small>
+                </button>
             }
         </div>
-    }
+
+        <div class="review-experience__trust">
+            <div>
+                <i class="fa-solid fa-bag-shopping" aria-hidden="true"></i>
+                <span>
+                    <strong>Chỉ người đã mua</strong>
+                    Mỗi sản phẩm trong đơn chỉ được đánh giá một lần.
+                </span>
+            </div>
+            <div>
+                <i class="fa-solid fa-comments" aria-hidden="true"></i>
+                <span>
+                    <strong>Trao đổi công khai</strong>
+                    Khách hàng và FastBuy có thể phản hồi trong cùng thảo luận.
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <div class="review-experience__toolbar">
+        <div class="review-experience__filters" role="group" aria-label="Lọc đánh giá">
+            <button type="button"
+                    class="is-active"
+                    data-review-rating="">
+                Tất cả
+            </button>
+            @for (var rating = 5; rating >= 1; rating--)
+            {
+                <button type="button" data-review-rating="@rating">
+                    @rating sao
+                </button>
+            }
+            <button type="button"
+                    data-review-media-filter
+                    aria-pressed="false">
+                <i class="fa-regular fa-image" aria-hidden="true"></i>
+                Có ảnh/video (@feed.MediaReviewCount)
+            </button>
+        </div>
+        <span data-review-result-count>
+            @feed.FilteredCount đánh giá
+        </span>
+    </div>
+
+    <div class="review-experience__feed"
+         data-review-feed
+         aria-live="polite">
+        <partial name="~/Views/Shared/_ProductReviewFeed.cshtml"
+                 model="@(new WebApplication2.Services.Reviews.ProductReviewFeedViewModel { Feed = feed })" />
+    </div>
+
+    <div class="review-experience__footer">
+        <button type="button"
+                class="button button--secondary"
+                data-review-load-more
+                hidden="@(!feed.HasMore ? "hidden" : null)">
+            Xem thêm đánh giá
+        </button>
+        <span data-review-loading hidden>
+            <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+            Đang tải đánh giá…
+        </span>
+    </div>
+
+    <dialog class="review-lightbox" data-review-lightbox>
+        <button type="button"
+                data-review-lightbox-close
+                aria-label="Đóng hình ảnh">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+        <div data-review-lightbox-content></div>
+    </dialog>
 </section>
+
+<script src="~/js/pages/storefront/product-review-experience.js"
+        asp-append-version="true"
+        defer></script>

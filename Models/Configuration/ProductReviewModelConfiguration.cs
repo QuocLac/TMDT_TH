@@ -12,7 +12,7 @@ public sealed class ProductReviewConfiguration
         entity.Property(item => item.Status)
             .HasConversion<string>()
             .HasMaxLength(20)
-            .HasDefaultValue(ProductReviewStatus.Pending);
+            .HasDefaultValue(ProductReviewStatus.Published);
 
         entity.Property(item => item.IsVerifiedPurchase)
             .HasDefaultValue(true)

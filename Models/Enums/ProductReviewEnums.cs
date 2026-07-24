@@ -13,3 +13,9 @@ public enum ProductReviewMediaType
     Image,
     Video
 }
+
+public enum ProductReviewMessageAuthorType
+{
+    Customer,
+    Admin
+}

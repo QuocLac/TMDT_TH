@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebApplication2.Areas.Admin.ViewModels.Reviews;
 using WebApplication2.Models;
-using WebApplication2.Models.Enums;
 using WebApplication2.Services.Reviews;
 
 namespace WebApplication2.Areas.Admin.Controllers;
@@ -12,23 +11,22 @@ namespace WebApplication2.Areas.Admin.Controllers;
 public sealed class ReviewsController : Controller
 {
     private readonly ApplicationDbContext _context;
-    private readonly IProductReviewService _reviews;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<ReviewsController> _logger;
 
     public ReviewsController(
         ApplicationDbContext context,
-        IProductReviewService reviews,
+        TimeProvider timeProvider,
         ILogger<ReviewsController> logger)
     {
         _context = context;
-        _reviews = reviews;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
     [HttpGet("")]
     public async Task<IActionResult> Index(
         string? search,
-        ProductReviewStatus? status,
         byte? rating,
         CancellationToken cancellationToken)
     {
@@ -47,11 +45,6 @@ public sealed class ReviewsController : Controller
                 || review.Customer.Account.Email.Contains(normalizedSearch));
         }
 
-        if (status.HasValue)
-        {
-            query = query.Where(review => review.Status == status.Value);
-        }
-
         if (rating is >= 1 and <= 5)
         {
             query = query.Where(review => review.Rating == rating.Value);
@@ -68,16 +61,16 @@ public sealed class ReviewsController : Controller
                 OrderCode = review.OrderItem.Order.Code,
                 CustomerName = review.Customer.FullName,
                 Rating = review.Rating,
-                Status = review.Status,
                 SubmittedAt = review.SubmittedAt,
-                HasReply = review.Reply != null
+                ConversationCount =
+                    review.Messages.Count
+                    + (review.Reply == null ? 0 : 1)
             })
             .ToArrayAsync(cancellationToken);
 
         return View(new ReviewAdminIndexViewModel
         {
             Search = normalizedSearch,
-            Status = status,
             Rating = rating,
             Items = items
         });
@@ -98,7 +91,10 @@ public sealed class ReviewsController : Controller
                 .ThenInclude(item => item.Account)
             .Include(item => item.Media)
             .Include(item => item.Reply)
-            .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+            .Include(item => item.Messages)
+            .SingleOrDefaultAsync(
+                item => item.Id == id,
+                cancellationToken);
 
         if (review is null)
         {
@@ -118,13 +114,8 @@ public sealed class ReviewsController : Controller
             Rating = review.Rating,
             Title = review.Title,
             Content = review.Content,
-            Status = review.Status,
             SubmittedAt = review.SubmittedAt,
             EditedAt = review.EditedAt,
-            ModeratedBy = review.ModeratedBy,
-            ModeratedAt = review.ModeratedAt,
-            ModerationNote = review.ModerationNote,
-            RowVersion = Convert.ToBase64String(review.RowVersion),
             Media = review.Media
                 .OrderBy(item => item.DisplayOrder)
                 .Select(item => new ReviewAdminMediaViewModel
@@ -133,63 +124,9 @@ public sealed class ReviewsController : Controller
                     Url = item.Url
                 })
                 .ToArray(),
-            ReplyContent = review.Reply?.Content,
-            RepliedBy = review.Reply?.RepliedBy,
-            RepliedAt = review.Reply?.RepliedAt
+            Conversation =
+                ProductReviewExperienceQuery.BuildThread(review)
         });
-    }
-
-    [HttpPost("{id:long}/moderate")]
-    public async Task<IActionResult> Moderate(
-        long id,
-        ModerateReviewInput input,
-        CancellationToken cancellationToken)
-    {
-        if (!Enum.TryParse<ReviewModerationAction>(
-                input.Action,
-                ignoreCase: true,
-                out var action))
-        {
-            TempData["ErrorMessage"] = "Thao tác kiểm duyệt không hợp lệ.";
-            return RedirectToAction(nameof(Details), new { id });
-        }
-
-        try
-        {
-            await _reviews.ModerateAsync(
-                id,
-                action,
-                DecodeRowVersion(input.RowVersion),
-                ResolveActor(),
-                input.Note,
-                cancellationToken);
-
-            TempData["SuccessMessage"] = action switch
-            {
-                ReviewModerationAction.Publish =>
-                    "Đã cho phép hiển thị đánh giá.",
-                ReviewModerationAction.Hide =>
-                    "Đã ẩn đánh giá khỏi cửa hàng.",
-                ReviewModerationAction.Reject =>
-                    "Đã từ chối đánh giá.",
-                _ => "Đã cập nhật đánh giá."
-            };
-        }
-        catch (ProductReviewRuleException exception)
-        {
-            TempData["ErrorMessage"] = exception.Message;
-        }
-        catch (DbUpdateConcurrencyException exception)
-        {
-            _logger.LogWarning(
-                exception,
-                "Concurrent review moderation for review {ReviewId}.",
-                id);
-            TempData["ErrorMessage"] =
-                "Đánh giá vừa được xử lý ở nơi khác. Hãy tải lại trang.";
-        }
-
-        return RedirectToAction(nameof(Details), new { id });
     }
 
     [HttpPost("{id:long}/reply")]
@@ -201,24 +138,35 @@ public sealed class ReviewsController : Controller
         if (!ModelState.IsValid)
         {
             TempData["ErrorMessage"] =
-                "Phản hồi cần từ 10 đến 1000 ký tự.";
+                "Phản hồi cần từ 5 đến 1000 ký tự.";
             return RedirectToAction(nameof(Details), new { id });
         }
 
         try
         {
-            await _reviews.UpsertReplyAsync(
+            await ProductReviewConversationWorkflow.AddAdminMessageAsync(
+                _context,
+                _timeProvider,
                 id,
                 ResolveActor(),
                 input.Content,
                 cancellationToken);
 
             TempData["SuccessMessage"] =
-                "Đã lưu phản hồi công khai.";
+                "Phản hồi đã được đăng công khai và không thể bị ẩn.";
         }
         catch (ProductReviewRuleException exception)
         {
             TempData["ErrorMessage"] = exception.Message;
+        }
+        catch (DbUpdateException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Database rejected review reply for review {ReviewId}.",
+                id);
+            TempData["ErrorMessage"] =
+                "Không thể lưu phản hồi lúc này.";
         }
 
         return RedirectToAction(nameof(Details), new { id });
@@ -228,16 +176,4 @@ public sealed class ReviewsController : Controller
         string.IsNullOrWhiteSpace(User.Identity?.Name)
             ? "Admin"
             : User.Identity.Name;
-
-    private static byte[] DecodeRowVersion(string value)
-    {
-        try
-        {
-            return Convert.FromBase64String(value);
-        }
-        catch (FormatException)
-        {
-            return [];
-        }
-    }
 }

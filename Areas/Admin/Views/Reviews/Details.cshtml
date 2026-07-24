@@ -1,10 +1,12 @@
 @model WebApplication2.Areas.Admin.ViewModels.Reviews.ReviewAdminDetailsViewModel
+@using WebApplication2.Models.Enums
 @{
     ViewData["Title"] = $"Đánh giá #{Model.Id}";
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/admin/reviews.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/admin/review-transparency.css" asp-append-version="true" />
 }
 
 <section class="admin-page review-admin-page">
@@ -16,19 +18,46 @@
                 @Model.CustomerName · @Model.CustomerEmail · @Model.Sku
             </p>
         </div>
-        <a asp-action="Index" class="button button--secondary">
-            Danh sách đánh giá
-        </a>
+        <div class="review-admin-header-actions">
+            <a asp-area=""
+               asp-controller="Products"
+               asp-action="Details"
+               asp-route-slug="@Model.ProductSlug"
+               asp-fragment="review-@Model.Id"
+               class="button button--secondary">
+                Xem trên cửa hàng
+            </a>
+            <a asp-action="Index" class="button button--secondary">
+                Danh sách đánh giá
+            </a>
+        </div>
     </header>
+
+    <div class="review-transparency-notice">
+        <i class="fa-solid fa-eye" aria-hidden="true"></i>
+        <div>
+            <strong>Đánh giá đang hiển thị công khai</strong>
+            <span>
+                Admin không có thao tác duyệt, ẩn, từ chối hoặc thay đổi số sao
+                và nội dung do khách hàng gửi.
+            </span>
+        </div>
+    </div>
 
     <div class="review-admin-layout">
         <article class="admin-panel review-admin-content">
             <header class="admin-panel__header">
                 <div>
                     <p class="admin-page-kicker">Nội dung khách hàng</p>
-                    <h3>@Model.Rating sao · @Model.Status</h3>
+                    <h3>@Model.Rating sao · Đã mua hàng</h3>
                     <p>
                         Gửi lúc @Model.SubmittedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                        @if (Model.EditedAt.HasValue)
+                        {
+                            <span>
+                                · chỉnh sửa @Model.EditedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                            </span>
+                        }
                     </p>
                 </div>
             </header>
@@ -49,95 +78,88 @@
 
             @if (Model.Media.Count > 0)
             {
-                <div class="review-admin-media">
+                <div class="review-admin-media review-admin-media--visual">
                     @foreach (var media in Model.Media)
                     {
-                        <a href="@media.Url"
-                           target="_blank"
-                           rel="noopener noreferrer">
-                            @media.Type · Mở nội dung
-                        </a>
+                        if (media.Type == ProductReviewMediaType.Video)
+                        {
+                            <video controls preload="metadata">
+                                <source src="@media.Url" />
+                            </video>
+                        }
+                        else
+                        {
+                            <a href="@media.Url"
+                               target="_blank"
+                               rel="noopener noreferrer">
+                                <img src="@media.Url"
+                                     alt="Ảnh đánh giá của khách hàng"
+                                     loading="lazy" />
+                            </a>
+                        }
                     }
-                </div>
-            }
-
-            @if (!string.IsNullOrWhiteSpace(Model.ModerationNote))
-            {
-                <div class="review-admin-note">
-                    <strong>Ghi chú kiểm duyệt</strong>
-                    <p>@Model.ModerationNote</p>
                 </div>
             }
         </article>
 
         <aside class="review-admin-actions">
-            <section class="admin-panel">
+            <section class="admin-panel review-admin-conversation-panel">
                 <header class="admin-panel__header">
                     <div>
-                        <h3>Kiểm duyệt</h3>
-                        <p>Admin không được sửa số sao hoặc nội dung của khách hàng.</p>
+                        <h3>Trao đổi công khai</h3>
+                        <p>
+                            Phản hồi mới được nối tiếp vào lịch sử,
+                            không ghi đè phản hồi trước đó.
+                        </p>
                     </div>
                 </header>
 
-                <form asp-action="Moderate"
-                      asp-route-id="@Model.Id"
-                      method="post"
-                      class="review-admin-form">
-                    <input type="hidden" name="RowVersion" value="@Model.RowVersion" />
-
-                    <label>
-                        <span>Ghi chú</span>
-                        <textarea name="Note"
-                                  rows="5"
-                                  maxlength="500"
-                                  placeholder="Bắt buộc khi ẩn hoặc từ chối"></textarea>
-                    </label>
-
-                    <div class="review-admin-action-grid">
-                        <button type="submit"
-                                name="Action"
-                                value="Publish"
-                                class="button button--primary">
-                            Cho phép hiển thị
-                        </button>
-                        <button type="submit"
-                                name="Action"
-                                value="Hide"
-                                class="button button--secondary">
-                            Ẩn đánh giá
-                        </button>
-                        <button type="submit"
-                                name="Action"
-                                value="Reject"
-                                class="button button--secondary">
-                            Từ chối
-                        </button>
+                @if (Model.Conversation.Count == 0)
+                {
+                    <div class="review-admin-conversation-empty">
+                        Chưa có phản hồi trong thảo luận này.
                     </div>
-                </form>
-            </section>
-
-            <section class="admin-panel">
-                <header class="admin-panel__header">
-                    <div>
-                        <h3>Phản hồi công khai</h3>
-                        <p>Chỉ đánh giá đang hiển thị mới có thể nhận phản hồi.</p>
+                }
+                else
+                {
+                    <div class="review-admin-conversation">
+                        @foreach (var message in Model.Conversation)
+                        {
+                            <article class="review-admin-message review-admin-message--@message.AuthorType.ToString().ToLowerInvariant()">
+                                <header>
+                                    <strong>
+                                        @(message.AuthorType == ProductReviewMessageAuthorType.Admin
+                                            ? "FastBuy"
+                                            : "Khách hàng")
+                                    </strong>
+                                    <time datetime="@message.SentAt.ToString("O")">
+                                        @message.SentAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                                    </time>
+                                </header>
+                                <p>@message.Content</p>
+                            </article>
+                        }
                     </div>
-                </header>
+                }
 
                 <form asp-action="Reply"
                       asp-route-id="@Model.Id"
                       method="post"
                       class="review-admin-form">
                     <label>
-                        <span>Nội dung phản hồi</span>
+                        <span>Phản hồi công khai mới</span>
                         <textarea name="Content"
-                                  rows="7"
-                                  minlength="10"
+                                  rows="5"
+                                  minlength="5"
                                   maxlength="1000"
-                                  required>@Model.ReplyContent</textarea>
+                                  required
+                                  placeholder="Trả lời rõ ràng, tôn trọng và tập trung vào trải nghiệm của khách hàng…"></textarea>
                     </label>
+                    <small>
+                        Phản hồi sẽ xuất hiện ngay dưới đánh giá và không thể dùng để che nội dung của khách.
+                    </small>
                     <button type="submit" class="button button--primary">
-                        Lưu phản hồi
+                        Đăng phản hồi
                     </button>
                 </form>
             </section>

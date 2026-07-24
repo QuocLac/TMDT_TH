@@ -1,40 +1,105 @@
+@using WebApplication2.Areas.Admin.Presentation
+@using WebApplication2.Models.Enums
 @model WebApplication2.Areas.Admin.ViewModels.Shipping.ShippingAdminDetailsViewModel
+@inject IWebHostEnvironment HostEnvironment
 @{
     ViewData["Title"] = $"Vận chuyển {Model.OrderCode}";
     var ghnEnabled = ViewBag.GhnEnabled is true;
     var defaultServiceTypeId = (int?)ViewBag.DefaultServiceTypeId ?? 2;
+    var developmentSimulatorEnabled = HostEnvironment.IsDevelopment();
 }
 
 <section class="admin-page shipping-page" data-shipping-details data-shipment-id="@Model.Id">
     <header class="admin-page-header">
         <div>
-            <p class="eyebrow">GHN shipment execution</p>
+            <p class="admin-page-kicker">Điều phối giao vận GHN</p>
             <h2>@Model.OrderCode</h2>
             <p class="admin-page-lead">
-                Shipment #@Model.Id · @Model.CustomerName · @Model.ShippingAddress
+                Vận đơn nội bộ #@Model.Id · @Model.CustomerName · @Model.ShippingAddress
             </p>
         </div>
         <div class="shipping-header-actions">
-            <a asp-action="Index" class="btn btn-outline-secondary">Danh sách shipment</a>
-            <a asp-area="Admin" asp-controller="Orders" asp-action="Details"
-               asp-route-id="@Model.OrderId" class="btn btn-outline-primary">Mở đơn hàng</a>
+            <a asp-action="Index" class="button button--secondary">
+                <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+                Danh sách vận đơn
+            </a>
+            <a asp-area="Admin"
+               asp-controller="Orders"
+               asp-action="Details"
+               asp-route-id="@Model.OrderId"
+               class="button button--secondary">
+                Mở đơn hàng
+            </a>
         </div>
     </header>
 
+    <section class="shipping-flow-guide shipping-flow-guide--details"
+             aria-label="Tiến trình vận đơn hiện tại">
+        <article class="@(Model.FulfillmentStatus == FulfillmentStatus.ReadyToShip ? "is-current" : null)">
+            <span>01</span>
+            <div>
+                <strong>Sẵn sàng bàn giao</strong>
+                <small>Đơn đã được kho chuẩn bị xong.</small>
+            </div>
+        </article>
+        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        <article class="@(Model.Status is ShipmentStatus.Draft or ShipmentStatus.PendingCreation ? "is-current" : null)">
+            <span>02</span>
+            <div>
+                <strong>Tạo vận đơn</strong>
+                <small>Xếp yêu cầu vào outbox để worker gọi GHN.</small>
+            </div>
+        </article>
+        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        <article class="@(Model.Status is ShipmentStatus.Created or ShipmentStatus.Picking or ShipmentStatus.InTransit ? "is-current" : null)">
+            <span>03</span>
+            <div>
+                <strong>GHN vận chuyển</strong>
+                <small>Webhook hoặc đồng bộ cập nhật tiến trình.</small>
+            </div>
+        </article>
+        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        <article class="@(Model.Status == ShipmentStatus.Delivered ? "is-current" : null)">
+            <span>04</span>
+            <div>
+                <strong>Giao thành công</strong>
+                <small>Đơn được hoàn tất theo thanh toán thực tế.</small>
+            </div>
+        </article>
+    </section>
+
     @if (!ghnEnabled)
     {
-        <div class="alert alert-warning">
+        <div class="app-alert app-alert--warning">
             GHN đang tắt. Hãy cấu hình User Secrets hoặc biến môi trường trước khi gọi Sandbox.
         </div>
     }
 
     <div class="shipping-metric-grid">
-        <article><span>Chiều vận đơn</span><strong>@Model.Direction</strong></article>
-        <article><span>Shipment nội bộ</span><strong>@Model.Status</strong></article>
-        <article><span>Provider status</span><strong>@(Model.ProviderStatus ?? "Chưa đồng bộ")</strong></article>
-        <article><span>Fulfillment</span><strong>@Model.FulfillmentStatus</strong></article>
-        <article><span>Thanh toán</span><strong>@Model.PaymentStatus</strong></article>
-        <article><span>Tracking</span><strong>@(Model.TrackingCode ?? "Chưa tạo")</strong></article>
+        <article>
+            <span>Chiều vận đơn</span>
+            <strong>@AdminCommerceDisplay.ShipmentDirectionText(Model.Direction)</strong>
+        </article>
+        <article>
+            <span>Vận đơn nội bộ</span>
+            <strong>@AdminCommerceDisplay.ShipmentStatusText(Model.Status)</strong>
+        </article>
+        <article>
+            <span>Trạng thái GHN</span>
+            <strong>@(Model.ProviderStatus ?? "Chưa đồng bộ")</strong>
+        </article>
+        <article>
+            <span>Xử lý hàng</span>
+            <strong>@AdminCommerceDisplay.FulfillmentStatusText(Model.FulfillmentStatus)</strong>
+        </article>
+        <article>
+            <span>Thanh toán</span>
+            <strong>@AdminCommerceDisplay.PaymentStatusText(Model.PaymentStatus)</strong>
+        </article>
+        <article>
+            <span>Mã vận đơn</span>
+            <strong>@(Model.TrackingCode ?? "Chưa tạo")</strong>
+        </article>
     </div>
 
     <div class="shipping-layout">
@@ -42,11 +107,19 @@
             <section class="data-panel shipping-section">
                 <div class="shipping-section-heading">
                     <div>
-                        <p class="eyebrow">Provider action</p>
-                        <h3>Báo giá và tạo vận đơn</h3>
+                        <p class="admin-page-kicker">Bước vận hành tiếp theo</p>
+                        <h3>Báo giá và tạo vận đơn GHN</h3>
+                        <p class="shipping-section-description">
+                            Khi đơn đã “Sẵn sàng bàn giao”, quản trị viên tạo vận đơn tại đây.
+                            Sau đó worker gửi yêu cầu tới GHN; các trạng thái lấy hàng, đang giao
+                            và giao thành công được cập nhật từ webhook hoặc nút đồng bộ.
+                        </p>
                     </div>
-                    <button type="button" class="btn btn-outline-secondary" data-sync-shipment
+                    <button type="button"
+                            class="button button--secondary"
+                            data-sync-shipment
                             disabled="@((!ghnEnabled || string.IsNullOrWhiteSpace(Model.ExternalOrderCode)) ? "disabled" : null)">
+                        <i class="fa-solid fa-rotate" aria-hidden="true"></i>
                         Đồng bộ GHN
                     </button>
                 </div>
@@ -54,7 +127,9 @@
                 <form class="shipping-execution-form" data-shipping-form>
                     <label>
                         <span>Dịch vụ GHN</span>
-                        <select name="serviceId" data-service-select disabled="@(!ghnEnabled ? "disabled" : null)">
+                        <select name="serviceId"
+                                data-service-select
+                                disabled="@(!ghnEnabled ? "disabled" : null)">
                             <option value="">Tải danh sách dịch vụ...</option>
                         </select>
                     </label>
@@ -75,29 +150,58 @@
                     </label>
                     <label>
                         <span>Khối lượng (gram)</span>
-                        <input name="weightGram" type="number" min="1" max="50000" value="@Model.WeightGram" required />
+                        <input name="weightGram"
+                               type="number"
+                               min="1"
+                               max="50000"
+                               value="@Model.WeightGram"
+                               required />
                     </label>
                     <label>
                         <span>Dài (cm)</span>
-                        <input name="lengthCm" type="number" min="1" max="200" value="@Model.LengthCm" required />
+                        <input name="lengthCm"
+                               type="number"
+                               min="1"
+                               max="200"
+                               value="@Model.LengthCm"
+                               required />
                     </label>
                     <label>
                         <span>Rộng (cm)</span>
-                        <input name="widthCm" type="number" min="1" max="200" value="@Model.WidthCm" required />
+                        <input name="widthCm"
+                               type="number"
+                               min="1"
+                               max="200"
+                               value="@Model.WidthCm"
+                               required />
                     </label>
                     <label>
                         <span>Cao (cm)</span>
-                        <input name="heightCm" type="number" min="1" max="200" value="@Model.HeightCm" required />
+                        <input name="heightCm"
+                               type="number"
+                               min="1"
+                               max="200"
+                               value="@Model.HeightCm"
+                               required />
                     </label>
                     <label class="shipping-field-wide">
                         <span>Ghi chú cho shipper</span>
-                        <textarea name="note" maxlength="500" rows="3">Gọi khách trước khi giao.</textarea>
+                        <textarea name="note"
+                                  maxlength="500"
+                                  rows="3">Gọi khách trước khi giao.</textarea>
                     </label>
                     <div class="shipping-actions shipping-field-wide">
-                        <button type="button" class="btn btn-outline-primary" data-quote-shipment
-                                disabled="@(!ghnEnabled ? "disabled" : null)">Lấy báo giá</button>
-                        <button type="button" class="btn btn-primary" data-create-shipment
+                        <button type="button"
+                                class="button button--secondary"
+                                data-quote-shipment
+                                disabled="@(!ghnEnabled ? "disabled" : null)">
+                            Lấy báo giá
+                        </button>
+                        <button type="button"
+                                class="button button--primary"
+                                data-create-shipment
                                 disabled="@((!ghnEnabled || !Model.CanQueueCreate) ? "disabled" : null)">
+                            <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
                             Xếp hàng tạo vận đơn
                         </button>
                     </div>
@@ -106,17 +210,121 @@
                 <div class="shipping-result" data-shipping-result hidden></div>
             </section>
 
+
+            @if (developmentSimulatorEnabled)
+            {
+                <section class="data-panel shipping-section shipping-development-simulator"
+                         data-development-shipping-simulator>
+                    <div class="shipping-section-heading">
+                        <div>
+                            <p class="admin-page-kicker">Development only</p>
+                            <h3>Mô phỏng tín hiệu giao vận</h3>
+                            <p class="shipping-section-description">
+                                Công cụ này mô phỏng phản hồi từ GHN để kiểm thử lifecycle
+                                khi ứng dụng đang chạy local và không nhận được webhook công khai.
+                                Mọi chuyển trạng thái vẫn đi qua state machine, cập nhật fulfillment,
+                                thanh toán COD và lịch sử đơn như luồng provider thật.
+                            </p>
+                        </div>
+                        <span class="shipping-development-badge">
+                            Không dùng ở Production
+                        </span>
+                    </div>
+
+                    <div class="shipping-simulator-current">
+                        <span>Trạng thái hiện tại</span>
+                        <strong>@AdminCommerceDisplay.ShipmentStatusText(Model.Status)</strong>
+                    </div>
+
+                    <div class="shipping-simulator-actions">
+                        @if (Model.Status == ShipmentStatus.Created)
+                        {
+                            <button type="button"
+                                    class="button button--secondary"
+                                    data-simulate-shipment="Picking">
+                                Mô phỏng GHN lấy hàng
+                            </button>
+                        }
+                        else if (Model.Status == ShipmentStatus.Picking)
+                        {
+                            <button type="button"
+                                    class="button button--secondary"
+                                    data-simulate-shipment="InTransit">
+                                Mô phỏng đang giao
+                            </button>
+                        }
+                        else if (Model.Status == ShipmentStatus.InTransit)
+                        {
+                            <button type="button"
+                                    class="button button--primary"
+                                    data-simulate-shipment="Delivered">
+                                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                                Mô phỏng giao thành công
+                            </button>
+                            <button type="button"
+                                    class="button button--danger"
+                                    data-simulate-shipment="DeliveryFailed">
+                                Mô phỏng giao chưa thành công
+                            </button>
+                        }
+                        else if (Model.Status == ShipmentStatus.DeliveryFailed)
+                        {
+                            <button type="button"
+                                    class="button button--secondary"
+                                    data-simulate-shipment="InTransit">
+                                Mô phỏng giao lại
+                            </button>
+                            <button type="button"
+                                    class="button button--danger"
+                                    data-simulate-shipment="Returning">
+                                Mô phỏng hoàn hàng
+                            </button>
+                        }
+                        else if (Model.Status == ShipmentStatus.Returning)
+                        {
+                            <button type="button"
+                                    class="button button--danger"
+                                    data-simulate-shipment="Returned">
+                                Mô phỏng đã hoàn về kho
+                            </button>
+                        }
+                        else if (Model.Status == ShipmentStatus.Delivered)
+                        {
+                            <span class="shipping-simulator-complete">
+                                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                                Vận đơn đã giao thành công.
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="shipping-simulator-unavailable">
+                                Hãy tạo vận đơn GHN thành công trước khi mô phỏng tiến trình.
+                            </span>
+                        }
+                    </div>
+
+                    <div class="shipping-result"
+                         data-shipping-simulator-result
+                         role="status"
+                         hidden></div>
+                </section>
+            }
+
             <section class="data-panel shipping-section">
                 <div class="shipping-section-heading">
                     <div>
-                        <p class="eyebrow">Cancellation</p>
+                        <p class="admin-page-kicker">Hủy giao vận</p>
                         <h3>Hủy vận đơn</h3>
                     </div>
                 </div>
                 <div class="shipping-cancel-row">
-                    <textarea data-cancel-reason maxlength="500" rows="3"
+                    <textarea data-cancel-reason
+                              maxlength="500"
+                              rows="3"
                               placeholder="Lý do hủy vận đơn..."></textarea>
-                    <button type="button" class="btn btn-outline-danger" data-cancel-shipment
+                    <button type="button"
+                            class="button button--danger"
+                            data-cancel-shipment
                             disabled="@(!Model.CanRequestCancellation ? "disabled" : null)">
                         Xếp hàng hủy vận đơn
                     </button>
@@ -124,38 +332,45 @@
                 <div class="shipping-safety-note">
                     @if (!Model.HasPendingOrderCancellation)
                     {
-                        <strong>Chưa có cancellation request Pending.</strong>
+                        <strong>Chưa có yêu cầu hủy đơn đang chờ xử lý.</strong>
                         <span>Hãy tạo yêu cầu hủy tại trang đơn hàng trước khi gửi lệnh hủy vận đơn.</span>
                     }
-                    <span>Sau khi GHN chuyển sang Picking/InTransit, cancellation bị khóa. Khách hàng chỉ có thể gửi return request sau khi Delivered và trong thời hạn 7 ngày.</span>
+                    <span>
+                        Sau khi GHN chuyển sang “Đang lấy hàng” hoặc “Đang vận chuyển”,
+                        việc hủy trước giao hàng bị khóa. Sau khi giao thành công,
+                        khách hàng sử dụng quy trình hoàn trả trong thời hạn cho phép.
+                    </span>
                 </div>
             </section>
 
             <section class="data-panel shipping-section">
                 <div class="shipping-section-heading">
                     <div>
-                        <p class="eyebrow">Provider snapshot</p>
-                        <h3>Dữ liệu vận đơn</h3>
+                        <p class="admin-page-kicker">Dữ liệu đồng bộ</p>
+                        <h3>Thông tin vận đơn</h3>
                     </div>
                 </div>
                 <dl class="shipping-snapshot">
-                    <div><dt>External code</dt><dd>@(Model.ExternalOrderCode ?? "—")</dd></div>
-                    <div><dt>Provider status</dt><dd>@(Model.ProviderStatus ?? "—")</dd></div>
+                    <div><dt>Mã ngoài hệ thống</dt><dd>@(Model.ExternalOrderCode ?? "—")</dd></div>
+                    <div><dt>Trạng thái GHN</dt><dd>@(Model.ProviderStatus ?? "—")</dd></div>
                     <div><dt>Dịch vụ</dt><dd>@(Model.ServiceName ?? Model.ServiceCode ?? "—")</dd></div>
                     <div><dt>Phí</dt><dd>@Model.Fee.ToString("N0") ₫</dd></div>
-                    <div><dt>COD</dt><dd>@Model.CodAmount.ToString("N0") ₫</dd></div>
+                    <div><dt>Thu hộ COD</dt><dd>@Model.CodAmount.ToString("N0") ₫</dd></div>
                     <div><dt>Kiện hàng</dt><dd>@Model.WeightGram g · @Model.LengthCm×@Model.WidthCm×@Model.HeightCm cm</dd></div>
                     <div><dt>Dự kiến giao</dt><dd>@(Model.EstimatedDeliveryAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</dd></div>
-                    <div><dt>Provider cập nhật</dt><dd>@(Model.ProviderUpdatedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
+                    <div><dt>GHN cập nhật</dt><dd>@(Model.ProviderUpdatedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
                     <div><dt>Đồng bộ gần nhất</dt><dd>@(Model.LastSyncedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
-                    <div><dt>Carrier handoff</dt><dd>@(Model.CarrierHandoffAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
-                    <div><dt>Delivered</dt><dd>@(Model.DeliveredAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
-                    <div><dt>Hạn return</dt><dd>@(Model.ReturnDeadlineAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
+                    <div><dt>Đã bàn giao đơn vị vận chuyển</dt><dd>@(Model.CarrierHandoffAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
+                    <div><dt>Giao thành công</dt><dd>@(Model.DeliveredAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
+                    <div><dt>Hạn hoàn trả</dt><dd>@(Model.ReturnDeadlineAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
                     <div><dt>Yêu cầu hủy</dt><dd>@(Model.CancelRequestedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
                     <div><dt>Đã hủy</dt><dd>@(Model.CancelledAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") ?? "—")</dd></div>
-                    <div><dt>Shipper</dt><dd>@(Model.ShipperName ?? "—") @(Model.ShipperPhone)</dd></div>
-                    <div><dt>Hub hiện tại</dt><dd>@(Model.CurrentHub ?? "—")</dd></div>
-                    <div class="shipping-snapshot-wide"><dt>Lý do provider</dt><dd>@(Model.ProviderReason ?? "—")</dd></div>
+                    <div><dt>Nhân viên giao hàng</dt><dd>@(Model.ShipperName ?? "—") @(Model.ShipperPhone)</dd></div>
+                    <div><dt>Điểm xử lý hiện tại</dt><dd>@(Model.CurrentHub ?? "—")</dd></div>
+                    <div class="shipping-snapshot-wide">
+                        <dt>Lý do từ nhà vận chuyển</dt>
+                        <dd>@(Model.ProviderReason ?? "—")</dd>
+                    </div>
                 </dl>
             </section>
         </div>
@@ -164,14 +379,14 @@
             <section class="data-panel shipping-section">
                 <div class="shipping-section-heading">
                     <div>
-                        <p class="eyebrow">Outbox</p>
+                        <p class="admin-page-kicker">Outbox</p>
                         <h3>Yêu cầu gửi GHN</h3>
                     </div>
                 </div>
                 <div class="shipping-event-list">
                     @if (Model.Outbox.Count == 0)
                     {
-                        <p>Chưa có outbox message.</p>
+                        <p>Chưa có yêu cầu gửi tới GHN.</p>
                     }
                     @foreach (var item in Model.Outbox)
                     {
@@ -180,7 +395,7 @@
                             <small>@item.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm") · lần @item.AttemptCount</small>
                             @if (item.NextAttemptAt.HasValue)
                             {
-                                <small>Retry: @item.NextAttemptAt.Value.ToLocalTime().ToString("dd/MM HH:mm")</small>
+                                <small>Thử lại: @item.NextAttemptAt.Value.ToLocalTime().ToString("dd/MM HH:mm")</small>
                             }
                             @if (!string.IsNullOrWhiteSpace(item.LastError))
                             {
@@ -194,14 +409,14 @@
             <section class="data-panel shipping-section">
                 <div class="shipping-section-heading">
                     <div>
-                        <p class="eyebrow">Inbox</p>
+                        <p class="admin-page-kicker">Inbox</p>
                         <h3>Webhook GHN</h3>
                     </div>
                 </div>
                 <div class="shipping-event-list">
                     @if (Model.Inbox.Count == 0)
                     {
-                        <p>Chưa nhận webhook.</p>
+                        <p>Chưa nhận webhook từ GHN.</p>
                     }
                     @foreach (var item in Model.Inbox)
                     {
