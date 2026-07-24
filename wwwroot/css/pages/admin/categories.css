@@ -850,3 +850,77 @@
 .category-icon {
     font-family: inherit;
 }
+
+
+/* Category icon rendering hardening. */
+.category-mono-icon-host,
+.category-ui-svg-host {
+    display: grid !important;
+    place-items: center !important;
+}
+
+.category-mono-icon,
+.category-ui-svg {
+    display: block;
+    width: 1.15rem;
+    height: 1.15rem;
+    flex: 0 0 auto;
+    overflow: visible;
+    color: inherit;
+    pointer-events: none;
+}
+
+.category-editor__section-icon,
+.category-icon,
+.category-icon-option__preview {
+    color: var(--color-accent-soft-text, #355d22);
+}
+
+.category-selected-icon__preview,
+.category-icon-option.is-selected .category-icon-option__preview {
+    color: var(--color-on-accent, #ffffff) !important;
+}
+
+.category-selected-icon__preview.category-mono-icon-host {
+    display: grid !important;
+    width: 3.5rem;
+    height: 3.5rem;
+    place-items: center !important;
+}
+
+.category-selected-icon__preview > .category-mono-icon {
+    width: 1.75rem !important;
+    height: 1.75rem !important;
+    color: inherit !important;
+}
+
+.category-editor__section-icon .category-ui-svg {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+.admin-metric-card__icon .category-ui-svg {
+    width: 1.12rem;
+    height: 1.12rem;
+}
+
+.admin-badge .category-ui-svg {
+    width: 0.8rem;
+    height: 0.8rem;
+}
+
+.category-row-action__icon {
+    display: grid;
+    width: 1rem;
+    height: 1rem;
+    place-items: center;
+}
+
+.category-row-action__icon .category-ui-svg {
+    width: 0.9rem;
+    height: 0.9rem;
+}
+
+.category-delete-button .category-ui-svg {
+    color: currentColor;
+}

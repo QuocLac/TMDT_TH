@@ -37,8 +37,11 @@
     const iconGroup = document.getElementById("CategoryIconGroup");
     const iconGrid = modalElement.querySelector("[data-icon-grid]");
     const iconStatus = modalElement.querySelector("[data-icon-status]");
-    const selectedIconPreview = modalElement.querySelector(
+    const selectedIconPreviewElement = modalElement.querySelector(
         "[data-selected-icon-preview]");
+    const selectedIconPreview = selectedIconPreviewElement?.closest(
+        ".category-selected-icon__preview")
+        ?? selectedIconPreviewElement;
     const selectedIconLabel = modalElement.querySelector(
         "[data-selected-icon-label]");
     const selectedIconKey = modalElement.querySelector(
@@ -256,19 +259,60 @@
             + '<path d="M18 12h.01"/>'
     });
 
-    const glyphByClass = Object.freeze({
-        "fa-plus": "+",
-        "fa-layer-group": "▦",
-        "fa-eye": "◉",
-        "fa-eye-slash": "◌",
-        "fa-boxes-stacked": "▤",
-        "fa-folder-open": "📂",
-        "fa-pen": "✎",
-        "fa-trash-can": "⌫",
-        "fa-pen-to-square": "✎",
-        "fa-magnifying-glass-chart": "⌕",
-        "fa-icons": "◆",
-        "fa-circle-exclamation": "!"
+    const uiIconShapeByClass = Object.freeze({
+        "fa-plus": "plus",
+        "fa-layer-group": "layers",
+        "fa-eye": "eye",
+        "fa-eye-slash": "eye-off",
+        "fa-boxes-stacked": "boxes",
+        "fa-folder-open": "folder-open",
+        "fa-pen": "pen",
+        "fa-trash-can": "trash",
+        "fa-pen-to-square": "edit",
+        "fa-magnifying-glass-chart": "search-chart",
+        "fa-icons": "shapes",
+        "fa-circle-exclamation": "alert"
+    });
+
+    const uiIconMarkup = Object.freeze({
+        plus:
+            '<path d="M12 5v14M5 12h14"/>',
+        layers:
+            '<path d="m12 3 9 5-9 5-9-5z"/>'
+            + '<path d="m3 12 9 5 9-5M3 16l9 5 9-5"/>',
+        eye:
+            '<path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/>'
+            + '<circle cx="12" cy="12" r="2.7"/>',
+        "eye-off":
+            '<path d="M4.5 4.5 19.5 19.5"/>'
+            + '<path d="M9.7 6.4A10 10 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.4 3.2M6.5 7.6A16 16 0 0 0 2.5 12s3.5 6 9.5 6a10 10 0 0 0 3-.5"/>'
+            + '<path d="M10.2 10.2a2.7 2.7 0 0 0 3.6 3.6"/>',
+        boxes:
+            '<rect x="3" y="4" width="7" height="6" rx="1"/>'
+            + '<rect x="14" y="4" width="7" height="6" rx="1"/>'
+            + '<rect x="3" y="14" width="7" height="6" rx="1"/>'
+            + '<rect x="14" y="14" width="7" height="6" rx="1"/>',
+        "folder-open":
+            '<path d="M3 8V6a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v2"/>'
+            + '<path d="M4.5 10h17l-2.2 9a2 2 0 0 1-2 1.5H5a2 2 0 0 1-2-2.5z"/>',
+        pen:
+            '<path d="m4 20 4.5-1 10-10-3.5-3.5-10 10z"/>'
+            + '<path d="M13.5 6.5 17 10M4 20l1-4.5"/>',
+        trash:
+            '<path d="M4 7h16M9 3h6l1 4H8zM6 7l1 14h10l1-14M10 11v6M14 11v6"/>',
+        edit:
+            '<path d="M13 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>'
+            + '<path d="m11 13 8.5-8.5a2.1 2.1 0 0 1 3 3L14 16l-4 1z"/>',
+        "search-chart":
+            '<circle cx="10.5" cy="10.5" r="6.5"/>'
+            + '<path d="m15.5 15.5 5 5M7.5 12.5V9M10.5 12.5V7M13.5 12.5v-2"/>',
+        shapes:
+            '<circle cx="7" cy="7" r="3.5"/>'
+            + '<rect x="13.5" y="3.5" width="7" height="7" rx="1"/>'
+            + '<path d="m7 14 4 7H3zM16.5 14l4 7h-8z"/>',
+        alert:
+            '<path d="M12 3 2.5 20h19z"/>'
+            + '<path d="M12 9v5M12 17.5h.01"/>'
     });
 
     const iconDefinitions = new Map();
@@ -345,13 +389,34 @@
         element.setAttribute("aria-hidden", "true");
     }
 
-    function setGlyph(element, glyph, className = "category-ui-icon") {
+    function createUiIconSvg(shape) {
+        const svg = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "1.8");
+        svg.setAttribute("stroke-linecap", "round");
+        svg.setAttribute("stroke-linejoin", "round");
+        svg.setAttribute("focusable", "false");
+        svg.setAttribute("aria-hidden", "true");
+        svg.classList.add("category-ui-svg");
+        svg.innerHTML = uiIconMarkup[shape] ?? uiIconMarkup.shapes;
+        return svg;
+    }
+
+    function renderUiIcon(element, shape) {
         if (!element) {
             return;
         }
 
-        element.className = className;
-        element.textContent = glyph;
+        [...element.classList]
+            .filter(className => className.startsWith("fa-"))
+            .forEach(className => element.classList.remove(className));
+
+        element.classList.add("category-ui-svg-host");
+        element.replaceChildren(createUiIconSvg(shape));
         element.setAttribute("aria-hidden", "true");
     }
 
@@ -360,11 +425,17 @@
             const keyText = cell.querySelector(
                 ".admin-cell-secondary")?.textContent ?? "";
             const key = keyText.replace(/^\s*Icon:\s*/i, "").trim();
-            const target = cell.querySelector(".category-icon");
-            if (target) {
-                renderCategoryIcon(target, key);
-            }
+            renderCategoryIcon(
+                cell.querySelector(".category-icon"),
+                key);
         });
+
+        // The selected preview is rendered into its permanent outer box.
+        // This prevents the nested placeholder element from being detached
+        // and leaving an empty dark square after a selection changes.
+        renderCategoryIcon(
+            selectedIconPreview,
+            fields.iconKey.value || "folder");
 
         page.querySelectorAll(".category-row-actions").forEach(actions => {
             const edit = actions.querySelector("[data-category-open]");
@@ -372,42 +443,38 @@
 
             if (edit) {
                 edit.replaceChildren();
-                const glyph = document.createElement("span");
-                glyph.className = "category-ui-icon";
-                glyph.textContent = "✎";
-                glyph.setAttribute("aria-hidden", "true");
+                const icon = document.createElement("span");
+                icon.className = "category-row-action__icon";
+                renderUiIcon(icon, "pen");
                 const label = document.createElement("span");
                 label.textContent = "Sửa";
-                edit.append(glyph, label);
+                edit.append(icon, label);
             }
 
             if (remove) {
                 remove.replaceChildren();
-                const glyph = document.createElement("span");
-                glyph.className = "category-ui-icon";
-                glyph.textContent = "⌫";
-                glyph.setAttribute("aria-hidden", "true");
+                const icon = document.createElement("span");
+                icon.className = "category-row-action__icon";
+                renderUiIcon(icon, "trash");
                 const label = document.createElement("span");
                 label.textContent = "Xóa";
-                remove.append(glyph, label);
+                remove.append(icon, label);
             }
         });
 
-        page.querySelectorAll("i[class*='fa-']").forEach(icon => {
-            const key = [...icon.classList].find(
-                className => glyphByClass[className]);
-            if (key) {
-                setGlyph(icon, glyphByClass[key]);
-            }
-        });
-
-        modalElement.querySelectorAll("i[class*='fa-']").forEach(icon => {
-            const key = [...icon.classList].find(
-                className => glyphByClass[className]);
-            if (key) {
-                setGlyph(icon, glyphByClass[key]);
-            }
-        });
+        document
+            .querySelectorAll(
+                "[data-category-page] i[class*='fa-'], "
+                + "#categoryModal i[class*='fa-']")
+            .forEach(icon => {
+                const iconClass = [...icon.classList].find(
+                    className => uiIconShapeByClass[className]);
+                if (iconClass) {
+                    renderUiIcon(
+                        icon,
+                        uiIconShapeByClass[iconClass]);
+                }
+            });
     }
 
     function showError(message) {
