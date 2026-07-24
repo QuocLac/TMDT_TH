@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using WebApplication2.Models;
 using WebApplication2.Services;
 using WebApplication2.Services.Cart;
@@ -14,22 +13,25 @@ using WebApplication2.Services.Commerce.Orders;
 using WebApplication2.Services.Commerce.Returns;
 using WebApplication2.Services.Identity;
 using WebApplication2.Services.Media;
-using WebApplication2.Services.Payments.Reconciliation;
 using WebApplication2.Services.Payments.Refunds;
-using WebApplication2.Services.Payments.Simulation;
 using WebApplication2.Services.Payments.VnPay;
 using WebApplication2.Services.Pricing;
 using WebApplication2.Services.Reviews;
 using WebApplication2.Services.Shipping;
 using WebApplication2.Services.Shipping.Ghn;
+using WebApplication2.Services.Shipping.Internal;
 
 var builder = WebApplication.CreateBuilder(args);
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+builder.Services.AddSingleton<InternalShipmentProviderInterceptor>();
+builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
+    options
+        .UseSqlServer(connectionString)
+        .AddInterceptors(
+            serviceProvider.GetRequiredService<InternalShipmentProviderInterceptor>()));
 
 builder.Services.AddAntiforgery(options =>
     options.HeaderName = "RequestVerificationToken");
@@ -122,14 +124,11 @@ builder.Services.AddScoped<IReturnInventoryService>(serviceProvider =>
     serviceProvider.GetRequiredService<CommerceInventoryService>());
 builder.Services.AddScoped<IOrderCancellationService, OrderCancellationService>();
 builder.Services.AddScoped<IReturnCodeGenerator, ReturnCodeGenerator>();
-builder.Services.AddScoped<IReturnWorkflowService, ReturnWorkflowService>();
+builder.Services.AddScoped<ReturnWorkflowService>();
+builder.Services.AddScoped<IReturnWorkflowService, CommercialReturnWorkflowService>();
+builder.Services.AddScoped<IReturnRefundDestinationService, ReturnRefundDestinationService>();
 
 builder.Services.AddScoped<IShippingFeeCalculator, StandardShippingFeeCalculator>();
-builder.Services.AddScoped<ICheckoutShippingQuoteService, CheckoutShippingQuoteService>();
-builder.Services.AddScoped<OrderApplicationService>();
-builder.Services.AddScoped<IOrderApplicationService, DynamicProductOptionOrderApplicationService>();
-builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
-builder.Services.AddScoped<IOrderWorkflowService, OrderWorkflowService>();
 
 builder.Services
     .AddOptions<GhnAddressOptions>()
@@ -137,39 +136,64 @@ builder.Services
     .Validate(
         options => !options.Enabled || options.IsConfigured,
         $"Configuration section '{GhnAddressOptions.SectionName}' is invalid. "
-        + "When GHN is enabled, configure an HTTPS host-only BaseUrl, Token, ShopId, "
-        + "FromDistrictId, FromWardCode and a TimeoutSeconds value from 5 to 60.")
+        + "Configure the HTTPS base URL, token, shop, origin district and origin ward "
+        + "before enabling automatic address lookup.")
     .ValidateOnStart();
 
 builder.Services
     .AddOptions<GhnShippingOptions>()
     .Bind(builder.Configuration.GetSection(GhnShippingOptions.SectionName))
     .Validate(
-        options => !options.Enabled || options.IsConfigured,
-        $"Configuration section '{GhnShippingOptions.SectionName}' is invalid for shipping execution.")
+        options => !options.Enabled || options.IsQuoteConfigured,
+        $"Configuration section '{GhnShippingOptions.SectionName}' is invalid for shipping quotes.")
     .ValidateOnStart();
 
-static void ConfigureGhnHttpClient(IServiceProvider serviceProvider, HttpClient client)
+static void ConfigureGhnQuoteHttpClient(
+    IServiceProvider serviceProvider,
+    HttpClient client)
 {
-    var options = serviceProvider.GetRequiredService<IOptions<GhnAddressOptions>>().Value;
-    var baseUrl = Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var configuredBaseUrl)
-        && configuredBaseUrl.Scheme == Uri.UriSchemeHttps
-        ? configuredBaseUrl
-        : new Uri("https://dev-online-gateway.ghn.vn/");
+    var options = serviceProvider
+        .GetRequiredService<Microsoft.Extensions.Options.IOptions<GhnAddressOptions>>()
+        .Value;
 
-    client.BaseAddress = new Uri(baseUrl.ToString().TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 60));
+    var baseUrl = Uri.TryCreate(
+        options.BaseUrl,
+        UriKind.Absolute,
+        out var configuredBaseUrl)
+        && configuredBaseUrl.Scheme == Uri.UriSchemeHttps
+            ? configuredBaseUrl
+            : new Uri("https://dev-online-gateway.ghn.vn/");
+
+    client.BaseAddress = new Uri(
+        baseUrl.ToString().TrimEnd('/') + "/");
+    client.Timeout = TimeSpan.FromSeconds(
+        Math.Clamp(options.TimeoutSeconds, 5, 60));
 }
 
-builder.Services.AddHttpClient<IGhnAddressClient, GhnAddressClient>(ConfigureGhnHttpClient);
-builder.Services.AddHttpClient<IGhnShippingClient, GhnShippingClient>(ConfigureGhnHttpClient);
-builder.Services.AddScoped<IShippingGateway, GhnShippingGateway>();
-builder.Services.AddScoped<IShippingExecutionService, ShippingExecutionService>();
-builder.Services.AddScoped<IReturnShippingService, ReturnShippingExecutionService>();
-builder.Services.AddSingleton<IShippingWebhookParser, GhnShippingWebhookParser>();
-builder.Services.AddScoped<IGhnShippingWebhookProcessor, GhnShippingWebhookProcessor>();
-builder.Services.AddHostedService<ShippingOutboxWorker>();
-builder.Services.AddHostedService<ReturnShippingOutboxWorker>();
+builder.Services.AddHttpClient<GhnAddressClient>(
+    ConfigureGhnQuoteHttpClient);
+builder.Services.AddScoped<
+    IGhnAddressClient,
+    CommercialShippingAddressClient>();
+builder.Services.AddHttpClient<IGhnShippingClient, GhnShippingClient>(
+    ConfigureGhnQuoteHttpClient);
+builder.Services.AddScoped<
+    ICheckoutShippingQuoteService,
+    CheckoutShippingQuoteService>();
+
+builder.Services.AddScoped<
+    IInternalShippingLifecycleService,
+    InternalShippingLifecycleService>();
+builder.Services.AddScoped<
+    IInternalReturnShippingService,
+    InternalReturnShippingService>();
+builder.Services.AddScoped<IInternalRefundService, InternalRefundService>();
+builder.Services.AddHostedService<InternalShipmentBackfillWorker>();
+
+builder.Services.AddScoped<OrderApplicationService>();
+builder.Services.AddScoped<IOrderApplicationService, DynamicProductOptionOrderApplicationService>();
+builder.Services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
+builder.Services.AddScoped<IOrderWorkflowService, OrderWorkflowService>();
 
 builder.Services
     .AddOptions<VnPayOptions>()
@@ -184,8 +208,6 @@ builder.Services
 builder.Services.AddSingleton<IVnPayGateway, VnPayGateway>();
 builder.Services.AddScoped<IVnPayPaymentService, VnPayPaymentService>();
 builder.Services.AddScoped<IRefundSettlementService, RefundSettlementService>();
-builder.Services.AddScoped<IDevelopmentPaymentReconciliationService, DevelopmentPaymentReconciliationService>();
-builder.Services.AddScoped<IDevelopmentPaymentSimulator, DevelopmentPaymentSimulator>();
 builder.Services.AddHostedService<VnPayPaymentExpirationWorker>();
 
 builder.Services.AddScoped<EffectivePriceService>();

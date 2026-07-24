@@ -23,7 +23,7 @@ public sealed class ProductReviewsViewComponent : ViewComponent
             pageSize: ProductReviewTransparencyPolicy.InitialPageSize,
             rating: null,
             mediaOnly: false,
-            User.GetCustomerId(),
+            HttpContext.User.GetCustomerId(),
             HttpContext.RequestAborted);
 
         return feed is null

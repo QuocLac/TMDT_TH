@@ -1,14 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using WebApplication2.Areas.Admin.ViewModels.Returns;
 using WebApplication2.Models;
 using WebApplication2.Models.Enums;
 using WebApplication2.Services.Commerce.Flows;
 using WebApplication2.Services.Commerce.Inventory;
 using WebApplication2.Services.Commerce.Returns;
-using WebApplication2.Services.Shipping;
-using WebApplication2.Services.Shipping.Ghn;
+using WebApplication2.Services.Payments.Refunds;
+using WebApplication2.Services.Shipping.Internal;
 
 namespace WebApplication2.Areas.Admin.Controllers;
 
@@ -18,21 +17,24 @@ public sealed class ReturnsController : Controller
 {
     private readonly ApplicationDbContext _context;
     private readonly IReturnWorkflowService _workflow;
-    private readonly IReturnShippingService _shipping;
-    private readonly GhnShippingOptions _options;
+    private readonly IInternalReturnShippingService _shipping;
+    private readonly IReturnRefundDestinationService _refundDestination;
+    private readonly IInternalRefundService _refunds;
     private readonly ILogger<ReturnsController> _logger;
 
     public ReturnsController(
         ApplicationDbContext context,
         IReturnWorkflowService workflow,
-        IReturnShippingService shipping,
-        IOptions<GhnShippingOptions> options,
+        IInternalReturnShippingService shipping,
+        IReturnRefundDestinationService refundDestination,
+        IInternalRefundService refunds,
         ILogger<ReturnsController> logger)
     {
         _context = context;
         _workflow = workflow;
         _shipping = shipping;
-        _options = options.Value;
+        _refundDestination = refundDestination;
+        _refunds = refunds;
         _logger = logger;
     }
 
@@ -98,6 +100,7 @@ public sealed class ReturnsController : Controller
     {
         var request = await _context.ReturnRequests
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(item => item.Order)
                 .ThenInclude(order => order.StatusHistory)
             .Include(item => item.Items)
@@ -111,17 +114,14 @@ public sealed class ReturnsController : Controller
             return NotFound();
         }
 
+        var destination = await _refundDestination.GetAsync(
+            request.Id,
+            cancellationToken);
         var shipment = request.Shipments
             .Where(item => item.Direction == ShipmentDirection.Return)
             .OrderByDescending(item => item.Id)
             .FirstOrDefault();
-
-        ViewBag.GhnEnabled = _options.Enabled;
-        ViewBag.DefaultServiceTypeId = _options.DefaultServiceTypeId;
-        ViewBag.DefaultWeightGram = _options.DefaultWeightGram;
-        ViewBag.DefaultLengthCm = _options.DefaultLengthCm;
-        ViewBag.DefaultWidthCm = _options.DefaultWidthCm;
-        ViewBag.DefaultHeightCm = _options.DefaultHeightCm;
+        var refundAmount = request.Items.Sum(item => item.RefundAmount);
 
         return View(new ReturnAdminDetailsViewModel
         {
@@ -147,6 +147,18 @@ public sealed class ReturnsController : Controller
             InspectedAt = request.InspectedAt,
             InspectionResult = request.InspectionResult,
             RowVersion = Convert.ToBase64String(request.RowVersion),
+            RefundAmount = refundAmount,
+            RefundBankName = destination?.BankName ?? "Chưa có",
+            RefundBankCode = destination?.BankCode ?? string.Empty,
+            RefundAccountNumber = destination?.MaskedAccountNumber ?? "Chưa có",
+            RefundAccountName = destination?.AccountName ?? "Chưa có",
+            VietQrUrl = destination is null || refundAmount <= 0
+                ? null
+                : _refundDestination.BuildQrImageUrl(
+                    destination,
+                    refundAmount,
+                    request.Code),
+            Progress = BuildProgress(request.Status),
             Items = request.Items
                 .OrderBy(item => item.Id)
                 .Select(item => new ReturnAdminItemViewModel
@@ -185,17 +197,10 @@ public sealed class ReturnsController : Controller
                 {
                     Id = shipment.Id,
                     Status = shipment.Status,
-                    ProviderStatus = shipment.ProviderStatus,
                     TrackingCode = shipment.TrackingCode,
-                    Fee = shipment.Fee,
-                    WeightGram = shipment.WeightGram,
-                    LengthCm = shipment.LengthCm,
-                    WidthCm = shipment.WidthCm,
-                    HeightCm = shipment.HeightCm,
                     CarrierHandoffAt = shipment.CarrierHandoffAt,
                     DeliveredAt = shipment.DeliveredAt,
-                    LastSyncedAt = shipment.LastSyncedAt,
-                    ProviderReason = shipment.ProviderReason
+                    Note = shipment.ProviderReason
                 },
             History = request.Order.StatusHistory
                 .Where(item =>
@@ -204,12 +209,10 @@ public sealed class ReturnsController : Controller
                 .OrderByDescending(item => item.OccurredAt)
                 .Select(item => new ReturnAdminHistoryViewModel
                 {
-                    Code = item.Code,
                     Title = item.Title,
                     Description = item.Description,
                     ChangedBy = item.ChangedBy,
-                    OccurredAt = item.OccurredAt,
-                    CorrelationId = item.CorrelationId
+                    OccurredAt = item.OccurredAt
                 })
                 .ToArray()
         });
@@ -230,7 +233,8 @@ public sealed class ReturnsController : Controller
                     ResolveActor(),
                     input.Note ?? string.Empty),
                 cancellationToken);
-            TempData["SuccessMessage"] = "Đã chuyển yêu cầu sang trạng thái đang duyệt.";
+            TempData["SuccessMessage"] =
+                "Yêu cầu đã được chuyển sang bước xem xét.";
         }
         catch (CommerceFlowException exception)
         {
@@ -266,8 +270,8 @@ public sealed class ReturnsController : Controller
                         item.ApprovedQuantity)).ToArray()),
                 cancellationToken);
             TempData["SuccessMessage"] = input.Approve
-                ? "Đã phê duyệt yêu cầu hoàn trả."
-                : "Đã từ chối yêu cầu hoàn trả.";
+                ? "Yêu cầu hoàn trả đã được chấp nhận."
+                : "Yêu cầu hoàn trả không được chấp nhận.";
         }
         catch (CommerceFlowException exception)
         {
@@ -277,78 +281,36 @@ public sealed class ReturnsController : Controller
         return RedirectToAction(nameof(Details), new { id });
     }
 
-    [HttpGet("{id:long}/services")]
-    public async Task<IActionResult> Services(
+    [HttpPost("{id:long}/shipping")]
+    public async Task<IActionResult> UpdateShipping(
         long id,
+        ReturnShippingTransitionInput input,
         CancellationToken cancellationToken)
     {
-        return ProviderResponse(
-            await _shipping.GetServicesAsync(id, cancellationToken));
-    }
-
-    [HttpPost("{id:long}/quote")]
-    public async Task<IActionResult> Quote(
-        long id,
-        [FromBody] QueueReturnShipmentInput input,
-        CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(new
-            {
-                success = false,
-                message = "Thông số kiện hàng không hợp lệ."
-            });
-        }
-
-        return ProviderResponse(
-            await _shipping.QuoteAsync(
-                id,
-                ToShippingInput(input),
-                cancellationToken));
-    }
-
-    [HttpPost("{id:long}/queue-shipment")]
-    public async Task<IActionResult> QueueShipment(
-        long id,
-        QueueReturnShipmentInput input,
-        CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid)
-        {
-            TempData["ErrorMessage"] = FirstModelError();
-            return RedirectToAction(nameof(Details), new { id });
-        }
-
         try
         {
-            var result = await _shipping.QueueCreateAsync(
+            var result = await _shipping.UpdateAsync(
                 id,
-                ToShippingInput(input),
+                input.Action,
                 DecodeRowVersion(input.RowVersion),
                 ResolveActor(),
+                input.Note,
                 cancellationToken);
             TempData["SuccessMessage"] = result.Message;
         }
-        catch (CommerceFlowException exception)
+        catch (DbUpdateConcurrencyException exception)
         {
-            SetFlowError(exception);
+            _logger.LogWarning(
+                exception,
+                "Concurrent return shipping update for {ReturnRequestId}.",
+                id);
+            TempData["ErrorMessage"] =
+                "Dữ liệu vừa được cập nhật ở nơi khác. Vui lòng tải lại trang.";
         }
-
-        return RedirectToAction(nameof(Details), new { id });
-    }
-
-    [HttpPost("{id:long}/sync-shipment")]
-    public async Task<IActionResult> SyncShipment(
-        long id,
-        CancellationToken cancellationToken)
-    {
-        var result = await _shipping.SyncAsync(
-            id,
-            ResolveActor(),
-            cancellationToken);
-        TempData[result.Success ? "SuccessMessage" : "ErrorMessage"] =
-            result.Success ? "Đã đồng bộ return shipment từ GHN." : result.Message;
+        catch (InvalidOperationException exception)
+        {
+            TempData["ErrorMessage"] = exception.Message;
+        }
 
         return RedirectToAction(nameof(Details), new { id });
     }
@@ -378,7 +340,7 @@ public sealed class ReturnsController : Controller
                         item.ReceivedQuantity)).ToArray()),
                 cancellationToken);
             TempData["SuccessMessage"] =
-                "Đã ghi nhận số lượng kho tiếp nhận và bắt đầu kiểm định.";
+                "Đã ghi nhận hàng tiếp nhận và bắt đầu kiểm tra.";
         }
         catch (CommerceFlowException exception)
         {
@@ -427,7 +389,7 @@ public sealed class ReturnsController : Controller
                         item.Note)).ToArray()),
                 cancellationToken);
             TempData["SuccessMessage"] =
-                "Đã hoàn tất kiểm định; yêu cầu hợp lệ đã chuyển sang RefundPending.";
+                "Đã hoàn tất kiểm tra sản phẩm.";
         }
         catch (CommerceFlowException exception)
         {
@@ -445,24 +407,59 @@ public sealed class ReturnsController : Controller
         return RedirectToAction(nameof(Details), new { id });
     }
 
-    private IActionResult ProviderResponse<T>(ShippingOperationResult<T> result)
+    [HttpPost("{id:long}/complete-refund")]
+    public async Task<IActionResult> CompleteRefund(
+        long id,
+        CompleteReturnRefundInput input,
+        CancellationToken cancellationToken)
     {
-        if (result.Success)
+        try
         {
-            return Ok(new { success = true, data = result.Data });
+            var result = await _refunds.CompleteAsync(
+                id,
+                DecodeRowVersion(input.RowVersion),
+                ResolveActor(),
+                cancellationToken);
+            TempData["SuccessMessage"] = result.Message;
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Concurrent refund completion for return {ReturnRequestId}.",
+                id);
+            TempData["ErrorMessage"] =
+                "Dữ liệu vừa được cập nhật ở nơi khác. Vui lòng tải lại trang.";
+        }
+        catch (InvalidOperationException exception)
+        {
+            TempData["ErrorMessage"] = exception.Message;
         }
 
-        return StatusCode(
-            result.Retryable
-                ? StatusCodes.Status503ServiceUnavailable
-                : StatusCodes.Status422UnprocessableEntity,
-            new
-            {
-                success = false,
-                errorCode = result.ErrorCode,
-                message = result.Message,
-                retryable = result.Retryable
-            });
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    [HttpPost("{id:long}/close")]
+    public async Task<IActionResult> Close(
+        long id,
+        CompleteReturnRefundInput input,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await _refunds.CloseAsync(
+                id,
+                DecodeRowVersion(input.RowVersion),
+                ResolveActor(),
+                cancellationToken);
+            TempData["SuccessMessage"] = result.Message;
+        }
+        catch (InvalidOperationException exception)
+        {
+            TempData["ErrorMessage"] = exception.Message;
+        }
+
+        return RedirectToAction(nameof(Details), new { id });
     }
 
     private void SetFlowError(CommerceFlowException exception)
@@ -476,8 +473,18 @@ public sealed class ReturnsController : Controller
             exception.FlowContext.AggregateId,
             exception.FlowContext.CorrelationId);
 
-        TempData["ErrorMessage"] =
-            $"{exception.DetailMessage} (Mã: {exception.ErrorCode}; Stage: {exception.FlowContext.Stage}; Correlation: {exception.FlowContext.CorrelationId})";
+        TempData["ErrorMessage"] = exception.ErrorCode switch
+        {
+            "RETURN_REVIEW_REQUIRES_REQUESTED" =>
+                "Yêu cầu không còn ở bước tiếp nhận.",
+            "RETURN_DECISION_REQUIRES_UNDER_REVIEW" =>
+                "Yêu cầu chưa ở bước xem xét.",
+            "RETURN_INSPECTION_REQUIRES_WAREHOUSE_RECEIPT" =>
+                "Hàng hoàn chưa được ghi nhận tại điểm tiếp nhận.",
+            "RETURN_INSPECTION_LINES_INCOMPLETE" =>
+                "Vui lòng nhập kết quả cho toàn bộ sản phẩm.",
+            _ => "Không thể hoàn tất thao tác từ trạng thái hiện tại. Vui lòng tải lại trang."
+        };
     }
 
     private static byte[] DecodeRowVersion(string value)
@@ -486,46 +493,21 @@ public sealed class ReturnsController : Controller
         {
             return Convert.FromBase64String(value);
         }
-        catch (FormatException exception)
+        catch (FormatException)
         {
-            throw new BusinessRuleViolationException(
-                "RETURN_ROW_VERSION_INVALID",
-                "RowVersion của return request không hợp lệ.",
-                new CommerceFlowContext(
-                    "ReturnAdmin",
-                    CommerceFlowStage.ValidateConcurrency,
-                    nameof(ReturnRequest),
-                    "unknown",
-                    null,
-                    "DecodeRowVersion",
-                    Guid.NewGuid().ToString("N"),
-                    null,
-                    new Dictionary<string, string>()),
-                exception);
+            return [];
         }
     }
-
-    private static ReturnShippingExecutionInput ToShippingInput(
-        QueueReturnShipmentInput input) =>
-        new(
-            input.ServiceId,
-            input.ServiceTypeId,
-            input.WeightGram,
-            input.LengthCm,
-            input.WidthCm,
-            input.HeightCm,
-            input.Note);
 
     private string ResolveActor() =>
         string.IsNullOrWhiteSpace(User.Identity?.Name)
             ? "Admin"
             : User.Identity.Name;
 
-    private string FirstModelError() =>
-        ModelState.Values
-            .SelectMany(item => item.Errors)
-            .Select(item => item.ErrorMessage)
-            .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item))
+    private string FirstModelError() => ModelState.Values
+        .SelectMany(item => item.Errors)
+        .Select(item => item.ErrorMessage)
+        .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item))
         ?? "Dữ liệu chưa hợp lệ.";
 
     private static string BuildAddress(Order order) =>
@@ -536,4 +518,47 @@ public sealed class ReturnsController : Controller
             order.ShippingDistrict,
             order.ShippingCity
         }.Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    private static IReadOnlyList<ReturnAdminProgressStepViewModel> BuildProgress(
+        ReturnRequestStatus status)
+    {
+        var current = status switch
+        {
+            ReturnRequestStatus.Requested => 1,
+            ReturnRequestStatus.UnderReview => 2,
+            ReturnRequestStatus.Approved
+                or ReturnRequestStatus.AwaitingReturnShipment
+                or ReturnRequestStatus.AwaitingPickup => 3,
+            ReturnRequestStatus.ReturnInTransit => 4,
+            ReturnRequestStatus.ReceivedAtWarehouse
+                or ReturnRequestStatus.Inspecting => 5,
+            ReturnRequestStatus.RefundPending => 6,
+            ReturnRequestStatus.Refunded
+                or ReturnRequestStatus.Closed => 7,
+            ReturnRequestStatus.Rejected
+                or ReturnRequestStatus.RejectedAfterInspection
+                or ReturnRequestStatus.Cancelled => 2,
+            _ => 1
+        };
+
+        var titles = new[]
+        {
+            "Tiếp nhận",
+            "Xem xét",
+            "Bàn giao",
+            "Vận chuyển",
+            "Kiểm tra",
+            "Hoàn tiền",
+            "Hoàn tất"
+        };
+
+        return titles.Select((title, index) =>
+            new ReturnAdminProgressStepViewModel
+            {
+                Position = index + 1,
+                Title = title,
+                IsComplete = index + 1 <= current,
+                IsCurrent = index + 1 == current
+            }).ToArray();
+    }
 }

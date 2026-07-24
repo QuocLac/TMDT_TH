@@ -20,10 +20,10 @@
     <header class="admin-page-header admin-page-header--hero">
         <div class="admin-page-header__copy">
             <p class="admin-page-kicker">Trung tâm bán hàng</p>
-            <h2>Theo dõi và xử lý đơn theo vòng đời</h2>
+            <h2>Theo dõi đơn hàng theo từng giai đoạn</h2>
             <p class="admin-page-lead">
-                Tách riêng trạng thái đơn, thanh toán và giao hàng để admin nhìn đúng nguyên nhân,
-                đúng bước xử lý và không cập nhật nhầm trạng thái do provider quản lý.
+                Kiểm tra thanh toán, chuẩn bị hàng và tiến trình giao nhận
+                trong một luồng rõ ràng, tập trung vào thao tác vận hành.
             </p>
         </div>
         <div class="admin-page-header__actions">
@@ -36,53 +36,33 @@
             <a asp-action="Index"
                asp-route-orderStatus="Placed"
                class="button button--primary">
-                Xem đơn chờ xác nhận
+                Đơn chờ xác nhận
             </a>
         </div>
     </header>
 
     <section class="admin-metric-grid admin-metric-grid--five" aria-label="Tổng quan đơn hàng">
         <article class="admin-metric-card admin-metric-card--info">
-            <div>
-                <span class="admin-metric-card__label">Tổng đơn</span>
-                <strong class="admin-metric-card__value">@Model.Summary.TotalOrders</strong>
-                <small class="admin-metric-card__meta">Theo phạm vi dữ liệu hiện tại</small>
-            </div>
+            <div><span class="admin-metric-card__label">Tổng đơn</span><strong class="admin-metric-card__value">@Model.Summary.TotalOrders</strong><small class="admin-metric-card__meta">Trong phạm vi hiện tại</small></div>
         </article>
         <article class="admin-metric-card admin-metric-card--warning">
-            <div>
-                <span class="admin-metric-card__label">Chờ xác nhận</span>
-                <strong class="admin-metric-card__value">@Model.Summary.PendingConfirmation</strong>
-                <small class="admin-metric-card__meta">Cần kiểm tra thanh toán và thông tin nhận hàng</small>
-            </div>
+            <div><span class="admin-metric-card__label">Chờ xác nhận</span><strong class="admin-metric-card__value">@Model.Summary.PendingConfirmation</strong><small class="admin-metric-card__meta">Cần kiểm tra thông tin đơn</small></div>
         </article>
         <article class="admin-metric-card admin-metric-card--info">
-            <div>
-                <span class="admin-metric-card__label">Đang chuẩn bị</span>
-                <strong class="admin-metric-card__value">@Model.Summary.Processing</strong>
-                <small class="admin-metric-card__meta">Đang xử lý tại kho</small>
-            </div>
+            <div><span class="admin-metric-card__label">Đang chuẩn bị</span><strong class="admin-metric-card__value">@Model.Summary.Processing</strong><small class="admin-metric-card__meta">Đang xử lý tại kho</small></div>
         </article>
         <article class="admin-metric-card admin-metric-card--success">
-            <div>
-                <span class="admin-metric-card__label">Sẵn sàng bàn giao</span>
-                <strong class="admin-metric-card__value">@Model.Summary.ReadyToShip</strong>
-                <small class="admin-metric-card__meta">Có thể chuyển sang giao vận</small>
-            </div>
+            <div><span class="admin-metric-card__label">Sẵn sàng giao</span><strong class="admin-metric-card__value">@Model.Summary.ReadyToShip</strong><small class="admin-metric-card__meta">Có thể bàn giao giao hàng</small></div>
         </article>
         <article class="admin-metric-card admin-metric-card--danger">
-            <div>
-                <span class="admin-metric-card__label">Giao chưa thành công</span>
-                <strong class="admin-metric-card__value">@Model.Summary.DeliveryFailed</strong>
-                <small class="admin-metric-card__meta">Cần kiểm tra provider và lý do thất bại</small>
-            </div>
+            <div><span class="admin-metric-card__label">Giao chưa thành công</span><strong class="admin-metric-card__value">@Model.Summary.DeliveryFailed</strong><small class="admin-metric-card__meta">Cần sắp xếp giao lại</small></div>
         </article>
     </section>
 
     <section class="admin-filter-panel" aria-labelledby="order-filter-heading">
         <div class="admin-filter-panel__header">
             <div>
-                <p class="admin-page-kicker">Bộ lọc vận hành</p>
+                <p class="admin-page-kicker">Bộ lọc</p>
                 <h3 id="order-filter-heading">Tìm và phân loại đơn</h3>
             </div>
             <span>@Model.TotalItems kết quả</span>
@@ -95,7 +75,7 @@
                        name="Search"
                        value="@Model.Search"
                        maxlength="100"
-                       placeholder="Mã đơn, khách hàng, số điện thoại hoặc mã vận đơn" />
+                       placeholder="Mã đơn, khách hàng, số điện thoại hoặc mã giao hàng" />
             </label>
 
             <label class="admin-filter-field">
@@ -106,15 +86,11 @@
                     {
                         if (Model.OrderStatus == status)
                         {
-                            <option value="@status" selected>
-                                @AdminCommerceDisplay.OrderStatusText(status)
-                            </option>
+                            <option value="@status" selected>@AdminCommerceDisplay.OrderStatusText(status)</option>
                         }
                         else
                         {
-                            <option value="@status">
-                                @AdminCommerceDisplay.OrderStatusText(status)
-                            </option>
+                            <option value="@status">@AdminCommerceDisplay.OrderStatusText(status)</option>
                         }
                     }
                 </select>
@@ -128,15 +104,11 @@
                     {
                         if (Model.PaymentStatus == status)
                         {
-                            <option value="@status" selected>
-                                @AdminCommerceDisplay.PaymentStatusText(status)
-                            </option>
+                            <option value="@status" selected>@AdminCommerceDisplay.PaymentStatusText(status)</option>
                         }
                         else
                         {
-                            <option value="@status">
-                                @AdminCommerceDisplay.PaymentStatusText(status)
-                            </option>
+                            <option value="@status">@AdminCommerceDisplay.PaymentStatusText(status)</option>
                         }
                     }
                 </select>
@@ -150,33 +122,11 @@
                     {
                         if (Model.FulfillmentStatus == status)
                         {
-                            <option value="@status" selected>
-                                @AdminCommerceDisplay.FulfillmentStatusText(status)
-                            </option>
+                            <option value="@status" selected>@AdminCommerceDisplay.FulfillmentStatusText(status)</option>
                         }
                         else
                         {
-                            <option value="@status">
-                                @AdminCommerceDisplay.FulfillmentStatusText(status)
-                            </option>
-                        }
-                    }
-                </select>
-            </label>
-
-            <label class="admin-filter-field">
-                <span>Đơn vị vận chuyển</span>
-                <select name="Provider">
-                    <option value="">Tất cả</option>
-                    @foreach (var provider in Model.Providers)
-                    {
-                        if (string.Equals(Model.Provider, provider, StringComparison.OrdinalIgnoreCase))
-                        {
-                            <option value="@provider" selected>@provider</option>
-                        }
-                        else
-                        {
-                            <option value="@provider">@provider</option>
+                            <option value="@status">@AdminCommerceDisplay.FulfillmentStatusText(status)</option>
                         }
                     }
                 </select>
@@ -204,11 +154,9 @@
             <div>
                 <p class="admin-page-kicker">Danh sách đơn</p>
                 <h3>Kết quả vận hành</h3>
-                <p>Mở một đơn để thao tác trực tiếp trên tiến trình vòng đời.</p>
+                <p>Mở đơn để xem sản phẩm, thanh toán và tiến trình giao nhận.</p>
             </div>
-            <span class="admin-badge admin-badge--neutral">
-                Trang @Model.Page / @Math.Max(Model.TotalPages, 1)
-            </span>
+            <span class="admin-badge admin-badge--neutral">Trang @Model.Page / @Math.Max(Model.TotalPages, 1)</span>
         </header>
 
         <div class="admin-table-wrap">
@@ -220,7 +168,6 @@
                         <th>Trạng thái đơn</th>
                         <th>Thanh toán</th>
                         <th>Giao hàng</th>
-                        <th>Vận chuyển</th>
                         <th class="u-text-end">Tổng tiền</th>
                         <th class="u-text-end">Thao tác</th>
                     </tr>
@@ -228,61 +175,26 @@
                 <tbody>
                     @if (Model.Items.Count == 0)
                     {
-                        <tr>
-                            <td colspan="8">
-                                <div class="admin-empty-state admin-empty-state--compact">
-                                    <div>
-                                        <strong>Không tìm thấy đơn hàng</strong>
-                                        <span>Hãy thay đổi từ khóa hoặc phạm vi bộ lọc.</span>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
+                        <tr><td colspan="7"><div class="admin-empty-state admin-empty-state--compact"><div><strong>Không tìm thấy đơn hàng</strong><span>Hãy thay đổi từ khóa hoặc phạm vi bộ lọc.</span></div></div></td></tr>
                     }
                     else
                     {
                         @foreach (var item in Model.Items)
                         {
                             <tr>
+                                <td><span class="admin-cell-primary order-code">@item.Code</span><span class="admin-cell-secondary">@item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</span></td>
+                                <td><span class="admin-cell-primary">@item.CustomerName</span><span class="admin-cell-secondary">@item.CustomerPhone</span></td>
+                                <td><span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(item.OrderStatus)">@AdminCommerceDisplay.OrderStatusText(item.OrderStatus)</span></td>
+                                <td><span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(item.PaymentStatus)">@AdminCommerceDisplay.PaymentStatusText(item.PaymentStatus)</span></td>
                                 <td>
-                                    <span class="admin-cell-primary order-code">@item.Code</span>
-                                    <span class="admin-cell-secondary">
-                                        @item.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
-                                    </span>
+                                    <span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(item.FulfillmentStatus)">@AdminCommerceDisplay.FulfillmentStatusText(item.FulfillmentStatus)</span>
+                                    @if (!string.IsNullOrWhiteSpace(item.TrackingCode))
+                                    {
+                                        <span class="admin-cell-secondary">@item.TrackingCode</span>
+                                    }
                                 </td>
-                                <td>
-                                    <span class="admin-cell-primary">@item.CustomerName</span>
-                                    <span class="admin-cell-secondary">@item.CustomerPhone</span>
-                                </td>
-                                <td>
-                                    <span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(item.OrderStatus)">
-                                        @AdminCommerceDisplay.OrderStatusText(item.OrderStatus)
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(item.PaymentStatus)">
-                                        @AdminCommerceDisplay.PaymentStatusText(item.PaymentStatus)
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(item.FulfillmentStatus)">
-                                        @AdminCommerceDisplay.FulfillmentStatusText(item.FulfillmentStatus)
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="admin-cell-primary">@(item.Provider ?? "Chưa phân công")</span>
-                                    <span class="admin-cell-secondary">@(item.TrackingCode ?? "Chưa có mã vận đơn")</span>
-                                </td>
-                                <td class="u-text-end">
-                                    <span class="admin-cell-money">@item.GrandTotal.ToString("N0", culture) ₫</span>
-                                </td>
-                                <td class="u-text-end">
-                                    <a asp-action="Details"
-                                       asp-route-id="@item.Id"
-                                       class="admin-row-text-action">
-                                        Xử lý đơn
-                                    </a>
-                                </td>
+                                <td class="u-text-end"><span class="admin-cell-money">@item.GrandTotal.ToString("N0", culture) ₫</span></td>
+                                <td class="u-text-end"><a asp-action="Details" asp-route-id="@item.Id" class="admin-row-text-action">Xử lý đơn</a></td>
                             </tr>
                         }
                     }
@@ -300,29 +212,21 @@
                asp-route-orderStatus="@Model.OrderStatus"
                asp-route-paymentStatus="@Model.PaymentStatus"
                asp-route-fulfillmentStatus="@Model.FulfillmentStatus"
-               asp-route-provider="@Model.Provider"
                asp-route-fromDate="@fromDateValue"
                asp-route-toDate="@toDateValue"
                class="button button--secondary @(Model.Page <= 1 ? "disabled" : null)"
-               aria-disabled="@(Model.Page <= 1)">
-                Trang trước
-            </a>
-
+               aria-disabled="@(Model.Page <= 1)">Trang trước</a>
             <span>Trang @Model.Page trên @Model.TotalPages</span>
-
             <a asp-action="Index"
                asp-route-page="@(Model.Page + 1)"
                asp-route-search="@Model.Search"
                asp-route-orderStatus="@Model.OrderStatus"
                asp-route-paymentStatus="@Model.PaymentStatus"
                asp-route-fulfillmentStatus="@Model.FulfillmentStatus"
-               asp-route-provider="@Model.Provider"
                asp-route-fromDate="@fromDateValue"
                asp-route-toDate="@toDateValue"
                class="button button--secondary @(Model.Page >= Model.TotalPages ? "disabled" : null)"
-               aria-disabled="@(Model.Page >= Model.TotalPages)">
-                Trang sau
-            </a>
+               aria-disabled="@(Model.Page >= Model.TotalPages)">Trang sau</a>
         </nav>
     }
 </section>

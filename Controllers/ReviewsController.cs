@@ -133,6 +133,16 @@ public sealed class ReviewsController : Controller
             return NotFound();
         }
 
+        IReadOnlyList<ProductReviewMediaCommand> media = [];
+        try
+        {
+            media = ParseUploadedImages(form.MediaUrls);
+        }
+        catch (ProductReviewRuleException exception)
+        {
+            ModelState.AddModelError(nameof(form.MediaUrls), exception.Message);
+        }
+
         if (!ModelState.IsValid)
         {
             return View(new ProductReviewEditorPageViewModel
@@ -152,7 +162,7 @@ public sealed class ReviewsController : Controller
                     form.Title,
                     form.Content,
                     form.RowVersion,
-                    ParseMedia(form.MediaUrls)),
+                    media),
                 cancellationToken);
 
             await ProductReviewExperienceQuery.PublishImmediatelyAsync(
@@ -162,7 +172,7 @@ public sealed class ReviewsController : Controller
                 cancellationToken);
 
             TempData["SuccessMessage"] =
-                "Đánh giá đã được đăng công khai ngay lập tức.";
+                "Đánh giá đã được đăng công khai.";
 
             return RedirectToAction(nameof(Mine));
         }
@@ -214,7 +224,7 @@ public sealed class ReviewsController : Controller
             ProductReviewTransparencyPolicy.InitialPageSize,
             rating,
             mediaOnly,
-            User.GetCustomerId(),
+            HttpContext.User.GetCustomerId(),
             cancellationToken);
 
         return feed is null
@@ -292,8 +302,7 @@ public sealed class ReviewsController : Controller
                 new { slug = productSlug })
                 ?? "/";
 
-            return Redirect(
-                productUrl + $"#review-{reviewId}");
+            return Redirect(productUrl + $"#review-{reviewId}");
         }
         catch (ProductReviewRuleException exception)
         {
@@ -330,11 +339,11 @@ public sealed class ReviewsController : Controller
     }
 
     private int RequireCustomerId() =>
-        User.GetCustomerId()
+        HttpContext.User.GetCustomerId()
         ?? throw new InvalidOperationException(
             "Authenticated account has no CustomerId claim.");
 
-    private static IReadOnlyList<ProductReviewMediaCommand> ParseMedia(
+    private IReadOnlyList<ProductReviewMediaCommand> ParseUploadedImages(
         string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
@@ -342,38 +351,42 @@ public sealed class ReviewsController : Controller
             return [];
         }
 
-        return raw
+        var urls = raw
             .Split(
                 ['\r', '\n', ','],
                 StringSplitOptions.RemoveEmptyEntries
                 | StringSplitOptions.TrimEntries)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(ProductReviewPolicy.MaximumMediaCount + 1)
-            .Select(url =>
-            {
-                var path = Uri.TryCreate(
-                    url,
-                    UriKind.Absolute,
-                    out var uri)
-                    ? uri.AbsolutePath
-                    : url;
-
-                var extension = Path.GetExtension(path);
-
-                var type = extension.Equals(
-                        ".mp4",
-                        StringComparison.OrdinalIgnoreCase)
-                    || extension.Equals(
-                        ".webm",
-                        StringComparison.OrdinalIgnoreCase)
-                    || extension.Equals(
-                        ".mov",
-                        StringComparison.OrdinalIgnoreCase)
-                        ? ProductReviewMediaType.Video
-                        : ProductReviewMediaType.Image;
-
-                return new ProductReviewMediaCommand(type, url);
-            })
             .ToArray();
+
+        if (urls.Length > ProductReviewPolicy.MaximumMediaCount)
+        {
+            throw new ProductReviewRuleException(
+                "REVIEW_MEDIA_LIMIT_EXCEEDED",
+                $"Mỗi đánh giá được chọn tối đa {ProductReviewPolicy.MaximumMediaCount} ảnh.");
+        }
+
+        return urls.Select(url =>
+        {
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+                || uri.Scheme != Uri.UriSchemeHttps
+                || !string.Equals(
+                    uri.Host,
+                    Request.Host.Host,
+                    StringComparison.OrdinalIgnoreCase)
+                || !uri.AbsolutePath.StartsWith(
+                    "/uploads/",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ProductReviewRuleException(
+                    "REVIEW_MEDIA_NOT_OWNED",
+                    "Ảnh đánh giá phải được chọn và tải lên trực tiếp từ thiết bị.");
+            }
+
+            return new ProductReviewMediaCommand(
+                ProductReviewMediaType.Image,
+                uri.ToString());
+        }).ToArray();
     }
 }

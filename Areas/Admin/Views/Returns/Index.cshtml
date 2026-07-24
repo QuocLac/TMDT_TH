@@ -1,20 +1,24 @@
-@using WebApplication2.Areas.Admin.Presentation
 @using WebApplication2.Models.Enums
+@using WebApplication2.Areas.Admin.ViewModels.Returns
 @model WebApplication2.Areas.Admin.ViewModels.Returns.ReturnAdminIndexViewModel
-
 @{
-    ViewData["Title"] = "Hoàn trả";
-    var awaitingReview = Model.Items.Count(item =>
-        item.Status is ReturnRequestStatus.Requested or ReturnRequestStatus.UnderReview);
-    var movingToWarehouse = Model.Items.Count(item =>
-        item.Status is ReturnRequestStatus.AwaitingReturnShipment
+    ViewData["Title"] = "Hoàn trả và hoàn tiền";
+    var waiting = Model.Items.Count(item =>
+        item.Status is ReturnRequestStatus.Requested
+            or ReturnRequestStatus.UnderReview);
+    var moving = Model.Items.Count(item =>
+        item.Status is ReturnRequestStatus.Approved
+            or ReturnRequestStatus.AwaitingReturnShipment
             or ReturnRequestStatus.AwaitingPickup
             or ReturnRequestStatus.ReturnInTransit);
-    var warehouseProcessing = Model.Items.Count(item =>
+    var inspecting = Model.Items.Count(item =>
         item.Status is ReturnRequestStatus.ReceivedAtWarehouse
             or ReturnRequestStatus.Inspecting);
-    var refundPending = Model.Items.Count(item =>
+    var refunding = Model.Items.Count(item =>
         item.Status == ReturnRequestStatus.RefundPending);
+    var completed = Model.Items.Count(item =>
+        item.Status is ReturnRequestStatus.Refunded
+            or ReturnRequestStatus.Closed);
 }
 
 @section Styles {
@@ -23,84 +27,31 @@
 
 <section class="admin-page returns-page">
     <header class="admin-page-header admin-page-header--hero">
-        <div class="admin-page-header__copy">
-            <p class="admin-page-kicker">Dịch vụ sau bán hàng</p>
-            <h2>Quản lý yêu cầu hoàn trả</h2>
+        <div>
+            <p class="admin-page-kicker">Vận hành sau bán</p>
+            <h2>Hoàn trả và hoàn tiền</h2>
             <p class="admin-page-lead">
-                Tiếp nhận yêu cầu, duyệt số lượng, điều phối hàng hoàn về kho,
-                kiểm định và chuyển sang bước xử lý hoàn tiền.
+                Theo dõi yêu cầu từ lúc tiếp nhận, vận chuyển hàng về,
+                kiểm tra sản phẩm đến khi chuyển khoản hoàn tất.
             </p>
-        </div>
-        <div class="admin-page-header__actions">
-            <a asp-area="Admin"
-               asp-controller="Orders"
-               asp-action="Index"
-               class="button button--secondary">
-                <i class="fa-solid fa-receipt" aria-hidden="true"></i>
-                Xem đơn hàng
-            </a>
-            <a asp-action="Index"
-               asp-route-status="Requested"
-               class="button button--primary">
-                <i class="fa-solid fa-clipboard-check" aria-hidden="true"></i>
-                Yêu cầu mới
-            </a>
         </div>
     </header>
 
-    <section class="admin-metric-grid" aria-label="Tổng quan hoàn trả trong danh sách">
-        <article class="admin-metric-card admin-metric-card--warning">
-            <span class="admin-metric-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-inbox"></i>
-            </span>
-            <div>
-                <span class="admin-metric-card__label">Chờ xem xét</span>
-                <strong class="admin-metric-card__value">@awaitingReview</strong>
-                <small class="admin-metric-card__meta">Mới tiếp nhận hoặc đang duyệt</small>
-            </div>
-        </article>
-
-        <article class="admin-metric-card admin-metric-card--info">
-            <span class="admin-metric-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-truck-arrow-right"></i>
-            </span>
-            <div>
-                <span class="admin-metric-card__label">Đang hoàn về kho</span>
-                <strong class="admin-metric-card__value">@movingToWarehouse</strong>
-                <small class="admin-metric-card__meta">Chờ vận đơn, lấy hàng hoặc đang vận chuyển</small>
-            </div>
-        </article>
-
-        <article class="admin-metric-card admin-metric-card--info">
-            <span class="admin-metric-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-warehouse"></i>
-            </span>
-            <div>
-                <span class="admin-metric-card__label">Kho đang xử lý</span>
-                <strong class="admin-metric-card__value">@warehouseProcessing</strong>
-                <small class="admin-metric-card__meta">Đã nhận hoặc đang kiểm định</small>
-            </div>
-        </article>
-
-        <article class="admin-metric-card admin-metric-card--warning">
-            <span class="admin-metric-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-money-bill-transfer"></i>
-            </span>
-            <div>
-                <span class="admin-metric-card__label">Chờ hoàn tiền</span>
-                <strong class="admin-metric-card__value">@refundPending</strong>
-                <small class="admin-metric-card__meta">Sẵn sàng chuyển sang quy trình tài chính</small>
-            </div>
-        </article>
+    <section class="return-admin-metrics" aria-label="Tổng quan yêu cầu hoàn trả">
+        <article><small>Chờ xem xét</small><strong>@waiting</strong></article>
+        <article><small>Đang thu hồi hàng</small><strong>@moving</strong></article>
+        <article><small>Đang kiểm tra</small><strong>@inspecting</strong></article>
+        <article><small>Chờ hoàn tiền</small><strong>@refunding</strong></article>
+        <article><small>Đã hoàn tất</small><strong>@completed</strong></article>
     </section>
 
-    <section class="admin-filter-panel" aria-labelledby="return-filter-heading">
+    <section class="admin-filter-panel">
         <div class="admin-filter-panel__header">
             <div>
-                <p class="admin-page-kicker">Bộ lọc sau bán hàng</p>
-                <h3 id="return-filter-heading">Tìm yêu cầu hoàn trả</h3>
+                <p class="admin-page-kicker">Bộ lọc</p>
+                <h3>Tìm yêu cầu hoàn trả</h3>
             </div>
-            <span>@Model.Items.Count kết quả trong danh sách</span>
+            <span>@Model.Items.Count kết quả</span>
         </div>
 
         <form method="get" class="admin-filter-grid admin-filter-grid--compact">
@@ -109,38 +60,28 @@
                 <input name="search"
                        value="@Model.Search"
                        type="search"
-                       placeholder="Mã hoàn trả, mã đơn hoặc tên khách hàng" />
+                       placeholder="Mã yêu cầu, mã đơn hoặc khách hàng" />
             </label>
-
             <label class="admin-filter-field">
-                <span>Trạng thái xử lý</span>
+                <span>Trạng thái</span>
                 <select name="status">
                     <option value="">Tất cả trạng thái</option>
                     @foreach (var status in Enum.GetValues<ReturnRequestStatus>())
                     {
                         if (Model.Status == status)
                         {
-                            <option value="@status" selected>
-                                @AdminCommerceDisplay.ReturnStatusText(status)
-                            </option>
+                            <option value="@status" selected>@ReturnAdminDisplay.StatusText(status)</option>
                         }
                         else
                         {
-                            <option value="@status">
-                                @AdminCommerceDisplay.ReturnStatusText(status)
-                            </option>
+                            <option value="@status">@ReturnAdminDisplay.StatusText(status)</option>
                         }
                     }
                 </select>
             </label>
-
             <div class="admin-filter-actions">
-                <button class="button button--primary" type="submit">
-                    <i class="fa-solid fa-filter" aria-hidden="true"></i>
-                    Áp dụng
-                </button>
+                <button type="submit" class="button button--primary">Áp dụng</button>
             </div>
-
             <div class="admin-filter-actions">
                 <a asp-action="Index" class="button button--secondary">Xóa lọc</a>
             </div>
@@ -150,22 +91,21 @@
     <section class="admin-panel">
         <header class="admin-panel__header">
             <div>
-                <p class="admin-page-kicker">Danh sách hoàn trả</p>
-                <h3>Yêu cầu cần xử lý</h3>
-                <p>Mở chi tiết để xem sản phẩm, bằng chứng, vận đơn hoàn và kết quả kiểm định.</p>
+                <p class="admin-page-kicker">Danh sách</p>
+                <h3>Yêu cầu hoàn trả</h3>
             </div>
         </header>
 
         <div class="admin-table-wrap">
-            <table class="admin-data-table returns-table">
+            <table class="admin-data-table return-admin-table">
                 <thead>
                     <tr>
-                        <th>Yêu cầu / Đơn hàng</th>
+                        <th>Yêu cầu</th>
                         <th>Khách hàng</th>
                         <th>Trạng thái</th>
                         <th>Số lượng</th>
-                        <th class="text-end">Hoàn tiền dự kiến</th>
-                        <th>Tiếp nhận / Thời hạn</th>
+                        <th class="text-end">Tiền hoàn</th>
+                        <th>Ngày gửi</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -175,10 +115,9 @@
                         <tr>
                             <td colspan="7">
                                 <div class="admin-empty-state admin-empty-state--compact">
-                                    <i class="fa-solid fa-box-open" aria-hidden="true"></i>
                                     <div>
                                         <strong>Không có yêu cầu phù hợp</strong>
-                                        <span>Hãy thay đổi từ khóa hoặc trạng thái lọc.</span>
+                                        <span>Hãy thay đổi bộ lọc.</span>
                                     </div>
                                 </div>
                             </td>
@@ -190,45 +129,29 @@
                         {
                             <tr>
                                 <td>
-                                    <span class="admin-cell-primary">@item.Code</span>
-                                    <span class="admin-cell-secondary">
-                                        Đơn @item.OrderCode · #@item.OrderId
+                                    <strong>@item.Code</strong>
+                                    <span class="admin-cell-secondary">Đơn @item.OrderCode</span>
+                                </td>
+                                <td>@item.CustomerName</td>
+                                <td>
+                                    <span class="return-admin-status return-admin-status--@item.Status.ToString().ToLowerInvariant()">
+                                        @item.StatusText
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="admin-cell-primary">@item.CustomerName</span>
+                                    @item.RequestedQuantity
+                                    @if (item.ApprovedQuantity > 0)
+                                    {
+                                        <small>· chấp nhận @item.ApprovedQuantity</small>
+                                    }
                                 </td>
-                                <td>
-                                    <span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(item.Status)">
-                                        @AdminCommerceDisplay.ReturnStatusText(item.Status)
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="admin-cell-primary">
-                                        @item.RequestedQuantity sản phẩm yêu cầu
-                                    </span>
-                                    <span class="admin-cell-secondary">
-                                        @item.ApprovedQuantity sản phẩm được chấp thuận
-                                    </span>
-                                </td>
-                                <td class="text-end">
-                                    <span class="admin-cell-money">@item.RefundAmount.ToString("N0") ₫</span>
-                                </td>
-                                <td>
-                                    <span class="admin-cell-primary">
-                                        @item.RequestedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
-                                    </span>
-                                    <span class="admin-cell-secondary">
-                                        Hạn xử lý ban đầu:
-                                        @item.ReturnWindowExpiresAt.ToLocalTime().ToString("dd/MM HH:mm")
-                                    </span>
-                                </td>
+                                <td class="text-end"><strong>@item.RefundAmount.ToString("N0") ₫</strong></td>
+                                <td>@item.RequestedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
                                 <td class="text-end">
                                     <a asp-action="Details"
                                        asp-route-id="@item.Id"
-                                       class="admin-row-action"
-                                       aria-label="Mở yêu cầu @item.Code">
-                                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                                       class="button button--primary button--small">
+                                        Xử lý
                                     </a>
                                 </td>
                             </tr>

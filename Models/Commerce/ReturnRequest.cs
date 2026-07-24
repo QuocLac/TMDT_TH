@@ -58,4 +58,6 @@ public sealed class ReturnRequest : BaseEntity
     public ICollection<ReturnInspection> Inspections { get; set; } = [];
     public ICollection<ReturnEvidence> Evidence { get; set; } = [];
     public ICollection<Shipment> Shipments { get; set; } = [];
+
+    public ReturnRefundAccount? RefundAccount { get; set; }
 }

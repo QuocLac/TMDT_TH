@@ -102,17 +102,17 @@ public sealed class CheckoutShippingQuoteService : ICheckoutShippingQuoteService
         {
             return CheckoutShippingQuoteResult.Failure(
                 "EMPTY_SHIPPING_CART",
-                "Không có sản phẩm hợp lệ để tính phí vận chuyển.");
+                "Không có sản phẩm hợp lệ để tính phí giao hàng.");
         }
 
         var subtotal = lines.Sum(line => line.UnitPrice * line.Quantity);
         var totalQuantity = lines.Sum(line => line.Quantity);
 
-        if (!_options.IsConfigured)
+        if (!_options.IsQuoteConfigured)
         {
             return CheckoutShippingQuoteResult.Failure(
-                "GHN_NOT_CONFIGURED",
-                "GHN chưa được cấu hình để tính phí giao hàng.");
+                "SHIPPING_QUOTE_NOT_CONFIGURED",
+                "Chưa thể tính phí giao hàng tự động. Vui lòng thử lại sau.");
         }
 
         var services = await _ghnShippingClient.GetAvailableServicesAsync(
@@ -121,11 +121,14 @@ public sealed class CheckoutShippingQuoteService : ICheckoutShippingQuoteService
 
         if (!services.Success || services.Data is null || services.Data.Count == 0)
         {
+            _logger.LogWarning(
+                "Shipping service lookup failed. ErrorCode={ErrorCode}; Message={Message}",
+                services.ErrorCode,
+                services.Message);
+
             return CheckoutShippingQuoteResult.Failure(
-                services.ErrorCode ?? "GHN_SERVICE_UNAVAILABLE",
-                string.IsNullOrWhiteSpace(services.Message)
-                    ? "GHN chưa trả về gói dịch vụ phù hợp cho tuyến giao hàng này."
-                    : services.Message);
+                "SHIPPING_SERVICE_UNAVAILABLE",
+                "Chưa tìm thấy hình thức giao hàng phù hợp cho địa chỉ đã chọn.");
         }
 
         var selectedService = services.Data
@@ -139,8 +142,8 @@ public sealed class CheckoutShippingQuoteService : ICheckoutShippingQuoteService
         if (selectedService is null)
         {
             return CheckoutShippingQuoteResult.Failure(
-                "GHN_SERVICE_NOT_FOUND",
-                "Không tìm thấy gói giao hàng GHN phù hợp cho địa chỉ đã chọn.");
+                "SHIPPING_SERVICE_NOT_FOUND",
+                "Chưa tìm thấy hình thức giao hàng phù hợp cho địa chỉ đã chọn.");
         }
 
         var weightGram = CalculateWeight(totalQuantity);
@@ -174,17 +177,20 @@ public sealed class CheckoutShippingQuoteService : ICheckoutShippingQuoteService
 
         if (!firstQuote.Success || firstQuote.Data is null)
         {
+            _logger.LogWarning(
+                "Automatic shipping quote failed. ErrorCode={ErrorCode}; Message={Message}",
+                firstQuote.ErrorCode,
+                firstQuote.Message);
+
             return CheckoutShippingQuoteResult.Failure(
-                firstQuote.ErrorCode ?? "GHN_QUOTE_FAILED",
-                string.IsNullOrWhiteSpace(firstQuote.Message)
-                    ? "Chưa thể tính phí giao hàng GHN."
-                    : firstQuote.Message);
+                "SHIPPING_QUOTE_FAILED",
+                "Chưa thể tính phí giao hàng cho địa chỉ này. Vui lòng thử lại.");
         }
 
         var effectiveQuote = firstQuote.Data;
 
-        // COD thực tế thu cả tiền hàng và phí giao hàng. Gọi lại một lần
-        // để phí COD (nếu có) phản ánh gần đúng số tiền sẽ thu hộ.
+        // COD includes merchandise and the shipping fee. A second quote keeps
+        // the charge authoritative without exposing the provider lifecycle.
         if (baseCodAmount > 0 && effectiveQuote.TotalFee > 0)
         {
             var finalCodAmount = ToProviderMoney(
@@ -209,8 +215,7 @@ public sealed class CheckoutShippingQuoteService : ICheckoutShippingQuoteService
                 else
                 {
                     _logger.LogWarning(
-                        "GHN second-pass COD quote failed with code {ErrorCode}. "
-                        + "The first valid quote will be used.",
+                        "Second-pass COD shipping quote failed with code {ErrorCode}. The first valid quote is retained.",
                         secondQuote.ErrorCode);
                 }
             }
@@ -221,16 +226,14 @@ public sealed class CheckoutShippingQuoteService : ICheckoutShippingQuoteService
             effectiveQuote.TotalFee,
             selectedService.ServiceId,
             selectedService.ServiceTypeId,
-            string.IsNullOrWhiteSpace(selectedService.Name)
-                ? "GHN"
-                : selectedService.Name,
+            CustomerServiceName(selectedService.ServiceTypeId),
             weightGram,
             _options.DefaultLengthCm,
             _options.DefaultWidthCm,
             _options.DefaultHeightCm,
             false,
             null,
-            "Phí giao hàng được tính trực tiếp từ GHN.",
+            "Phí giao hàng đã được tính tự động theo địa chỉ nhận hàng.",
             effectiveQuote.RawResponse);
     }
 
@@ -269,6 +272,13 @@ public sealed class CheckoutShippingQuoteService : ICheckoutShippingQuoteService
             1L,
             1_600_000L);
     }
+
+    private static string CustomerServiceName(int serviceTypeId) =>
+        serviceTypeId switch
+        {
+            5 => "Giao hàng cồng kềnh",
+            _ => "Giao hàng nhanh"
+        };
 
     private static int ToProviderMoney(decimal value, int maximum)
     {

@@ -1,10 +1,8 @@
 @using System.Globalization
-@using WebApplication2.ViewModels.Storefront.Orders
 @model WebApplication2.ViewModels.Storefront.Returns.ReturnConfirmationViewModel
 @{
     ViewData["Title"] = $"Hoàn trả {Model.ReturnCode}";
     var culture = CultureInfo.GetCultureInfo("vi-VN");
-    var statusText = CustomerOrderDisplay.ReturnStatusText(Model.Status);
 }
 
 <section class="return-page shell-container">
@@ -12,17 +10,45 @@
         <p class="eyebrow">Yêu cầu @Model.ReturnCode</p>
         <h1>Yêu cầu đã được ghi nhận</h1>
         <p>
-            Trạng thái hiện tại: <strong>@statusText</strong>.
-            Mỗi bước duyệt, vận chuyển về kho, kiểm định và hoàn tiền được theo dõi độc lập.
+            Trạng thái hiện tại: <strong>@Model.StatusText</strong>.
+            Bạn có thể theo dõi toàn bộ quá trình tại trang chi tiết đơn hàng.
         </p>
         <div class="checkout-success-actions">
-            <a asp-controller="Orders" asp-action="Details"
+            <a asp-controller="Orders"
+               asp-action="Details"
                asp-route-publicToken="@Model.OrderPublicToken"
-               class="button button--primary">Mở đơn @Model.OrderCode</a>
-            <a asp-controller="Home" asp-action="Index"
-               class="button button--glass">Tiếp tục mua sắm</a>
+               class="button button--primary">
+                Mở đơn @Model.OrderCode
+            </a>
+            <a asp-controller="Home"
+               asp-action="Index"
+               class="button button--glass">
+                Tiếp tục mua sắm
+            </a>
         </div>
     </header>
+
+    <ol class="return-progress" aria-label="Tiến trình hoàn trả">
+        @foreach (var step in Model.Progress)
+        {
+            <li class="@(step.IsComplete ? "is-complete" : null) @(step.IsCurrent ? "is-current" : null)">
+                <span>
+                    @if (step.IsComplete && !step.IsCurrent)
+                    {
+                        <i class="fa-solid fa-check" aria-hidden="true"></i>
+                    }
+                    else
+                    {
+                        @step.Position
+                    }
+                </span>
+                <div>
+                    <strong>@step.Title</strong>
+                    <small>@step.Description</small>
+                </div>
+            </li>
+        }
+    </ol>
 
     <div class="return-confirmation-grid">
         <section class="return-card">
@@ -37,9 +63,9 @@
                         </div>
                         <dl>
                             <div><dt>Yêu cầu</dt><dd>@item.RequestedQuantity</dd></div>
-                            <div><dt>Được duyệt</dt><dd>@item.ApprovedQuantity</dd></div>
-                            <div><dt>Kho đã nhận</dt><dd>@item.ReceivedQuantity</dd></div>
-                            <div><dt>Dự kiến hoàn</dt><dd>@item.RefundAmount.ToString("N0", culture) ₫</dd></div>
+                            <div><dt>Được chấp nhận</dt><dd>@item.ApprovedQuantity</dd></div>
+                            <div><dt>Đã tiếp nhận</dt><dd>@item.ReceivedQuantity</dd></div>
+                            <div><dt>Tiền hoàn</dt><dd>@item.RefundAmount.ToString("N0", culture) ₫</dd></div>
                         </dl>
                     </article>
                 }
@@ -50,12 +76,18 @@
             <p class="eyebrow">Thông tin xử lý</p>
             <dl class="return-summary">
                 <div><dt>Đơn hàng</dt><dd>@Model.OrderCode</dd></div>
-                <div><dt>Lý do</dt><dd>@Model.ReasonCode</dd></div>
                 <div><dt>Mô tả</dt><dd>@Model.ReasonText</dd></div>
                 <div><dt>Gửi lúc</dt><dd>@Model.RequestedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
-                <div><dt>Hạn hoàn trả</dt><dd>@Model.ReturnWindowExpiresAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
-                <div><dt>Mã vận đơn chiều về</dt><dd>@(Model.TrackingCode ?? "Chưa tạo")</dd></div>
+                <div><dt>Hạn bàn giao</dt><dd>@Model.ReturnWindowExpiresAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</dd></div>
+                <div><dt>Mã tiếp nhận</dt><dd>@(Model.TrackingCode ?? "Sẽ cập nhật sau khi yêu cầu được chấp nhận")</dd></div>
             </dl>
+
+            <div class="return-refund-account">
+                <span class="vietqr-badge">VietQR</span>
+                <strong>@Model.RefundBankName</strong>
+                <span>@Model.RefundAccountNumber</span>
+                <small>@Model.RefundAccountName</small>
+            </div>
         </aside>
     </div>
 </section>

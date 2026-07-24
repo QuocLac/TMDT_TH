@@ -51,9 +51,14 @@
                 <option value="">Tất cả</option>
                 @for (var rating = 5; rating >= 1; rating--)
                 {
-                    <option value="@rating" selected="@(Model.Rating == rating)">
-                        @rating sao
-                    </option>
+                    if (Model.Rating == rating)
+                    {
+                        <option value="@rating" selected>@rating sao</option>
+                    }
+                    else
+                    {
+                        <option value="@rating">@rating sao</option>
+                    }
                 }
             </select>
         </label>

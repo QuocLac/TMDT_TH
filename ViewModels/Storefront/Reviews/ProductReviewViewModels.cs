@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using WebApplication2.Models.Enums;
 using WebApplication2.Services.Reviews;
 
 namespace WebApplication2.ViewModels.Storefront.Reviews;
@@ -28,6 +27,7 @@ public sealed class ProductReviewInputModel
     [StringLength(2000, MinimumLength = 20)]
     public string Content { get; set; } = string.Empty;
 
+    [StringLength(4000)]
     public string? MediaUrls { get; set; }
 
     public string? RowVersion { get; set; }
@@ -36,11 +36,6 @@ public sealed class ProductReviewInputModel
 public sealed class MyProductReviewsPageViewModel
 {
     public IReadOnlyList<CustomerProductReviewSnapshot> Items { get; init; } = [];
-}
-
-public sealed class ProductReviewComponentViewModel
-{
-    public ProductReviewSummarySnapshot Summary { get; init; } = null!;
 }
 
 public sealed class ProductReviewPublicPageViewModel

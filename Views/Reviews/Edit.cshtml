@@ -7,6 +7,7 @@
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/storefront/reviews.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components/media-library-picker.css" asp-append-version="true" />
 }
 
 <section class="review-page shell-container">
@@ -14,7 +15,10 @@
         <div>
             <p>Đơn @Model.Item.OrderCode</p>
             <h1>@ViewData["Title"]</h1>
-            <span>@Model.Item.Message</span>
+            <span>
+                Đánh giá được đăng công khai ngay sau khi gửi.
+                FastBuy không duyệt trước hoặc ẩn nội dung từ giao dịch đã xác minh.
+            </span>
         </div>
         <a asp-action="Eligible" class="button button--secondary">
             Quay lại
@@ -80,20 +84,43 @@
                     <span asp-validation-for="Form.Content"></span>
                 </label>
 
-                <label>
-                    <span>Hình ảnh hoặc video</span>
-                    <textarea asp-for="Form.MediaUrls"
-                              rows="5"
-                              placeholder="Mỗi dòng là một đường dẫn HTTPS. Tối đa 5 tệp."></textarea>
-                    <small>
-                        Hỗ trợ ảnh và video; nội dung phải liên quan trực tiếp tới sản phẩm nhận được.
-                    </small>
-                </label>
+                <div class="media-picker"
+                     data-media-picker
+                     data-media-maximum="5">
+                    <input asp-for="Form.MediaUrls"
+                           type="hidden"
+                           data-media-values />
+                    <input type="file"
+                           accept="image/jpeg,image/png,image/webp"
+                           multiple
+                           hidden
+                           data-media-file-input />
+                    <div class="media-picker__top">
+                        <div>
+                            <strong>Ảnh thực tế</strong>
+                            <span>Chọn tối đa 5 ảnh JPG, PNG hoặc WEBP từ thiết bị.</span>
+                        </div>
+                        <button type="button"
+                                class="media-picker__choose"
+                                data-media-choose>
+                            <i class="fa-regular fa-images" aria-hidden="true"></i>
+                            Chọn từ thư viện ảnh
+                        </button>
+                    </div>
+                    <div class="media-picker__preview" data-media-preview></div>
+                    <span class="media-picker__message"
+                          data-media-message
+                          hidden></span>
+                </div>
 
                 <button type="submit" class="button button--primary">
-                    Gửi đánh giá
+                    Đăng đánh giá
                 </button>
             </form>
         }
     </article>
 </section>
+
+@section Scripts {
+    <script src="~/js/components/media-library-picker.js" asp-append-version="true"></script>
+}

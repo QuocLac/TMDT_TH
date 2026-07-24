@@ -27,31 +27,43 @@ public sealed class GhnShippingOptions
     public int WorkerLockMinutes { get; set; } = 5;
     public int TimeoutSeconds { get; set; } = 15;
 
-    public bool IsConfigured =>
+    public bool IsQuoteConfigured =>
         Enabled
-        && Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri)
-        && uri.Scheme == Uri.UriSchemeHttps
-        && string.IsNullOrEmpty(uri.Query)
-        && string.IsNullOrEmpty(uri.Fragment)
-        && (string.IsNullOrEmpty(uri.AbsolutePath) || uri.AbsolutePath == "/")
+        && IsValidHostOnlyHttpsUrl(BaseUrl)
         && !string.IsNullOrWhiteSpace(Token)
         && ShopId > 0
         && FromDistrictId > 0
         && !string.IsNullOrWhiteSpace(FromWardCode)
+        && DefaultServiceTypeId is 2 or 5
+        && DefaultWeightGram is > 0 and <= 50_000
+        && DefaultLengthCm is > 0 and <= 200
+        && DefaultWidthCm is > 0 and <= 200
+        && DefaultHeightCm is > 0 and <= 200
+        && TimeoutSeconds is >= 5 and <= 60;
+
+    // Existing quote/address clients check IsConfigured before sending.
+    // In this architecture GHN is enabled only for service lookup and fees.
+    public bool IsConfigured => IsQuoteConfigured;
+
+    public bool IsExecutionConfigured =>
+        IsQuoteConfigured
         && !string.IsNullOrWhiteSpace(SenderName)
         && !string.IsNullOrWhiteSpace(SenderPhone)
         && !string.IsNullOrWhiteSpace(SenderAddress)
         && WebhookSecret.Trim().Length >= 16
         && RequiredNote is "CHOTHUHANG" or "CHOXEMHANGKHONGTHU" or "KHONGCHOXEMHANG"
         && PaymentTypeId is 1 or 2
-        && DefaultServiceTypeId is 2 or 5
-        && DefaultWeightGram is > 0 and <= 50_000
-        && DefaultLengthCm is > 0 and <= 200
-        && DefaultWidthCm is > 0 and <= 200
-        && DefaultHeightCm is > 0 and <= 200
         && WorkerPollSeconds is >= 2 and <= 300
         && WorkerBatchSize is >= 1 and <= 100
         && WorkerMaxAttempts is >= 1 and <= 20
-        && WorkerLockMinutes is >= 1 and <= 60
-        && TimeoutSeconds is >= 5 and <= 60;
+        && WorkerLockMinutes is >= 1 and <= 60;
+
+    private static bool IsValidHostOnlyHttpsUrl(string value)
+    {
+        return Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            && uri.Scheme == Uri.UriSchemeHttps
+            && string.IsNullOrEmpty(uri.Query)
+            && string.IsNullOrEmpty(uri.Fragment)
+            && (string.IsNullOrEmpty(uri.AbsolutePath) || uri.AbsolutePath == "/");
+    }
 }

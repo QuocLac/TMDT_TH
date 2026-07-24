@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using WebApplication2.Models.Enums;
+using WebApplication2.Services.Shipping.Internal;
 
 namespace WebApplication2.Areas.Admin.ViewModels.Returns;
 
@@ -18,6 +19,7 @@ public sealed class ReturnAdminListItemViewModel
     public string OrderCode { get; init; } = string.Empty;
     public string CustomerName { get; init; } = string.Empty;
     public ReturnRequestStatus Status { get; init; }
+    public string StatusText => ReturnAdminDisplay.StatusText(Status);
     public int RequestedQuantity { get; init; }
     public int ApprovedQuantity { get; init; }
     public decimal RefundAmount { get; init; }
@@ -37,6 +39,7 @@ public sealed class ReturnAdminDetailsViewModel
     public string CustomerPhone { get; init; } = string.Empty;
     public string CustomerAddress { get; init; } = string.Empty;
     public ReturnRequestStatus Status { get; init; }
+    public string StatusText => ReturnAdminDisplay.StatusText(Status);
     public string ReasonCode { get; init; } = string.Empty;
     public string ReasonText { get; init; } = string.Empty;
     public string RequestedBy { get; init; } = string.Empty;
@@ -49,10 +52,25 @@ public sealed class ReturnAdminDetailsViewModel
     public DateTime? InspectedAt { get; init; }
     public ReturnInspectionResult? InspectionResult { get; init; }
     public string RowVersion { get; init; } = string.Empty;
+    public decimal RefundAmount { get; init; }
+    public string RefundBankName { get; init; } = string.Empty;
+    public string RefundBankCode { get; init; } = string.Empty;
+    public string RefundAccountNumber { get; init; } = string.Empty;
+    public string RefundAccountName { get; init; } = string.Empty;
+    public string? VietQrUrl { get; init; }
+    public IReadOnlyList<ReturnAdminProgressStepViewModel> Progress { get; init; } = [];
     public IReadOnlyList<ReturnAdminItemViewModel> Items { get; init; } = [];
     public IReadOnlyList<ReturnAdminEvidenceViewModel> Evidence { get; init; } = [];
     public ReturnAdminShipmentViewModel? Shipment { get; init; }
     public IReadOnlyList<ReturnAdminHistoryViewModel> History { get; init; } = [];
+}
+
+public sealed class ReturnAdminProgressStepViewModel
+{
+    public int Position { get; init; }
+    public string Title { get; init; } = string.Empty;
+    public bool IsComplete { get; init; }
+    public bool IsCurrent { get; init; }
 }
 
 public sealed class ReturnAdminItemViewModel
@@ -87,27 +105,19 @@ public sealed class ReturnAdminShipmentViewModel
 {
     public long Id { get; init; }
     public ShipmentStatus Status { get; init; }
-    public string? ProviderStatus { get; init; }
+    public string StatusText => InternalShippingLifecycleService.StatusTitle(Status);
     public string? TrackingCode { get; init; }
-    public decimal Fee { get; init; }
-    public int WeightGram { get; init; }
-    public int LengthCm { get; init; }
-    public int WidthCm { get; init; }
-    public int HeightCm { get; init; }
     public DateTime? CarrierHandoffAt { get; init; }
     public DateTime? DeliveredAt { get; init; }
-    public DateTime? LastSyncedAt { get; init; }
-    public string? ProviderReason { get; init; }
+    public string? Note { get; init; }
 }
 
 public sealed class ReturnAdminHistoryViewModel
 {
-    public string Code { get; init; } = string.Empty;
     public string Title { get; init; } = string.Empty;
     public string? Description { get; init; }
     public string ChangedBy { get; init; } = string.Empty;
     public DateTime OccurredAt { get; init; }
-    public string? CorrelationId { get; init; }
 }
 
 public sealed class StartReturnReviewInput
@@ -140,28 +150,12 @@ public sealed class ReturnApprovalItemInput
     public int ApprovedQuantity { get; set; }
 }
 
-public sealed class QueueReturnShipmentInput
+public sealed class ReturnShippingTransitionInput
 {
     [Required]
     public string RowVersion { get; set; } = string.Empty;
 
-    [Range(1, int.MaxValue)]
-    public int ServiceId { get; set; }
-
-    [Range(2, 5)]
-    public int ServiceTypeId { get; set; } = 2;
-
-    [Range(1, 50_000)]
-    public int WeightGram { get; set; } = 500;
-
-    [Range(1, 200)]
-    public int LengthCm { get; set; } = 20;
-
-    [Range(1, 200)]
-    public int WidthCm { get; set; } = 15;
-
-    [Range(1, 200)]
-    public int HeightCm { get; set; } = 10;
+    public InternalReturnShippingAction Action { get; set; }
 
     [StringLength(500)]
     public string? Note { get; set; }
@@ -220,4 +214,32 @@ public sealed class ReturnInspectionItemInput
 
     [StringLength(500)]
     public string? Note { get; set; }
+}
+
+public sealed class CompleteReturnRefundInput
+{
+    [Required]
+    public string RowVersion { get; set; } = string.Empty;
+}
+
+public static class ReturnAdminDisplay
+{
+    public static string StatusText(ReturnRequestStatus status) => status switch
+    {
+        ReturnRequestStatus.Requested => "Đã gửi yêu cầu",
+        ReturnRequestStatus.UnderReview => "Đang xem xét",
+        ReturnRequestStatus.Approved => "Đã chấp nhận",
+        ReturnRequestStatus.Rejected => "Không được chấp nhận",
+        ReturnRequestStatus.AwaitingReturnShipment => "Chờ tiếp nhận hàng hoàn",
+        ReturnRequestStatus.AwaitingPickup => "Chờ khách bàn giao",
+        ReturnRequestStatus.ReturnInTransit => "Hàng hoàn đang vận chuyển",
+        ReturnRequestStatus.ReceivedAtWarehouse => "Đã nhận hàng hoàn",
+        ReturnRequestStatus.Inspecting => "Đang kiểm tra sản phẩm",
+        ReturnRequestStatus.RefundPending => "Chờ hoàn tiền",
+        ReturnRequestStatus.RejectedAfterInspection => "Không đủ điều kiện hoàn tiền",
+        ReturnRequestStatus.Refunded => "Đã hoàn tiền",
+        ReturnRequestStatus.Closed => "Đã hoàn tất",
+        ReturnRequestStatus.Cancelled => "Đã hủy",
+        _ => "Đang xử lý"
+    };
 }

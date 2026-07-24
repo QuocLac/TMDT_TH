@@ -1,0 +1,75 @@
+.order-commercial-progress {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .7rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+.order-commercial-progress article {
+    display: flex;
+    align-items: flex-start;
+    gap: .65rem;
+    min-width: 0;
+    color: var(--color-text-muted);
+}
+
+.order-commercial-progress article > span {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--color-bg-subtle);
+    font-weight: 900;
+}
+
+.order-commercial-progress article > div {
+    display: grid;
+    gap: .2rem;
+}
+
+.order-commercial-progress strong { color: var(--color-text); }
+.order-commercial-progress small { line-height: 1.4; }
+.order-commercial-progress .is-complete > span,
+.order-commercial-progress .is-current > span { background: #2f6b20; color: #fff; }
+.order-commercial-progress .is-current { color: #2f6b20; }
+
+.order-commercial-payment-list {
+    display: grid;
+    gap: .65rem;
+}
+
+.order-commercial-payment-list article {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: .8rem;
+    padding: .85rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-subtle);
+}
+
+.order-commercial-payment-list article > div {
+    display: grid;
+    gap: .18rem;
+}
+
+.order-commercial-payment-list small { color: var(--color-text-muted); }
+.order-commercial-actions { display: grid; gap: .8rem; }
+.order-commercial-actions form { display: grid; gap: .65rem; padding-top: .7rem; border-top: 1px solid var(--color-border); }
+.order-commercial-actions label { display: grid; gap: .35rem; font-size: .75rem; font-weight: 800; }
+.order-commercial-actions textarea { width: 100%; padding: .65rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); font: inherit; resize: vertical; }
+
+@media (max-width: 70rem) {
+    .order-commercial-progress { grid-template-columns: 1fr; }
+    .order-commercial-progress article { align-items: center; }
+}
+
+@media (max-width: 42rem) {
+    .order-commercial-payment-list article { grid-template-columns: 1fr; }
+}

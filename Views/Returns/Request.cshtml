@@ -15,15 +15,15 @@
 <section class="return-page shell-container">
     <header class="return-hero">
         <p class="eyebrow">Đơn hàng @Model.Eligibility.OrderCode</p>
-        <h1>Yêu cầu hoàn trả toàn bộ đơn</h1>
+        <h1>Hoàn trả toàn bộ đơn hàng</h1>
         <p>
-            FastBuy chỉ tiếp nhận hoàn trả toàn bộ sản phẩm và toàn bộ số lượng
-            trong đơn hàng. Không thể tách riêng từng sản phẩm.
+            Yêu cầu áp dụng cho toàn bộ sản phẩm và toàn bộ số lượng trong đơn.
+            Hãy cung cấp hình ảnh tình trạng hàng cùng tài khoản nhận tiền hoàn.
         </p>
         @if (Model.Eligibility.DeliveredAt.HasValue)
         {
             <div class="return-deadline">
-                <span>GHN giao thành công</span>
+                <span>Đã giao lúc</span>
                 <strong>@Model.Eligibility.DeliveredAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
                 <span>Hạn gửi yêu cầu</span>
                 <strong>@Model.Eligibility.ReturnDeadlineAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong>
@@ -39,10 +39,10 @@
     @if (!canReturnWholeOrder)
     {
         <section class="return-card return-empty">
-            <h2>Không thể hoàn trả toàn bộ đơn</h2>
+            <h2>Không thể tạo yêu cầu mới</h2>
             <p>
                 @(Model.Eligibility.IsEligible
-                    ? "Đơn có sản phẩm đã hủy, đã hoàn hoặc đang nằm trong yêu cầu hoàn trả khác."
+                    ? "Đơn hàng không còn nguyên vẹn hoặc đã có yêu cầu hoàn trả khác."
                     : Model.Eligibility.Message)
             </p>
             <a asp-controller="Orders"
@@ -62,8 +62,8 @@
             <section class="return-card">
                 <div class="return-card__heading">
                     <div>
-                        <p class="eyebrow">Toàn bộ đơn hàng</p>
-                        <h2>Sản phẩm sẽ được hoàn trả</h2>
+                        <p class="eyebrow">Sản phẩm hoàn trả</p>
+                        <h2>Toàn bộ đơn hàng</h2>
                     </div>
                     <span>@Model.Eligibility.Items.Sum(item => item.PurchasedQuantity) sản phẩm</span>
                 </div>
@@ -74,7 +74,9 @@
                         var item = Model.Eligibility.Items[index];
                         <article class="return-line">
                             <img src="@(string.IsNullOrWhiteSpace(item.ImageUrl) ? "/images/no-image.png" : item.ImageUrl)"
-                                 alt="@item.ProductName" width="72" height="72" />
+                                 alt="@item.ProductName"
+                                 width="72"
+                                 height="72" />
                             <div class="return-line__content">
                                 <strong>@item.ProductName</strong>
                                 <span>@item.VariantDescription · @item.Sku</span>
@@ -95,47 +97,132 @@
                 </div>
             </section>
 
-            <section class="return-card return-reason-grid">
-                <label>
-                    <span>Lý do</span>
-                    <select asp-for="Form.ReasonCode">
-                        <option value="ChangedMind">Đổi ý / không còn nhu cầu</option>
-                        <option value="WrongSize">Không phù hợp kích thước</option>
-                        <option value="Damaged">Sản phẩm hư hỏng</option>
-                        <option value="WrongItem">Giao sai sản phẩm</option>
-                        <option value="MissingParts">Thiếu phụ kiện</option>
-                        <option value="Other">Khác</option>
-                    </select>
-                </label>
-                <label>
-                    <span>Mô tả chi tiết</span>
-                    <textarea asp-for="Form.ReasonText" rows="5"
-                              placeholder="Mô tả tình trạng đơn hàng và mong muốn xử lý..."></textarea>
-                    <span asp-validation-for="Form.ReasonText" class="text-danger"></span>
-                </label>
-                <label>
-                    <span>Evidence URLs — tối đa 8</span>
-                    <textarea asp-for="Form.EvidenceUrls" rows="4"
-                              placeholder="Mỗi dòng một URL ảnh hoặc video HTTPS..."></textarea>
-                    <small>File thực tế phải được tải lên kho media an toàn trước khi gắn URL.</small>
-                </label>
-                <div class="return-policy-note">
-                    <strong>Quy tắc xử lý toàn đơn</strong>
-                    <p>
-                        Yêu cầu áp dụng cho toàn bộ đơn. Tồn kho chỉ được cập nhật sau khi
-                        đơn vị vận chuyển giao hàng về kho và nhân viên hoàn tất kiểm định.
-                    </p>
-                </div>
-                <button type="submit"
-                        class="button button--primary"
-                        onclick="return confirm('Gửi yêu cầu hoàn trả toàn bộ đơn hàng này?');">
-                    Gửi yêu cầu hoàn trả toàn bộ đơn
-                </button>
-            </section>
+            <div class="return-request-layout">
+                <main>
+                    <section class="return-card return-form-section">
+                        <div class="return-card__heading">
+                            <div>
+                                <p class="eyebrow">Thông tin yêu cầu</p>
+                                <h2>Lý do hoàn trả</h2>
+                            </div>
+                        </div>
+
+                        <label>
+                            <span>Lý do</span>
+                            <select asp-for="Form.ReasonCode">
+                                <option value="ChangedMind">Đổi ý / không còn nhu cầu</option>
+                                <option value="WrongSize">Không phù hợp kích thước</option>
+                                <option value="Damaged">Sản phẩm hư hỏng</option>
+                                <option value="WrongItem">Giao sai sản phẩm</option>
+                                <option value="MissingParts">Thiếu phụ kiện</option>
+                                <option value="Other">Khác</option>
+                            </select>
+                        </label>
+
+                        <label>
+                            <span>Mô tả chi tiết</span>
+                            <textarea asp-for="Form.ReasonText"
+                                      rows="6"
+                                      placeholder="Mô tả tình trạng sản phẩm, bao bì và mong muốn xử lý..."></textarea>
+                            <span asp-validation-for="Form.ReasonText" class="text-danger"></span>
+                        </label>
+
+                        <div class="media-picker"
+                             data-media-picker
+                             data-media-maximum="8">
+                            <input asp-for="Form.EvidenceUrls"
+                                   type="hidden"
+                                   data-media-values />
+                            <input type="file"
+                                   accept="image/jpeg,image/png,image/webp"
+                                   multiple
+                                   hidden
+                                   data-media-file-input />
+                            <div class="media-picker__top">
+                                <div>
+                                    <strong>Hình ảnh tình trạng hàng</strong>
+                                    <span>Chọn tối đa 8 ảnh rõ sản phẩm, bao bì và phụ kiện.</span>
+                                </div>
+                                <button type="button"
+                                        class="media-picker__choose"
+                                        data-media-choose>
+                                    <i class="fa-regular fa-images" aria-hidden="true"></i>
+                                    Chọn từ thư viện ảnh
+                                </button>
+                            </div>
+                            <div class="media-picker__preview" data-media-preview></div>
+                            <span class="media-picker__message"
+                                  data-media-message
+                                  hidden></span>
+                        </div>
+                    </section>
+                </main>
+
+                <aside>
+                    <section class="return-card return-form-section return-bank-card">
+                        <div class="return-card__heading">
+                            <div>
+                                <p class="eyebrow">Nhận tiền hoàn</p>
+                                <h2>Tài khoản ngân hàng</h2>
+                            </div>
+                            <span class="vietqr-badge">VietQR</span>
+                        </div>
+
+                        <label>
+                            <span>Ngân hàng</span>
+                            <select asp-for="Form.RefundBankBin">
+                                @foreach (var bank in Model.Banks)
+                                {
+                                    <option value="@bank.Bin">
+                                        @bank.Name (@bank.Code)
+                                    </option>
+                                }
+                            </select>
+                            <span asp-validation-for="Form.RefundBankBin" class="text-danger"></span>
+                        </label>
+
+                        <label>
+                            <span>Số tài khoản</span>
+                            <input asp-for="Form.RefundAccountNumber"
+                                   inputmode="numeric"
+                                   autocomplete="off"
+                                   placeholder="Nhập số tài khoản nhận tiền" />
+                            <span asp-validation-for="Form.RefundAccountNumber" class="text-danger"></span>
+                        </label>
+
+                        <label>
+                            <span>Tên chủ tài khoản</span>
+                            <input asp-for="Form.RefundAccountName"
+                                   autocomplete="name"
+                                   placeholder="Nhập đúng tên trên tài khoản" />
+                            <span asp-validation-for="Form.RefundAccountName" class="text-danger"></span>
+                        </label>
+
+                        <div class="return-bank-note">
+                            <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                            <p>
+                                Thông tin này chỉ được dùng để chuyển khoản hoàn tiền
+                                sau khi hàng được tiếp nhận và kiểm tra.
+                            </p>
+                        </div>
+
+                        <button type="submit"
+                                class="button button--primary"
+                                onclick="return confirm('Gửi yêu cầu hoàn trả toàn bộ đơn hàng này?');">
+                            Gửi yêu cầu hoàn trả
+                        </button>
+                    </section>
+                </aside>
+            </div>
         </form>
     }
 </section>
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/storefront/returns.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/components/media-library-picker.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/components/media-library-picker.js" asp-append-version="true"></script>
 }
