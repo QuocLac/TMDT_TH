@@ -5,11 +5,10 @@
     const modalElement = document.getElementById("categoryModal");
     const form = document.getElementById("categoryForm");
 
-    if (!page || !modalElement || !form || typeof bootstrap === "undefined") {
+    if (!page || !modalElement || !form) {
         return;
     }
 
-    const modal = new bootstrap.Modal(modalElement);
     const fields = {
         id: document.getElementById("CategoryId"),
         name: document.getElementById("CategoryName"),
@@ -22,22 +21,113 @@
         metaDescription: document.getElementById("MetaDescription")
     };
 
+    const requiredFields = Object.values(fields);
+    if (requiredFields.some(field => !field)) {
+        console.error("Category editor is missing one or more required fields.");
+        return;
+    }
+
     const title = document.getElementById("categoryModalLabel");
     const errorBox = document.getElementById("categoryFormError");
-    const errorMessage = errorBox?.querySelector("[data-category-error-message]");
-    const submitButton = document.getElementById("categorySubmitButton");
+    const errorMessage = errorBox?.querySelector(
+        "[data-category-error-message]");
+    const submitButton = document.getElementById(
+        "categorySubmitButton");
     const iconSearch = document.getElementById("CategoryIconSearch");
     const iconGroup = document.getElementById("CategoryIconGroup");
     const iconGrid = modalElement.querySelector("[data-icon-grid]");
     const iconStatus = modalElement.querySelector("[data-icon-status]");
-    const selectedIconPreview = modalElement.querySelector("[data-selected-icon-preview]");
-    const selectedIconLabel = modalElement.querySelector("[data-selected-icon-label]");
-    const selectedIconKey = modalElement.querySelector("[data-selected-icon-key]");
-    const metaDescriptionCount = modalElement.querySelector("[data-meta-description-count]");
+    const selectedIconPreview = modalElement.querySelector(
+        "[data-selected-icon-preview]");
+    const selectedIconLabel = modalElement.querySelector(
+        "[data-selected-icon-label]");
+    const selectedIconKey = modalElement.querySelector(
+        "[data-selected-icon-key]");
+    const metaDescriptionCount = modalElement.querySelector(
+        "[data-meta-description-count]");
+
+    if (
+        !title
+        || !submitButton
+        || !iconSearch
+        || !iconGroup
+        || !iconGrid
+        || !iconStatus
+        || !selectedIconPreview
+        || !selectedIconLabel
+        || !selectedIconKey
+    ) {
+        console.error("Category editor controls are incomplete.");
+        return;
+    }
+
+    const glyphByKey = Object.freeze({
+        folder: "📁",
+        catalog: "▦",
+        tags: "🏷",
+        gift: "🎁",
+        electronics: "▣",
+        phone: "📱",
+        laptop: "💻",
+        tablet: "▤",
+        television: "▭",
+        camera: "📷",
+        audio: "🎧",
+        gaming: "🎮",
+        "computer-accessories": "⌨",
+        fashion: "👕",
+        shoes: "👟",
+        eyewear: "👓",
+        jewelry: "◆",
+        watch: "◷",
+        bag: "👜",
+        home: "⌂",
+        furniture: "▰",
+        kitchen: "♨",
+        appliances: "◉",
+        lighting: "💡",
+        tools: "🛠",
+        decor: "🎨",
+        beauty: "✨",
+        health: "♥",
+        spa: "❀",
+        fitness: "🏋",
+        sports: "🏃",
+        bicycle: "🚲",
+        outdoor: "⛺",
+        baby: "👶",
+        toys: "🧩",
+        books: "📖",
+        stationery: "✎",
+        pets: "🐾",
+        food: "🍴",
+        grocery: "🧺",
+        coffee: "☕",
+        car: "🚗",
+        motorcycle: "🏍",
+        office: "💼",
+        printing: "▣"
+    });
+
+    const glyphByClass = Object.freeze({
+        "fa-plus": "+",
+        "fa-layer-group": "▦",
+        "fa-eye": "◉",
+        "fa-eye-slash": "◌",
+        "fa-boxes-stacked": "▤",
+        "fa-folder-open": "📂",
+        "fa-pen": "✎",
+        "fa-trash-can": "⌫",
+        "fa-pen-to-square": "✎",
+        "fa-magnifying-glass-chart": "⌕",
+        "fa-icons": "◆",
+        "fa-circle-exclamation": "!"
+    });
 
     const iconDefinitions = new Map();
     let iconAbortController = null;
     let iconSearchTimer = null;
+    let lastFocusedElement = null;
 
     function csrfToken() {
         return document
@@ -67,13 +157,99 @@
         }));
 
         if (!response.ok || payload.success === false) {
-            throw new Error(payload.message || "Không thể hoàn tất yêu cầu.");
+            throw new Error(
+                payload.message || "Không thể hoàn tất yêu cầu.");
         }
 
         return payload;
     }
 
+    function glyphFor(key, cssClass = "") {
+        if (key && glyphByKey[key]) {
+            return glyphByKey[key];
+        }
+
+        for (const className of String(cssClass).split(/\s+/)) {
+            if (glyphByClass[className]) {
+                return glyphByClass[className];
+            }
+        }
+
+        return "•";
+    }
+
+    function setGlyph(element, glyph, className = "category-ui-icon") {
+        if (!element) {
+            return;
+        }
+
+        element.className = className;
+        element.textContent = glyph;
+        element.setAttribute("aria-hidden", "true");
+    }
+
+    function renderStaticFallbacks() {
+        page.querySelectorAll(".category-name-cell").forEach(cell => {
+            const keyText = cell.querySelector(
+                ".admin-cell-secondary")?.textContent ?? "";
+            const key = keyText.replace(/^\s*Icon:\s*/i, "").trim();
+            const target = cell.querySelector(".category-icon");
+            if (target) {
+                target.replaceChildren();
+                target.textContent = glyphFor(key);
+            }
+        });
+
+        page.querySelectorAll(".category-row-actions").forEach(actions => {
+            const edit = actions.querySelector("[data-category-open]");
+            const remove = actions.querySelector("[data-category-delete]");
+
+            if (edit) {
+                edit.replaceChildren();
+                const glyph = document.createElement("span");
+                glyph.className = "category-ui-icon";
+                glyph.textContent = "✎";
+                glyph.setAttribute("aria-hidden", "true");
+                const label = document.createElement("span");
+                label.textContent = "Sửa";
+                edit.append(glyph, label);
+            }
+
+            if (remove) {
+                remove.replaceChildren();
+                const glyph = document.createElement("span");
+                glyph.className = "category-ui-icon";
+                glyph.textContent = "⌫";
+                glyph.setAttribute("aria-hidden", "true");
+                const label = document.createElement("span");
+                label.textContent = "Xóa";
+                remove.append(glyph, label);
+            }
+        });
+
+        page.querySelectorAll("i[class*='fa-']").forEach(icon => {
+            const key = [...icon.classList].find(
+                className => glyphByClass[className]);
+            if (key) {
+                setGlyph(icon, glyphByClass[key]);
+            }
+        });
+
+        modalElement.querySelectorAll("i[class*='fa-']").forEach(icon => {
+            const key = [...icon.classList].find(
+                className => glyphByClass[className]);
+            if (key) {
+                setGlyph(icon, glyphByClass[key]);
+            }
+        });
+    }
+
     function showError(message) {
+        if (!errorBox) {
+            window.alert(message);
+            return;
+        }
+
         if (errorMessage) {
             errorMessage.textContent = message;
         } else {
@@ -84,6 +260,10 @@
     }
 
     function clearError() {
+        if (!errorBox) {
+            return;
+        }
+
         if (errorMessage) {
             errorMessage.textContent = "";
         } else {
@@ -91,6 +271,31 @@
         }
 
         errorBox.classList.add("d-none");
+    }
+
+    function openModal() {
+        lastFocusedElement = document.activeElement;
+        modalElement.hidden = false;
+        modalElement.classList.add("is-open");
+        modalElement.setAttribute("aria-hidden", "false");
+        document.body.classList.add("category-modal-open");
+
+        window.requestAnimationFrame(() => {
+            fields.name.focus();
+        });
+    }
+
+    function closeModal() {
+        iconAbortController?.abort();
+        modalElement.classList.remove("is-open");
+        modalElement.setAttribute("aria-hidden", "true");
+        modalElement.hidden = true;
+        document.body.classList.remove("category-modal-open");
+        clearError();
+
+        if (lastFocusedElement instanceof HTMLElement) {
+            lastFocusedElement.focus();
+        }
     }
 
     function slugify(value) {
@@ -113,7 +318,10 @@
 
     function selectIcon(key, cssClass, label) {
         fields.iconKey.value = key;
-        selectedIconPreview.className = cssClass;
+        setGlyph(
+            selectedIconPreview,
+            glyphFor(key, cssClass),
+            "category-ui-icon");
         selectedIconLabel.textContent = label;
         selectedIconKey.textContent = key;
 
@@ -149,10 +357,19 @@
         if (!Array.isArray(icons) || icons.length === 0) {
             const empty = document.createElement("div");
             empty.className = "category-icon-empty";
-            empty.innerHTML =
-                '<i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>'
-                + "<strong>Không tìm thấy biểu tượng phù hợp</strong>"
-                + "<span>Hãy thử từ khóa hoặc nhóm khác.</span>";
+
+            const symbol = document.createElement("span");
+            symbol.className = "category-ui-icon";
+            symbol.textContent = "⌕";
+            symbol.setAttribute("aria-hidden", "true");
+
+            const titleElement = document.createElement("strong");
+            titleElement.textContent = "Không tìm thấy biểu tượng phù hợp";
+
+            const description = document.createElement("span");
+            description.textContent = "Hãy thử từ khóa hoặc nhóm khác.";
+
+            empty.append(symbol, titleElement, description);
             iconGrid.append(empty);
             iconStatus.textContent = "Không có biểu tượng phù hợp.";
             return;
@@ -180,11 +397,8 @@
 
             const preview = document.createElement("span");
             preview.className = "category-icon-option__preview";
-
-            const iconElement = document.createElement("i");
-            iconElement.className = icon.cssClass;
-            iconElement.setAttribute("aria-hidden", "true");
-            preview.append(iconElement);
+            preview.textContent = glyphFor(icon.key, icon.cssClass);
+            preview.setAttribute("aria-hidden", "true");
 
             const copy = document.createElement("span");
             copy.className = "category-icon-option__copy";
@@ -203,7 +417,8 @@
         iconGrid.append(fragment);
         iconStatus.textContent = `${icons.length} biểu tượng phù hợp.`;
 
-        const selectedDefinition = iconDefinitions.get(fields.iconKey.value);
+        const selectedDefinition = iconDefinitions.get(
+            fields.iconKey.value);
         if (selectedDefinition) {
             selectIcon(
                 selectedDefinition.key,
@@ -222,7 +437,6 @@
         const url = new URL(
             page.dataset.iconCatalogUrl,
             window.location.origin);
-
         const query = iconSearch.value.trim();
         const group = iconGroup.value;
 
@@ -244,7 +458,7 @@
             populateGroups(payload.data?.groups ?? []);
             renderIcons(payload.data?.items ?? []);
         } catch (error) {
-            if (error.name === "AbortError") {
+            if (error instanceof DOMException && error.name === "AbortError") {
                 return;
             }
 
@@ -277,7 +491,7 @@
 
     async function openEditor(id) {
         resetForm();
-        modal.show();
+        openModal();
 
         try {
             const categoryPromise = id
@@ -300,18 +514,16 @@
             fields.parentId.value = category.parentId ?? "";
             fields.slug.value = category.slug;
             fields.slug.dataset.edited = "true";
-            fields.displayOrder.value = String(category.displayOrder ?? 0);
+            fields.displayOrder.value = String(
+                category.displayOrder ?? 0);
             fields.isVisible.checked = category.isVisible === true;
             fields.metaTitle.value = category.metaTitle ?? "";
             fields.metaDescription.value = category.metaDescription ?? "";
             updateMetaDescriptionCount();
 
-            const selfOption = fields.parentId.querySelector(
-                `option[value="${CSS.escape(String(category.id))}"]`);
-
-            if (selfOption) {
-                selfOption.disabled = true;
-            }
+            [...fields.parentId.options].forEach(option => {
+                option.disabled = option.value === String(category.id);
+            });
 
             const definition = iconDefinitions.get(category.iconKey);
             if (definition) {
@@ -321,9 +533,9 @@
                     definition.label);
             } else {
                 selectIcon(
-                    "folder",
-                    "fa-solid fa-folder",
-                    "Danh mục chung");
+                    category.iconKey || "folder",
+                    "",
+                    category.iconKey || "Danh mục chung");
             }
 
             title.textContent = "Cập nhật danh mục";
@@ -354,7 +566,12 @@
     iconGroup.addEventListener("change", loadIconCatalog);
 
     iconGrid.addEventListener("click", event => {
-        const button = event.target.closest("[data-icon-key]");
+        const target = event.target;
+        if (!(target instanceof Element)) {
+            return;
+        }
+
+        const button = target.closest("[data-icon-key]");
         if (!button) {
             return;
         }
@@ -366,14 +583,25 @@
     });
 
     document.addEventListener("click", async event => {
-        const openButton = event.target.closest("[data-category-open]");
+        const target = event.target;
+        if (!(target instanceof Element)) {
+            return;
+        }
+
+        const closeButton = target.closest('[data-bs-dismiss="modal"]');
+        if (closeButton && modalElement.contains(closeButton)) {
+            closeModal();
+            return;
+        }
+
+        const openButton = target.closest("[data-category-open]");
         if (openButton) {
             const id = Number(openButton.dataset.categoryOpen || 0);
             await openEditor(id);
             return;
         }
 
-        const deleteButton = event.target.closest("[data-category-delete]");
+        const deleteButton = target.closest("[data-category-delete]");
         if (!deleteButton) {
             return;
         }
@@ -392,11 +620,23 @@
             await request(
                 `${page.dataset.deleteUrl}?id=${encodeURIComponent(id)}`,
                 { method: "POST" });
-
             window.location.reload();
         } catch (error) {
             deleteButton.disabled = false;
             window.alert(error.message);
+        }
+    });
+
+    modalElement.addEventListener("click", event => {
+        if (event.target === modalElement) {
+            closeModal();
+        }
+    });
+
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && modalElement.classList.contains("is-open")) {
+            event.preventDefault();
+            closeModal();
         }
     });
 
@@ -431,14 +671,15 @@
                         : null,
                     slug: fields.slug.value,
                     iconKey: fields.iconKey.value,
-                    displayOrder: Number(fields.displayOrder.value || 0),
+                    displayOrder: Number(
+                        fields.displayOrder.value || 0),
                     isVisible: fields.isVisible.checked,
                     metaTitle: fields.metaTitle.value || null,
                     metaDescription: fields.metaDescription.value || null
                 })
             });
 
-            modal.hide();
+            closeModal();
             window.location.reload();
         } catch (error) {
             showError(error.message);
@@ -448,12 +689,7 @@
         }
     });
 
-    modalElement.addEventListener("shown.bs.modal", () => {
-        fields.name.focus();
-    });
-
-    modalElement.addEventListener("hidden.bs.modal", () => {
-        iconAbortController?.abort();
-        clearError();
-    });
+    modalElement.hidden = true;
+    modalElement.setAttribute("aria-hidden", "true");
+    renderStaticFallbacks();
 })();
