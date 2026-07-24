@@ -93,3 +93,115 @@
         width: 100%;
     }
 }
+
+
+/* ============================================================
+   Metric card layout integrity
+   ============================================================ */
+
+/*
+   Some metric cards intentionally contain only one content block and no
+   icon. The base component still defines a narrow first icon column.
+   Make the only child occupy the complete card instead of being confined
+   to that 2.75rem column.
+*/
+.admin-metric-card > :only-child {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+
+/*
+   Keep icon-based cards on the intended two-column layout and align the
+   icon box, SVG and text block to the same visual center.
+*/
+.admin-metric-card > .admin-metric-card__icon {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    justify-self: center;
+}
+
+.admin-metric-card > .admin-metric-card__icon + * {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    align-self: center;
+}
+
+.admin-dashboard .admin-metric-card,
+.admin-dashboard .dashboard-work-card {
+    align-items: center;
+}
+
+.admin-dashboard .admin-metric-card__icon,
+.admin-dashboard .dashboard-work-card__icon,
+.admin-dashboard .dashboard-list-item__icon {
+    display: grid !important;
+    align-self: center;
+    justify-self: center;
+    place-items: center;
+    line-height: 0;
+}
+
+.admin-dashboard .admin-metric-card__icon > .fastbuy-icon-host,
+.admin-dashboard .dashboard-work-card__icon > .fastbuy-icon-host,
+.admin-dashboard .dashboard-list-item__icon > .fastbuy-icon-host {
+    align-self: center;
+    justify-self: center;
+    line-height: 0;
+    vertical-align: 0;
+}
+
+.admin-dashboard .dashboard-work-card > .fastbuy-icon-host:last-child {
+    justify-self: end;
+    align-self: center;
+    margin: 0;
+    line-height: 0;
+}
+
+/* ============================================================
+   Order summary cards
+   ============================================================ */
+
+.orders-page .admin-metric-card {
+    min-height: 8.25rem;
+    align-content: center;
+}
+
+.orders-page .admin-metric-card > div {
+    min-width: 0;
+}
+
+.orders-page .admin-metric-card__label,
+.orders-page .admin-metric-card__meta {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+}
+
+.orders-page .admin-metric-card__label {
+    line-height: 1.35;
+}
+
+.orders-page .admin-metric-card__meta {
+    min-height: 2.7em;
+    line-height: 1.35;
+}
+
+@media (max-width: 82rem) {
+    .orders-page .admin-metric-grid--five {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 56rem) {
+    .orders-page .admin-metric-grid--five {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 34rem) {
+    .orders-page .admin-metric-grid--five {
+        grid-template-columns: 1fr;
+    }
+}

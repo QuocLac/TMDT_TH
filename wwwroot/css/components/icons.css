@@ -102,3 +102,24 @@
         animation-duration: 1.8s;
     }
 }
+
+
+/* Operational card icon optical alignment. */
+.admin-metric-card__icon > .fastbuy-icon-host,
+.dashboard-work-card__icon > .fastbuy-icon-host,
+.dashboard-list-item__icon > .fastbuy-icon-host {
+    display: grid !important;
+    width: 1.15rem;
+    height: 1.15rem;
+    min-width: 1.15rem;
+    place-items: center;
+    line-height: 0;
+    vertical-align: 0;
+}
+
+.admin-metric-card__icon > .fastbuy-icon-host > .fastbuy-icon,
+.dashboard-work-card__icon > .fastbuy-icon-host > .fastbuy-icon,
+.dashboard-list-item__icon > .fastbuy-icon-host > .fastbuy-icon {
+    width: 100% !important;
+    height: 100% !important;
+}
