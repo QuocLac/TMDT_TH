@@ -2,8 +2,29 @@
     "use strict";
 
     const storageKey = "fastbuy-theme";
+    const iconSystemVersion = "2026.07.25.1";
     const root = document.documentElement;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const currentScript = document.currentScript;
+
+    function ensureIconSystem() {
+        if (window.FastBuyIcons
+            || document.querySelector("[data-fastbuy-icons-script]")) {
+            return;
+        }
+
+        const iconScriptUrl = currentScript?.src
+            ? new URL("../core/icons.js", currentScript.src)
+            : new URL("/js/core/icons.js", window.location.origin);
+
+        iconScriptUrl.searchParams.set("v", iconSystemVersion);
+
+        const script = document.createElement("script");
+        script.src = iconScriptUrl.href;
+        script.async = false;
+        script.dataset.fastbuyIconsScript = "true";
+        document.head.append(script);
+    }
 
     function readPreference() {
         try {
@@ -40,6 +61,8 @@
             }
         });
     }
+
+    ensureIconSystem();
 
     const initialTheme = resolveTheme();
     applyTheme(initialTheme);

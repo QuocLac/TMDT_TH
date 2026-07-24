@@ -1,0 +1,104 @@
+/*
+   FastBuy internal monochrome icon system.
+   This neutralizes icon-font pseudo elements and renders local SVG only.
+*/
+
+.fastbuy-icon-host {
+    display: inline-grid !important;
+    width: 1em;
+    height: 1em;
+    min-width: 1em;
+    flex: 0 0 auto;
+    place-items: center;
+    overflow: visible;
+    color: inherit;
+    font-family: inherit !important;
+    font-size: inherit;
+    font-style: normal;
+    font-weight: inherit;
+    line-height: 1;
+    text-rendering: auto;
+    vertical-align: -0.125em;
+}
+
+.fastbuy-icon-host::before,
+.fastbuy-icon-host::after {
+    display: none !important;
+    content: none !important;
+}
+
+.fastbuy-icon {
+    display: block !important;
+    width: 1em !important;
+    height: 1em !important;
+    max-width: none !important;
+    overflow: visible;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+.fastbuy-icon-host.fa-star.is-filled .fastbuy-icon,
+.fastbuy-icon-host[data-icon-filled="true"] .fastbuy-icon {
+    fill: currentColor;
+}
+
+.fastbuy-icon-host.fa-spin .fastbuy-icon,
+.fastbuy-icon-host.fastbuy-icon-host--spin .fastbuy-icon {
+    animation: fastbuy-icon-spin 0.9s linear infinite;
+}
+
+.button .fastbuy-icon-host,
+.btn .fastbuy-icon-host,
+.admin-text-link .fastbuy-icon-host {
+    font-size: 0.95em;
+}
+
+.admin-metric-card__icon .fastbuy-icon-host,
+.dashboard-work-card__icon .fastbuy-icon-host,
+.dashboard-list-item__icon .fastbuy-icon-host,
+.review-experience__trust .fastbuy-icon-host,
+.review-transparency-notice .fastbuy-icon-host {
+    font-size: 1.05rem;
+}
+
+.admin-row-action .fastbuy-icon-host,
+.admin-icon-button .fastbuy-icon-host {
+    font-size: 0.9rem;
+}
+
+.admin-badge .fastbuy-icon-host,
+.review-card-modern__verified .fastbuy-icon-host {
+    font-size: 0.82em;
+}
+
+.category-card__mark .fastbuy-icon-host {
+    font-size: 1.15rem;
+    transition:
+        color var(--transition-fast, 160ms ease),
+        transform var(--transition, 320ms ease);
+}
+
+.category-card:hover .category-card__mark .fastbuy-icon-host {
+    transform: scale(1.12) rotate(-4deg);
+}
+
+[data-theme="dark"] .fastbuy-icon {
+    stroke-width: 1.85;
+}
+
+@keyframes fastbuy-icon-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fastbuy-icon-host.fa-spin .fastbuy-icon,
+    .fastbuy-icon-host.fastbuy-icon-host--spin .fastbuy-icon {
+        animation-duration: 1.8s;
+    }
+}

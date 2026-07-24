@@ -1,16 +1,15 @@
 /*
-   Text-first admin shell. Icons are hidden outside category merchandising.
+   Clean admin shell.
+   Navigation remains text-first, while semantic icons are rendered by the
+   shared FastBuy monochrome SVG system.
 */
 
-.admin-body i,
 .admin-body .admin-metric-card__icon {
-    display: none !important;
+    display: grid;
 }
 
-.admin-body .categories-page i,
-.admin-body [data-category-icon] i,
-.admin-body .category-icon i {
-    display: inline-flex !important;
+.admin-body i.fastbuy-icon-host {
+    display: inline-grid !important;
 }
 
 .admin-nav__link {
@@ -73,16 +72,14 @@
     grid-template-columns: 1fr;
 }
 
-.admin-row-action:empty::after,
-.admin-row-action:has(i)::after {
-    content: "Mở";
-    color: var(--color-accent-strong);
-    font-size: 0.68rem;
-    font-weight: 850;
-}
-
-.admin-metric-card {
-    grid-template-columns: 1fr;
+/*
+   Old CSS generated the word "Mở" for every icon action and hid the real
+   icon. The shared icon system now provides the actual semantic symbol.
+*/
+.admin-row-action::after,
+.admin-icon-button::after {
+    display: none !important;
+    content: none !important;
 }
 
 @media (max-width: 64rem) {
