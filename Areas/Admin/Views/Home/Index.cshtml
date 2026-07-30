@@ -1,190 +1,564 @@
 @using System.Globalization
 @using WebApplication2.Areas.Admin.Presentation
-@model WebApplication2.Areas.Admin.ViewModels.Home.AdminDashboardViewModel
+@using WebApplication2.Areas.Admin.ViewModels.Home
+@model AdminDashboardViewModel
 
 @{
-    ViewData["Title"] = "Tổng quan vận hành";
+    ViewData["Title"] = "Tổng quan kinh doanh";
     var culture = CultureInfo.GetCultureInfo("vi-VN");
+    var invariant = CultureInfo.InvariantCulture;
+    var chartMaximum = Model.Trend.Count == 0
+        ? 0m
+        : Model.Trend.Max(point =>
+            Math.Max(point.PaidRevenue, point.RefundAmount));
+    var hasTrendActivity = Model.Trend.Any(point =>
+        point.PaidRevenue > 0
+        || point.RefundAmount > 0
+        || point.OrderCount > 0);
+
+    string FormatMetric(AdminDashboardKpiViewModel metric)
+    {
+        return metric.Format == AdminDashboardMetricFormat.Currency
+            ? $"{metric.Value.ToString("N0", culture)} ₫"
+            : metric.Value.ToString("N0", culture);
+    }
+
+    string ChangeTone(AdminDashboardKpiViewModel metric)
+    {
+        if (!metric.ChangePercent.HasValue
+            || metric.ChangePercent.Value == 0)
+        {
+            return "neutral";
+        }
+
+        var increase = metric.ChangePercent.Value > 0;
+        var favorable = metric.LowerIsBetter
+            ? !increase
+            : increase;
+
+        return favorable ? "positive" : "negative";
+    }
+
+    string ChangeLabel(AdminDashboardKpiViewModel metric)
+    {
+        if (!metric.ChangePercent.HasValue)
+        {
+            return metric.Value == 0
+                ? "Chưa phát sinh"
+                : "Mới trong kỳ";
+        }
+
+        if (metric.ChangePercent.Value == 0)
+        {
+            return "Không đổi";
+        }
+
+        var prefix = metric.ChangePercent.Value > 0
+            ? "+"
+            : string.Empty;
+
+        return $"{prefix}{metric.ChangePercent.Value:0.#}%";
+    }
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/pages/admin/dashboard.css" asp-append-version="true" />
+    <link rel="stylesheet"
+          href="~/css/pages/admin/dashboard.css"
+          asp-append-version="true" />
 }
 
-<section class="admin-page admin-dashboard">
-    <header class="admin-page-header admin-page-header--hero">
-        <div class="admin-page-header__copy">
-            <p class="admin-page-kicker">Trung tâm điều hành</p>
-            <h2>Hoạt động kinh doanh hôm nay</h2>
-            <p class="admin-page-lead">
-                Theo dõi đơn hàng, doanh thu đã thanh toán, giao vận, hoàn trả và tồn kho
-                trong một màn hình vận hành thống nhất.
+<section class="admin-page admin-dashboard dashboard-analytics">
+    <header class="dashboard-hero">
+        <div class="dashboard-hero__copy">
+            <p class="admin-page-kicker">Phân tích kinh doanh</p>
+            <h2>Doanh thu và hiệu quả vận hành</h2>
+            <p>
+                Theo dõi tiền đã thu, khoản hoàn trả, đơn hàng và sản phẩm bán tốt
+                theo một ngày hoặc khoảng ngày tùy chọn.
             </p>
-            <span class="admin-page-meta">
-                Cập nhật lúc @Model.GeneratedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+            <span>
+                Cập nhật lúc
+                @Model.GeneratedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
             </span>
         </div>
 
-        <div class="admin-page-header__actions">
-            <a asp-area="Admin"
-               asp-controller="Orders"
-               asp-action="Index"
-               class="button button--primary">
-                <i class="fa-solid fa-receipt" aria-hidden="true"></i>
-                Xử lý đơn hàng
-            </a>
-            <a asp-area="Admin"
-               asp-controller="Products"
-               asp-action="Create"
-               class="button button--secondary">
-                <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                Thêm sản phẩm
-            </a>
+        <div class="dashboard-hero__summary">
+            <span>Kỳ đang xem</span>
+            <strong>@Model.Filter.RangeLabel</strong>
+            <small>
+                So sánh với @Model.Filter.PreviousRangeLabel
+            </small>
         </div>
     </header>
 
-    <section class="admin-metric-grid admin-metric-grid--six" aria-label="Chỉ số bán hàng">
-        <article class="admin-metric-card admin-metric-card--info">
-            <span class="admin-metric-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-bag-shopping"></i>
-            </span>
+    <section class="dashboard-range-panel"
+             aria-labelledby="dashboard-range-heading">
+        <div class="dashboard-range-panel__heading">
             <div>
-                <span class="admin-metric-card__label">Đơn phát sinh hôm nay</span>
-                <strong class="admin-metric-card__value">@Model.OrdersTodayCount</strong>
-                <small class="admin-metric-card__meta">Tính theo thời điểm tạo đơn</small>
+                <p class="admin-page-kicker">Khoảng thời gian</p>
+                <h3 id="dashboard-range-heading">
+                    Chọn kỳ thống kê
+                </h3>
             </div>
-        </article>
 
-        <article class="admin-metric-card admin-metric-card--success">
-            <span class="admin-metric-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-coins"></i>
-            </span>
-            <div>
-                <span class="admin-metric-card__label">Doanh thu đã thanh toán</span>
-                <strong class="admin-metric-card__value admin-metric-card__value--money">
-                    @Model.PaidRevenueToday.ToString("N0", culture) ₫
-                </strong>
-                <small class="admin-metric-card__meta">Không tính giao dịch đang chờ</small>
+            <div class="dashboard-range-presets"
+                 aria-label="Khoảng thời gian nhanh">
+                <a asp-action="Index"
+                   asp-route-preset="today"
+                   class="@(Model.Filter.Preset == "today" ? "is-active" : null)">
+                    Hôm nay
+                </a>
+                <a asp-action="Index"
+                   asp-route-preset="yesterday"
+                   class="@(Model.Filter.Preset == "yesterday" ? "is-active" : null)">
+                    Hôm qua
+                </a>
+                <a asp-action="Index"
+                   asp-route-preset="last7"
+                   class="@(Model.Filter.Preset == "last7" ? "is-active" : null)">
+                    7 ngày
+                </a>
+                <a asp-action="Index"
+                   asp-route-preset="last30"
+                   class="@(Model.Filter.Preset == "last30" ? "is-active" : null)">
+                    30 ngày
+                </a>
+                <a asp-action="Index"
+                   asp-route-preset="thismonth"
+                   class="@(Model.Filter.Preset == "thismonth" ? "is-active" : null)">
+                    Tháng này
+                </a>
             </div>
-        </article>
+        </div>
 
-        <article class="admin-metric-card admin-metric-card--warning">
-            <span class="admin-metric-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-clock"></i>
-            </span>
-            <div>
-                <span class="admin-metric-card__label">Chờ xác nhận</span>
-                <strong class="admin-metric-card__value">@Model.AwaitingConfirmationCount</strong>
-                <small class="admin-metric-card__meta">Cần kiểm tra và tiếp nhận</small>
-            </div>
-        </article>
+        <form method="get"
+              asp-action="Index"
+              class="dashboard-range-form">
+            <input type="hidden"
+                   name="preset"
+                   value="custom" />
 
-        <article class="admin-metric-card admin-metric-card--info">
-            <span class="admin-metric-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-box"></i>
-            </span>
-            <div>
-                <span class="admin-metric-card__label">Sẵn sàng bàn giao</span>
-                <strong class="admin-metric-card__value">@Model.ReadyToShipCount</strong>
-                <small class="admin-metric-card__meta">Có thể tạo hoặc bàn giao vận đơn</small>
-            </div>
-        </article>
+            <label>
+                <span>Từ ngày</span>
+                <input type="date"
+                       name="fromDate"
+                       value="@Model.Filter.FromDate.ToString("yyyy-MM-dd")"
+                       max="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")"
+                       required />
+            </label>
 
-        <article class="admin-metric-card admin-metric-card--danger">
-            <span class="admin-metric-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-triangle-exclamation"></i>
-            </span>
-            <div>
-                <span class="admin-metric-card__label">Vận chuyển cần kiểm tra</span>
-                <strong class="admin-metric-card__value">@Model.ShippingExceptionCount</strong>
-                <small class="admin-metric-card__meta">Giao chưa thành công hoặc có ngoại lệ</small>
-            </div>
-        </article>
+            <label>
+                <span>Đến ngày</span>
+                <input type="date"
+                       name="toDate"
+                       value="@Model.Filter.ToDate.ToString("yyyy-MM-dd")"
+                       max="@DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd")"
+                       required />
+            </label>
 
-        <article class="admin-metric-card admin-metric-card--warning">
-            <span class="admin-metric-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-rotate-left"></i>
-            </span>
-            <div>
-                <span class="admin-metric-card__label">Hoàn trả đang xử lý</span>
-                <strong class="admin-metric-card__value">@Model.OpenReturnCount</strong>
-                <small class="admin-metric-card__meta">Từ tiếp nhận đến chờ hoàn tiền</small>
+            <button type="submit"
+                    class="button button--primary">
+                Áp dụng
+            </button>
+
+            <a asp-action="Index"
+               asp-route-preset="last7"
+               class="button button--secondary">
+                Đặt lại
+            </a>
+        </form>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Filter.Notice))
+        {
+            <div class="dashboard-range-notice"
+                 role="status">
+                <i class="fa-solid fa-circle-info"
+                   aria-hidden="true"></i>
+                @Model.Filter.Notice
             </div>
-        </article>
+        }
     </section>
 
-    <section class="dashboard-work-queue" aria-label="Hàng đợi công việc">
-        <a asp-area="Admin"
-           asp-controller="Orders"
-           asp-action="Index"
-           asp-route-orderStatus="Placed"
-           class="dashboard-work-card">
-            <span class="dashboard-work-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-clipboard-check"></i>
-            </span>
-            <div>
-                <strong>Xác nhận đơn mới</strong>
-                <span>@Model.AwaitingConfirmationCount đơn đang chờ</span>
-            </div>
-            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-        </a>
+    <section class="dashboard-kpi-grid"
+             aria-label="Chỉ số kinh doanh trong kỳ">
+        @foreach (var metric in Model.Kpis)
+        {
+            var changeTone = ChangeTone(metric);
 
-        <a asp-area="Admin"
-           asp-controller="Shipping"
-           asp-action="Index"
-           class="dashboard-work-card">
-            <span class="dashboard-work-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-truck-fast"></i>
-            </span>
-            <div>
-                <strong>Điều phối giao hàng</strong>
-                <span>@Model.ReadyToShipCount đơn sẵn sàng bàn giao</span>
-            </div>
-            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-        </a>
+            <article class="dashboard-kpi dashboard-kpi--@metric.Tone">
+                <header>
+                    <span class="dashboard-kpi__icon"
+                          aria-hidden="true">
+                        <i class="fa-solid @metric.IconClass"></i>
+                    </span>
+                    <span class="dashboard-kpi__change dashboard-kpi__change--@changeTone">
+                        @ChangeLabel(metric)
+                    </span>
+                </header>
 
-        <a asp-area="Admin"
-           asp-controller="Returns"
-           asp-action="Index"
-           class="dashboard-work-card">
-            <span class="dashboard-work-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-box-archive"></i>
-            </span>
-            <div>
-                <strong>Xử lý hoàn trả</strong>
-                <span>@Model.OpenReturnCount yêu cầu đang mở</span>
-            </div>
-            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-        </a>
-
-        <a asp-area="Admin"
-           asp-controller="Products"
-           asp-action="Index"
-           class="dashboard-work-card">
-            <span class="dashboard-work-card__icon" aria-hidden="true">
-                <i class="fa-solid fa-boxes-stacked"></i>
-            </span>
-            <div>
-                <strong>Kiểm tra tồn kho</strong>
-                <span>@(Model.LowStockVariantCount + Model.OutOfStockVariantCount) biến thể cần chú ý</span>
-            </div>
-            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
-        </a>
+                <div>
+                    <span class="dashboard-kpi__label">
+                        @metric.Label
+                    </span>
+                    <strong>@FormatMetric(metric)</strong>
+                    <small>@metric.Description</small>
+                </div>
+            </article>
+        }
     </section>
 
-    <section class="admin-panel dashboard-orders-panel" aria-labelledby="recent-orders-heading">
+    <div class="dashboard-analytics-grid">
+        <section class="admin-panel dashboard-revenue-panel"
+                 aria-labelledby="revenue-trend-heading">
+            <header class="admin-panel__header">
+                <div>
+                    <p class="admin-page-kicker">Dòng tiền theo ngày</p>
+                    <h3 id="revenue-trend-heading">
+                        Doanh thu và hoàn tiền
+                    </h3>
+                    <p>
+                        Doanh thu ghi nhận theo ngày giao dịch hoàn tất;
+                        khoản hoàn tiền theo ngày hồ sơ hoàn trả hoàn tất.
+                    </p>
+                </div>
+
+                <div class="dashboard-chart-legend"
+                     aria-label="Chú thích biểu đồ">
+                    <span>
+                        <i class="dashboard-chart-legend__swatch dashboard-chart-legend__swatch--revenue"></i>
+                        Đã thu
+                    </span>
+                    <span>
+                        <i class="dashboard-chart-legend__swatch dashboard-chart-legend__swatch--refund"></i>
+                        Hoàn tiền
+                    </span>
+                </div>
+            </header>
+
+            <div class="dashboard-chart-summary">
+                <div>
+                    <span>Doanh thu sau hoàn</span>
+                    <strong>
+                        @Model.NetRevenue.ToString("N0", culture) ₫
+                    </strong>
+                </div>
+                <div>
+                    <span>Số ngày</span>
+                    <strong>@Model.Filter.DayCount</strong>
+                </div>
+                <div>
+                    <span>Đơn trung bình/ngày</span>
+                    <strong>
+                        @((Model.OrdersInPeriod
+                            / (decimal)Math.Max(Model.Filter.DayCount, 1))
+                            .ToString("N1", culture))
+                    </strong>
+                </div>
+            </div>
+
+            <div class="dashboard-chart-shell">
+                @if (!hasTrendActivity)
+                {
+                    <div class="dashboard-chart-empty">
+                        <i class="fa-solid fa-chart-line"
+                           aria-hidden="true"></i>
+                        <strong>Chưa có dữ liệu trong kỳ</strong>
+                        <span>
+                            Hãy chọn khoảng ngày khác hoặc chờ phát sinh giao dịch.
+                        </span>
+                    </div>
+                }
+
+                <div class="dashboard-bar-chart"
+                     style="--chart-count:@Model.Trend.Count"
+                     role="img"
+                     aria-label="Biểu đồ doanh thu và hoàn tiền theo ngày">
+                    <div class="dashboard-bar-chart__grid"
+                         aria-hidden="true">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+
+                    <div class="dashboard-bar-chart__series">
+                        @foreach (var point in Model.Trend)
+                        {
+                            var revenueHeight = chartMaximum <= 0
+                                ? 0
+                                : point.PaidRevenue * 100m / chartMaximum;
+                            var refundHeight = chartMaximum <= 0
+                                ? 0
+                                : point.RefundAmount * 100m / chartMaximum;
+
+                            <div class="dashboard-bar-chart__point"
+                                 title="@($"{point.Date:dd/MM/yyyy} · Đã thu {point.PaidRevenue:N0} ₫ · Hoàn {point.RefundAmount:N0} ₫ · {point.OrderCount} đơn")">
+                                <div class="dashboard-bar-chart__bars">
+                                    <i class="dashboard-bar-chart__bar dashboard-bar-chart__bar--revenue"
+                                       style="--bar-height:@revenueHeight.ToString("0.###", invariant)%"></i>
+                                    <i class="dashboard-bar-chart__bar dashboard-bar-chart__bar--refund"
+                                       style="--bar-height:@refundHeight.ToString("0.###", invariant)%"></i>
+                                </div>
+                                <span class="@(point.ShowAxisLabel ? null : "is-hidden")">
+                                    @point.Label
+                                </span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <aside class="dashboard-breakdown-stack">
+            <section class="admin-panel dashboard-breakdown-panel"
+                     aria-labelledby="order-breakdown-heading">
+                <header class="admin-panel__header">
+                    <div>
+                        <p class="admin-page-kicker">Đơn hàng</p>
+                        <h3 id="order-breakdown-heading">
+                            Trạng thái trong kỳ
+                        </h3>
+                    </div>
+                    <strong>@Model.OrdersInPeriod đơn</strong>
+                </header>
+
+                <div class="dashboard-breakdown-list">
+                    @foreach (var item in Model.OrderStatuses)
+                    {
+                        <article>
+                            <header>
+                                <span>@item.Label</span>
+                                <strong>@item.Count</strong>
+                            </header>
+                            <div class="dashboard-progress"
+                                 aria-label="@item.Label: @item.Percentage%">
+                                <i class="dashboard-progress__fill dashboard-progress__fill--@item.Tone"
+                                   style="--progress:@item.Percentage.ToString("0.###", invariant)%"></i>
+                            </div>
+                            <small>@item.Percentage.ToString("0.#")%</small>
+                        </article>
+                    }
+                </div>
+            </section>
+
+            <section class="admin-panel dashboard-breakdown-panel"
+                     aria-labelledby="payment-breakdown-heading">
+                <header class="admin-panel__header">
+                    <div>
+                        <p class="admin-page-kicker">Thanh toán</p>
+                        <h3 id="payment-breakdown-heading">
+                            Phương thức đã thu
+                        </h3>
+                    </div>
+                    <strong>@Model.PaidOrdersInPeriod đơn</strong>
+                </header>
+
+                @if (Model.PaymentMethods.Count == 0)
+                {
+                    <div class="dashboard-panel-empty">
+                        Chưa có giao dịch hoàn tất trong kỳ.
+                    </div>
+                }
+                else
+                {
+                    <div class="dashboard-payment-list">
+                        @foreach (var item in Model.PaymentMethods)
+                        {
+                            <article>
+                                <span class="dashboard-payment-list__mark dashboard-payment-list__mark--@item.Tone"
+                                      aria-hidden="true"></span>
+                                <div>
+                                    <header>
+                                        <strong>@item.Label</strong>
+                                        <span>@item.Percentage.ToString("0.#")%</span>
+                                    </header>
+                                    <p>
+                                        @item.Amount.ToString("N0", culture) ₫
+                                        · @item.Count đơn
+                                    </p>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+        </aside>
+    </div>
+
+    <div class="dashboard-commerce-grid">
+        <section class="admin-panel dashboard-top-products"
+                 aria-labelledby="top-products-heading">
+            <header class="admin-panel__header">
+                <div>
+                    <p class="admin-page-kicker">Sản phẩm</p>
+                    <h3 id="top-products-heading">
+                        Sản phẩm bán tốt trong kỳ
+                    </h3>
+                    <p>
+                        Xếp theo giá trị sản phẩm trong đơn đã thanh toán.
+                    </p>
+                </div>
+                <a asp-area="Admin"
+                   asp-controller="Products"
+                   asp-action="Index"
+                   class="admin-text-link">
+                    Quản lý sản phẩm
+                    <i class="fa-solid fa-arrow-right"
+                       aria-hidden="true"></i>
+                </a>
+            </header>
+
+            @if (Model.TopProducts.Count == 0)
+            {
+                <div class="dashboard-panel-empty">
+                    Chưa có sản phẩm đã thanh toán trong kỳ.
+                </div>
+            }
+            else
+            {
+                <div class="dashboard-product-ranking">
+                    @for (var index = 0;
+                        index < Model.TopProducts.Count;
+                        index++)
+                    {
+                        var product = Model.TopProducts[index];
+
+                        <article>
+                            <span class="dashboard-product-ranking__rank">
+                                @(index + 1)
+                            </span>
+                            <div>
+                                <header>
+                                    <a asp-area="Admin"
+                                       asp-controller="Products"
+                                       asp-action="Edit"
+                                       asp-route-id="@product.ProductId">
+                                        @product.ProductName
+                                    </a>
+                                    <strong>
+                                        @product.Revenue.ToString("N0", culture) ₫
+                                    </strong>
+                                </header>
+                                <div class="dashboard-progress">
+                                    <i class="dashboard-progress__fill dashboard-progress__fill--success"
+                                       style="--progress:@product.PercentageOfTopRevenue.ToString("0.###", invariant)%"></i>
+                                </div>
+                                <p>
+                                    @product.Quantity sản phẩm
+                                    · @product.OrderCount đơn
+                                </p>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="admin-panel dashboard-operation-panel"
+                 aria-labelledby="operation-heading">
+            <header class="admin-panel__header">
+                <div>
+                    <p class="admin-page-kicker">Công việc hiện tại</p>
+                    <h3 id="operation-heading">
+                        Hàng đợi vận hành
+                    </h3>
+                    <p>
+                        Các chỉ số này phản ánh trạng thái hiện tại,
+                        không bị giới hạn bởi khoảng ngày.
+                    </p>
+                </div>
+            </header>
+
+            <div class="dashboard-operation-list">
+                <a asp-area="Admin"
+                   asp-controller="Orders"
+                   asp-action="Index"
+                   asp-route-orderStatus="Placed">
+                    <span class="dashboard-operation-list__icon"
+                          aria-hidden="true">
+                        <i class="fa-solid fa-clipboard-check"></i>
+                    </span>
+                    <div>
+                        <strong>Xác nhận đơn mới</strong>
+                        <small>@Model.AwaitingConfirmationCount đơn đang chờ</small>
+                    </div>
+                    <i class="fa-solid fa-chevron-right"
+                       aria-hidden="true"></i>
+                </a>
+
+                <a asp-area="Admin"
+                   asp-controller="Shipping"
+                   asp-action="Index">
+                    <span class="dashboard-operation-list__icon"
+                          aria-hidden="true">
+                        <i class="fa-solid fa-truck-fast"></i>
+                    </span>
+                    <div>
+                        <strong>Điều phối giao hàng</strong>
+                        <small>@Model.ReadyToShipCount đơn sẵn sàng</small>
+                    </div>
+                    <i class="fa-solid fa-chevron-right"
+                       aria-hidden="true"></i>
+                </a>
+
+                <a asp-area="Admin"
+                   asp-controller="Returns"
+                   asp-action="Index">
+                    <span class="dashboard-operation-list__icon"
+                          aria-hidden="true">
+                        <i class="fa-solid fa-box-archive"></i>
+                    </span>
+                    <div>
+                        <strong>Xử lý hoàn trả</strong>
+                        <small>@Model.OpenReturnCount yêu cầu đang mở</small>
+                    </div>
+                    <i class="fa-solid fa-chevron-right"
+                       aria-hidden="true"></i>
+                </a>
+
+                <a asp-area="Admin"
+                   asp-controller="Products"
+                   asp-action="Index">
+                    <span class="dashboard-operation-list__icon"
+                          aria-hidden="true">
+                        <i class="fa-solid fa-boxes-stacked"></i>
+                    </span>
+                    <div>
+                        <strong>Kiểm tra tồn kho</strong>
+                        <small>
+                            @(Model.LowStockVariantCount + Model.OutOfStockVariantCount)
+                            biến thể cần chú ý
+                        </small>
+                    </div>
+                    <i class="fa-solid fa-chevron-right"
+                       aria-hidden="true"></i>
+                </a>
+            </div>
+        </section>
+    </div>
+
+    <section class="admin-panel dashboard-orders-panel"
+             aria-labelledby="recent-orders-heading">
         <header class="admin-panel__header">
             <div>
-                <p class="admin-page-kicker">Bán hàng gần đây</p>
-                <h3 id="recent-orders-heading">Đơn hàng mới nhất</h3>
-                <p>Theo dõi nhanh tình trạng đơn, thanh toán và giao hàng.</p>
+                <p class="admin-page-kicker">Đơn hàng trong kỳ</p>
+                <h3 id="recent-orders-heading">
+                    Đơn gần nhất
+                </h3>
+                <p>
+                    Tối đa @Model.RecentOrders.Count đơn mới nhất trong khoảng
+                    @Model.Filter.RangeLabel.
+                </p>
             </div>
             <a asp-area="Admin"
                asp-controller="Orders"
                asp-action="Index"
+               asp-route-fromDate="@Model.Filter.FromDate.ToString("yyyy-MM-dd")"
+               asp-route-toDate="@Model.Filter.ToDate.ToString("yyyy-MM-dd")"
                class="admin-text-link">
-                Xem tất cả đơn
-                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                Xem danh sách đơn
+                <i class="fa-solid fa-arrow-right"
+                   aria-hidden="true"></i>
             </a>
         </header>
 
@@ -197,8 +571,8 @@
                         <th>Trạng thái đơn</th>
                         <th>Thanh toán</th>
                         <th>Giao hàng</th>
-                        <th class="text-end">Tổng tiền</th>
-                        <th></th>
+                        <th class="u-text-end">Tổng tiền</th>
+                        <th class="u-text-end">Thao tác</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -207,10 +581,11 @@
                         <tr>
                             <td colspan="7">
                                 <div class="admin-empty-state admin-empty-state--compact">
-                                    <i class="fa-regular fa-rectangle-list" aria-hidden="true"></i>
+                                    <i class="fa-regular fa-rectangle-list"
+                                       aria-hidden="true"></i>
                                     <div>
-                                        <strong>Chưa có đơn hàng</strong>
-                                        <span>Đơn mới sẽ xuất hiện tại đây sau khi khách đặt hàng.</span>
+                                        <strong>Chưa có đơn trong kỳ</strong>
+                                        <span>Thử chọn một khoảng thời gian khác.</span>
                                     </div>
                                 </div>
                             </td>
@@ -222,13 +597,17 @@
                         {
                             <tr>
                                 <td>
-                                    <span class="admin-cell-primary">@order.Code</span>
+                                    <span class="admin-cell-primary">
+                                        @order.Code
+                                    </span>
                                     <span class="admin-cell-secondary">
-                                        @order.CreatedAt.ToLocalTime().ToString("dd/MM HH:mm")
+                                        @order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="admin-cell-primary">@order.CustomerName</span>
+                                    <span class="admin-cell-primary">
+                                        @order.CustomerName
+                                    </span>
                                 </td>
                                 <td>
                                     <span class="admin-badge admin-badge--@AdminCommerceDisplay.Tone(order.OrderStatus)">
@@ -245,19 +624,18 @@
                                         @AdminCommerceDisplay.FulfillmentStatusText(order.FulfillmentStatus)
                                     </span>
                                 </td>
-                                <td class="text-end">
+                                <td class="u-text-end">
                                     <span class="admin-cell-money">
                                         @order.GrandTotal.ToString("N0", culture) ₫
                                     </span>
                                 </td>
-                                <td class="text-end">
+                                <td class="u-text-end">
                                     <a asp-area="Admin"
                                        asp-controller="Orders"
                                        asp-action="Details"
                                        asp-route-id="@order.OrderId"
-                                       class="admin-row-action"
-                                       aria-label="Mở đơn @order.Code">
-                                        <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                                       class="admin-row-text-action">
+                                        Xử lý đơn
                                     </a>
                                 </td>
                             </tr>
@@ -268,15 +646,18 @@
         </div>
     </section>
 
-    <div class="dashboard-grid">
-        <section class="admin-panel" aria-labelledby="inventory-heading">
+    <div class="dashboard-support-grid">
+        <section class="admin-panel"
+                 aria-labelledby="inventory-heading">
             <header class="admin-panel__header">
                 <div>
-                    <p class="admin-page-kicker">Tồn kho</p>
-                    <h3 id="inventory-heading">Biến thể cần chú ý</h3>
+                    <p class="admin-page-kicker">Tồn kho hiện tại</p>
+                    <h3 id="inventory-heading">
+                        Biến thể cần chú ý
+                    </h3>
                     <p>
-                        @Model.ActiveProductCount sản phẩm đang hoạt động ·
-                        @Model.OutOfStockVariantCount biến thể đã hết hàng
+                        @Model.ActiveProductCount sản phẩm đang hoạt động
+                        · @Model.OutOfStockVariantCount biến thể hết hàng
                     </p>
                 </div>
                 <a asp-area="Admin"
@@ -290,10 +671,11 @@
             @if (Model.LowStockItems.Count == 0)
             {
                 <div class="admin-empty-state">
-                    <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                    <i class="fa-solid fa-circle-check"
+                       aria-hidden="true"></i>
                     <div>
                         <strong>Tồn kho đang ổn định</strong>
-                        <span>Chưa có biến thể nào dưới ngưỡng cảnh báo.</span>
+                        <span>Chưa có biến thể dưới ngưỡng cảnh báo.</span>
                     </div>
                 </div>
             }
@@ -304,7 +686,8 @@
                     {
                         <article class="dashboard-list-item">
                             <div class="dashboard-list-item__main">
-                                <span class="dashboard-list-item__icon" aria-hidden="true">
+                                <span class="dashboard-list-item__icon"
+                                      aria-hidden="true">
                                     <i class="fa-solid fa-box"></i>
                                 </span>
                                 <div>
@@ -315,11 +698,16 @@
                                        class="dashboard-list-item__title">
                                         @item.ProductName
                                     </a>
-                                    <p>@item.SKU · @item.CurrentPrice.ToString("N0", culture) ₫</p>
+                                    <p>
+                                        @item.SKU
+                                        · @item.CurrentPrice.ToString("N0", culture) ₫
+                                    </p>
                                 </div>
                             </div>
                             <span class="admin-badge @(item.StockQuantity == 0 ? "admin-badge--danger" : "admin-badge--warning")">
-                                @(item.StockQuantity == 0 ? "Hết hàng" : $"Còn {item.StockQuantity}")
+                                @(item.StockQuantity == 0
+                                    ? "Hết hàng"
+                                    : $"Còn {item.StockQuantity}")
                             </span>
                         </article>
                     }
@@ -327,12 +715,17 @@
             }
         </section>
 
-        <section class="admin-panel" aria-labelledby="campaign-heading">
+        <section class="admin-panel"
+                 aria-labelledby="campaign-heading">
             <header class="admin-panel__header">
                 <div>
-                    <p class="admin-page-kicker">Giá bán</p>
-                    <h3 id="campaign-heading">Chiến dịch đang hiệu lực</h3>
-                    <p>@Model.RunningCampaignCount chiến dịch hiện đang chạy.</p>
+                    <p class="admin-page-kicker">Giá bán hiện tại</p>
+                    <h3 id="campaign-heading">
+                        Chiến dịch đang hiệu lực
+                    </h3>
+                    <p>
+                        @Model.RunningCampaignCount chiến dịch đang chạy.
+                    </p>
                 </div>
                 <a asp-area="Admin"
                    asp-controller="PriceCampaigns"
@@ -345,10 +738,11 @@
             @if (Model.Campaigns.Count == 0)
             {
                 <div class="admin-empty-state">
-                    <i class="fa-solid fa-tags" aria-hidden="true"></i>
+                    <i class="fa-solid fa-tags"
+                       aria-hidden="true"></i>
                     <div>
                         <strong>Chưa có chiến dịch gần đây</strong>
-                        <span>Tạo chiến dịch để lên lịch điều chỉnh giá bán.</span>
+                        <span>Tạo chiến dịch để lên lịch điều chỉnh giá.</span>
                     </div>
                 </div>
             }
@@ -371,10 +765,14 @@
                                     –
                                     @campaign.EndDate.ToLocalTime().ToString("dd/MM HH:mm")
                                 </p>
-                                <small>@campaign.VariantCount biến thể</small>
+                                <small>
+                                    @campaign.VariantCount biến thể
+                                </small>
                             </div>
                             <span class="admin-badge @(campaign.IsRunning ? "admin-badge--success" : "admin-badge--info")">
-                                @(campaign.IsRunning ? "Đang chạy" : "Sắp diễn ra")
+                                @(campaign.IsRunning
+                                    ? "Đang chạy"
+                                    : "Sắp diễn ra")
                             </span>
                         </article>
                     }
