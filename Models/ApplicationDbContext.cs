@@ -234,6 +234,13 @@ public sealed class ApplicationDbContext : DbContext
 
         modelBuilder.Entity<PriceHistory>(entity =>
         {
+            entity.Property(item => item.PriceKind)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .HasDefaultValue(PriceHistoryKind.EffectivePrice);
+            entity.Property(item => item.Currency)
+                .HasMaxLength(3)
+                .HasDefaultValue("VND");
             entity.Property(item => item.EventType)
                 .HasConversion<string>()
                 .HasMaxLength(30)
@@ -242,21 +249,35 @@ public sealed class ApplicationDbContext : DbContext
                 .HasConversion<string>()
                 .HasMaxLength(30)
                 .HasDefaultValue(PriceChangeSourceType.Legacy);
-            entity.HasIndex(item => new { item.ProductVariantId, item.CreatedAt });
+            entity.Property(item => item.CreatedAt)
+                .HasDefaultValueSql("GETUTCDATE()");
+            entity.HasIndex(item => new
+            {
+                item.ProductVariantId,
+                item.PriceKind,
+                item.EffectiveFrom,
+                item.CreatedAt
+            });
             entity.HasIndex(item => item.CorrelationId);
 
             entity.HasOne(item => item.ProductVariant)
                 .WithMany(item => item.PriceHistories)
                 .HasForeignKey(item => item.ProductVariantId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.Restrict);
 
             entity.ToTable(table =>
             {
                 table.HasCheckConstraint("CK_PriceHistory_OldPrice", "[OldPrice] > 0");
                 table.HasCheckConstraint("CK_PriceHistory_NewPrice", "[NewPrice] > 0");
                 table.HasCheckConstraint(
+                    "CK_PriceHistory_PriceKind",
+                    "[PriceKind] IN ('ListPrice','EffectivePrice')");
+                table.HasCheckConstraint(
+                    "CK_PriceHistory_Currency",
+                    "LEN([Currency]) = 3 AND [Currency] = UPPER([Currency])");
+                table.HasCheckConstraint(
                     "CK_PriceHistory_EventType",
-                    "[EventType] IN ('Applied','Restored','Replaced','Cancelled','ListPriceChanged','Legacy')");
+                    "[EventType] IN ('Applied','Restored','Replaced','Cancelled','ListPriceChanged','EffectivePriceChanged','Legacy')");
                 table.HasCheckConstraint(
                     "CK_PriceHistory_SourceType",
                     "[SourceType] IN ('Manual','Market','Promotion','Recovery','Legacy','System')");

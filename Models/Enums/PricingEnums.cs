@@ -47,6 +47,12 @@ public enum EffectivePriceSourceType
     Campaign = 2
 }
 
+public enum PriceHistoryKind
+{
+    ListPrice = 1,
+    EffectivePrice = 2
+}
+
 public enum PriceHistoryEventType
 {
     Applied = 1,
@@ -54,5 +60,6 @@ public enum PriceHistoryEventType
     Replaced = 3,
     Cancelled = 4,
     ListPriceChanged = 5,
-    Legacy = 6
+    EffectivePriceChanged = 6,
+    Legacy = 7
 }

@@ -54,14 +54,17 @@ public sealed record VariantListPriceChangeResult(
 /// Giá niêm yết, projection CurrentPrice và PriceHistory được xử lý
 /// trong cùng transaction để không tồn tại trạng thái cập nhật dở dang.
 /// </summary>
-public sealed class VariantListPriceService : IVariantListPriceService
+public sealed class VariantListPriceService
+    : IVariantListPriceService
 {
     private const int ChangedByMaxLength = 100;
     private const int ReasonMaxLength = 500;
     private const int NoteMaxLength = 255;
     private const int CorrelationIdMaxLength = 64;
+    private const string DefaultCurrency = "VND";
 
-    private static readonly PriceCampaignStatus[] PriceGuardStatuses =
+    private static readonly PriceCampaignStatus[]
+        PriceGuardStatuses =
     [
         PriceCampaignStatus.Confirmed,
         PriceCampaignStatus.Scheduled,
@@ -108,7 +111,8 @@ public sealed class VariantListPriceService : IVariantListPriceService
                 out var expectedRowVersion))
         {
             return VariantListPriceChangeResult.Failure(
-                "Phiên bản dữ liệu không hợp lệ. Vui lòng tải lại trang.",
+                "Phiên bản dữ liệu không hợp lệ. "
+                + "Vui lòng tải lại trang.",
                 "INVALID_ROW_VERSION");
         }
 
@@ -127,7 +131,8 @@ public sealed class VariantListPriceService : IVariantListPriceService
             Guid.NewGuid().ToString("N"));
 
         IDbContextTransaction? localTransaction = null;
-        var ownsTransaction = _context.Database.CurrentTransaction is null;
+        var ownsTransaction =
+            _context.Database.CurrentTransaction is null;
 
         try
         {
@@ -168,7 +173,8 @@ public sealed class VariantListPriceService : IVariantListPriceService
                 .AsNoTracking()
                 .Where(item =>
                     item.VariantId == variant.Id
-                    && PriceGuardStatuses.Contains(item.Campaign.Status)
+                    && PriceGuardStatuses.Contains(
+                        item.Campaign.Status)
                     && (!item.Campaign.EndDate.HasValue
                         || item.Campaign.EndDate.Value > nowUtc)
                     && item.NewPrice >= command.NewListPrice)
@@ -186,8 +192,9 @@ public sealed class VariantListPriceService : IVariantListPriceService
             {
                 return await FailAsync(
                     localTransaction,
-                    $"Giá niêm yết phải lớn hơn giá {conflict.NewPrice:N0} "
-                    + $"của kế hoạch “{conflict.Name}” "
+                    $"Giá niêm yết phải lớn hơn giá "
+                    + $"{conflict.NewPrice:N0} của kế hoạch "
+                    + $"“{conflict.Name}” "
                     + $"(#{conflict.CampaignId}).",
                     "LIST_PRICE_NOT_ABOVE_CAMPAIGN_PRICE");
             }
@@ -198,44 +205,43 @@ public sealed class VariantListPriceService : IVariantListPriceService
 
             await _context.SaveChangesAsync(cancellationToken);
 
-            var recalculation = await _effectivePriceService
+            _context.PriceHistories.Add(
+                new PriceHistory
+                {
+                    ProductVariantId = variant.Id,
+                    PriceKind = PriceHistoryKind.ListPrice,
+                    Currency = DefaultCurrency,
+                    OldPrice = oldListPrice,
+                    NewPrice = command.NewListPrice,
+                    EventType =
+                        PriceHistoryEventType.ListPriceChanged,
+                    SourceType = PriceChangeSourceType.Manual,
+                    SourceId = null,
+                    CorrelationId = correlationId,
+                    Reason = reason,
+                    EffectiveFrom = nowUtc,
+                    EffectiveTo = null,
+                    ChangedBy = changedBy,
+                    Note = Normalize(
+                        "Cập nhật giá niêm yết của biến thể.",
+                        NoteMaxLength,
+                        "Cập nhật giá niêm yết"),
+                    CreatedAt = nowUtc
+                });
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await _effectivePriceService
                 .RecalculateVariantsAsync(
                     [variant.Id],
                     changedBy,
                     reason,
                     correlationId,
                     new PriceHistoryWriteContext(
-                        PriceHistoryEventType.ListPriceChanged,
+                        PriceHistoryEventType
+                            .EffectivePriceChanged,
                         PriceChangeSourceType.Manual),
                     cancellationToken);
-
-            if (recalculation.ChangedCount == 0)
-            {
-                _context.PriceHistories.Add(
-                    new PriceHistory
-                    {
-                        ProductVariantId = variant.Id,
-                        OldPrice = oldListPrice,
-                        NewPrice = command.NewListPrice,
-                        EventType =
-                            PriceHistoryEventType.ListPriceChanged,
-                        SourceType = PriceChangeSourceType.Manual,
-                        SourceId = null,
-                        CorrelationId = correlationId,
-                        Reason = reason,
-                        EffectiveFrom = nowUtc,
-                        EffectiveTo = null,
-                        ChangedBy = changedBy,
-                        Note = Normalize(
-                            "Giá niêm yết đã thay đổi; giá bán hiệu lực "
-                            + "vẫn đang được giữ bởi kế hoạch giá.",
-                            NoteMaxLength,
-                            "Cập nhật giá niêm yết"),
-                        CreatedAt = nowUtc
-                    });
-
-                await _context.SaveChangesAsync(cancellationToken);
-            }
 
             var snapshot = await _context.ProductVariants
                 .AsNoTracking()
@@ -250,7 +256,8 @@ public sealed class VariantListPriceService : IVariantListPriceService
 
             if (localTransaction is not null)
             {
-                await localTransaction.CommitAsync(cancellationToken);
+                await localTransaction.CommitAsync(
+                    cancellationToken);
             }
 
             _logger.LogInformation(
@@ -269,7 +276,8 @@ public sealed class VariantListPriceService : IVariantListPriceService
                 correlationId);
 
             return VariantListPriceChangeResult.Succeeded(
-                $"Đã cập nhật giá niêm yết cho SKU {snapshot.Sku}.",
+                $"Đã cập nhật giá niêm yết cho SKU "
+                + $"{snapshot.Sku}.",
                 snapshot);
         }
         catch (DbUpdateConcurrencyException exception)
@@ -316,7 +324,8 @@ public sealed class VariantListPriceService : IVariantListPriceService
 
         try
         {
-            rowVersion = Convert.FromBase64String(encodedRowVersion);
+            rowVersion = Convert.FromBase64String(
+                encodedRowVersion);
             return rowVersion.Length == 8;
         }
         catch (FormatException)
@@ -339,10 +348,11 @@ public sealed class VariantListPriceService : IVariantListPriceService
             : normalized[..maxLength];
     }
 
-    private static async Task<VariantListPriceChangeResult> FailAsync(
-        IDbContextTransaction? localTransaction,
-        string message,
-        string errorCode)
+    private static async Task<VariantListPriceChangeResult>
+        FailAsync(
+            IDbContextTransaction? localTransaction,
+            string message,
+            string errorCode)
     {
         await RollbackAsync(localTransaction);
         return VariantListPriceChangeResult.Failure(

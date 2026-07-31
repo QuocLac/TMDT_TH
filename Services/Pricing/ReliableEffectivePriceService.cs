@@ -439,6 +439,8 @@ public sealed class ReliableEffectivePriceService : IEffectivePriceService
                     new PriceHistory
                     {
                         ProductVariantId = row.Id,
+                        PriceKind = PriceHistoryKind.EffectivePrice,
+                        Currency = "VND",
                         OldPrice = row.CurrentPrice,
                         NewPrice = desiredPrice,
                         EventType = eventType,
@@ -448,7 +450,7 @@ public sealed class ReliableEffectivePriceService : IEffectivePriceService
                             normalizedCorrelationId,
                         Reason = normalizedReason,
                         EffectiveFrom =
-                            desiredEffectiveFrom,
+                            desiredEffectiveFrom ?? nowUtc,
                         EffectiveTo =
                             desiredEffectiveTo,
                         ChangedBy =

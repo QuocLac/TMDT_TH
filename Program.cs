@@ -27,11 +27,13 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
 
 builder.Services.AddSingleton<InternalShipmentProviderInterceptor>();
+builder.Services.AddSingleton<PriceHistoryAppendOnlyInterceptor>();
 builder.Services.AddDbContext<ApplicationDbContext>((serviceProvider, options) =>
     options
         .UseSqlServer(connectionString)
         .AddInterceptors(
-            serviceProvider.GetRequiredService<InternalShipmentProviderInterceptor>()));
+            serviceProvider.GetRequiredService<InternalShipmentProviderInterceptor>(),
+            serviceProvider.GetRequiredService<PriceHistoryAppendOnlyInterceptor>()));
 
 builder.Services.AddAntiforgery(options =>
     options.HeaderName = "RequestVerificationToken");
@@ -215,6 +217,9 @@ builder.Services.AddScoped<IEffectivePriceService, ReliableEffectivePriceService
 builder.Services.AddScoped<
     IVariantListPriceService,
     VariantListPriceService>();
+builder.Services.AddScoped<
+    IPriceHistoryReadService,
+    PriceHistoryReadService>();
 builder.Services.AddScoped<PriceCampaignWorkflowService>();
 builder.Services.AddScoped<IPriceCampaignWorkflowService, ReliablePriceCampaignWorkflowService>();
 builder.Services.AddHostedService<PriceCampaignWorker>();

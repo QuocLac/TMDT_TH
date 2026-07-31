@@ -4,6 +4,11 @@ using WebApplication2.Models.Enums;
 
 namespace WebApplication2.Models;
 
+/// <summary>
+/// Sổ sự kiện giá bất biến của một biến thể.
+/// CreatedAt là thời điểm sự kiện được hệ thống ghi nhận.
+/// EffectiveFrom/EffectiveTo là khoảng thời gian giá có hiệu lực trong nghiệp vụ.
+/// </summary>
 public sealed class PriceHistory : BaseEntity
 {
     [Key]
@@ -13,15 +18,23 @@ public sealed class PriceHistory : BaseEntity
 
     public ProductVariant ProductVariant { get; set; } = null!;
 
+    public PriceHistoryKind PriceKind { get; set; }
+        = PriceHistoryKind.EffectivePrice;
+
+    [Required, MaxLength(3)]
+    public string Currency { get; set; } = "VND";
+
     [Column(TypeName = "decimal(18,2)")]
     public decimal OldPrice { get; set; }
 
     [Column(TypeName = "decimal(18,2)")]
     public decimal NewPrice { get; set; }
 
-    public PriceHistoryEventType EventType { get; set; } = PriceHistoryEventType.Legacy;
+    public PriceHistoryEventType EventType { get; set; }
+        = PriceHistoryEventType.Legacy;
 
-    public PriceChangeSourceType SourceType { get; set; } = PriceChangeSourceType.Legacy;
+    public PriceChangeSourceType SourceType { get; set; }
+        = PriceChangeSourceType.Legacy;
 
     public int? SourceId { get; set; }
 

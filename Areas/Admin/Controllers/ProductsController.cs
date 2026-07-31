@@ -578,7 +578,6 @@ public sealed class ProductsController : Controller
         }
         catch (Exception exception)
         {
-            await transaction.RollbackAsync(CancellationToken.None);
             _logger.LogError(exception, "Failed to update variant price {VariantId}.", request.VariantId);
             return Json(new { success = false, message = "Không thể cập nhật giá lúc này." });
         }
