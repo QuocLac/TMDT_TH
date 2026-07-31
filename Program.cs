@@ -212,6 +212,9 @@ builder.Services.AddHostedService<VnPayPaymentExpirationWorker>();
 
 builder.Services.AddScoped<EffectivePriceService>();
 builder.Services.AddScoped<IEffectivePriceService, ReliableEffectivePriceService>();
+builder.Services.AddScoped<
+    IVariantListPriceService,
+    VariantListPriceService>();
 builder.Services.AddScoped<PriceCampaignWorkflowService>();
 builder.Services.AddScoped<IPriceCampaignWorkflowService, ReliablePriceCampaignWorkflowService>();
 builder.Services.AddHostedService<PriceCampaignWorker>();

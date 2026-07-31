@@ -17,20 +17,20 @@ public sealed class ProductsController : Controller
 
     private readonly ApplicationDbContext _context;
     private readonly IProductImageStorage _imageStorage;
-    private readonly IEffectivePriceService _effectivePriceService;
+    private readonly IVariantListPriceService _variantListPriceService;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ProductsController> _logger;
 
     public ProductsController(
         ApplicationDbContext context,
         IProductImageStorage imageStorage,
-        IEffectivePriceService effectivePriceService,
+        IVariantListPriceService variantListPriceService,
         TimeProvider timeProvider,
         ILogger<ProductsController> logger)
     {
         _context = context;
         _imageStorage = imageStorage;
-        _effectivePriceService = effectivePriceService;
+        _variantListPriceService = variantListPriceService;
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -533,80 +533,44 @@ public sealed class ProductsController : Controller
             return Json(new { success = false, message = FirstModelError() });
         }
 
-        await using var transaction = await _context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-
         try
         {
-            var variant = await _context.ProductVariants
-                .FirstOrDefaultAsync(item => item.Id == request.VariantId, cancellationToken);
-            if (variant is null)
-            {
-                return Json(new { success = false, message = "Không tìm thấy biến thể." });
-            }
+            var correlationId = Guid.NewGuid().ToString("N");
+            Response.Headers["X-Correlation-ID"] = correlationId;
 
-            if (!TryApplyExpectedRowVersion(variant, request.RowVersion, out var rowVersionError))
-            {
-                return Json(new { success = false, message = rowVersionError });
-            }
-
-            if (variant.Price == request.NewPrice)
-            {
-                return Json(new { success = false, message = "Giá niêm yết không thay đổi." });
-            }
-
-            var conflictMessage = await FindCampaignPriceConflictAsync(
-                variant.Id,
-                request.NewPrice,
-                cancellationToken);
-            if (conflictMessage is not null)
-            {
-                return Json(new { success = false, message = conflictMessage });
-            }
-
-            var oldListPrice = variant.Price;
-            variant.Price = request.NewPrice;
-            variant.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
-            await _context.SaveChangesAsync(cancellationToken);
-
-            var recalculation = await _effectivePriceService.RecalculateVariantsAsync(
-                [variant.Id],
-                "Admin",
-                string.IsNullOrWhiteSpace(request.Note)
-                    ? "Cập nhật giá niêm yết"
-                    : request.Note.Trim(),
+            var result = await _variantListPriceService.ChangeAsync(
+                new VariantListPriceChangeCommand(
+                    request.VariantId,
+                    request.NewPrice,
+                    request.RowVersion,
+                    GetActor(),
+                    string.IsNullOrWhiteSpace(request.Note)
+                        ? "Cập nhật giá niêm yết"
+                        : request.Note.Trim(),
+                    correlationId),
                 cancellationToken);
 
-            if (recalculation.ChangedCount == 0)
+            if (!result.Success || result.Snapshot is null)
             {
-                _context.PriceHistories.Add(new PriceHistory
+                return Json(new
                 {
-                    ProductVariantId = variant.Id,
-                    OldPrice = oldListPrice,
-                    NewPrice = request.NewPrice,
-                    ChangedBy = "Admin",
-                    Note = "Cập nhật giá niêm yết; giá hiệu lực đang được giữ bởi chiến dịch.",
-                    CreatedAt = _timeProvider.GetUtcNow().UtcDateTime
+                    success = false,
+                    message = result.Message,
+                    errorCode = result.ErrorCode,
+                    correlationId
                 });
-                await _context.SaveChangesAsync(cancellationToken);
             }
 
-            await transaction.CommitAsync(cancellationToken);
+            var snapshot = result.Snapshot;
             return Json(new
             {
                 success = true,
-                message = $"Đã cập nhật giá niêm yết cho SKU {variant.SKU}.",
-                listPrice = variant.Price,
-                currentPrice = variant.CurrentPrice,
-                rowVersion = Convert.ToBase64String(variant.RowVersion)
+                message = result.Message,
+                listPrice = snapshot.ListPrice,
+                currentPrice = snapshot.CurrentPrice,
+                rowVersion = Convert.ToBase64String(snapshot.RowVersion),
+                correlationId
             });
-        }
-        catch (DbUpdateConcurrencyException exception)
-        {
-            await transaction.RollbackAsync(CancellationToken.None);
-            _logger.LogWarning(exception, "Concurrent variant price update {VariantId}.", request.VariantId);
-            return Json(new { success = false, message = ConcurrencyMessage });
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -636,6 +600,9 @@ public sealed class ProductsController : Controller
         StoredProductImage? newImage = null;
         string? oldImageReference = null;
 
+        var correlationId = Guid.NewGuid().ToString("N");
+        Response.Headers["X-Correlation-ID"] = correlationId;
+
         await using var transaction = await _context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
@@ -651,7 +618,7 @@ public sealed class ProductsController : Controller
 
             var isNewVariant = request.VariantId == 0;
             ProductVariant variant;
-            decimal? oldListPrice = null;
+            var listPriceChanged = false;
 
             if (isNewVariant)
             {
@@ -686,19 +653,7 @@ public sealed class ProductsController : Controller
                     return Json(new { success = false, message = rowVersionError });
                 }
 
-                if (variant.Price != request.Price)
-                {
-                    var conflictMessage = await FindCampaignPriceConflictAsync(
-                        variant.Id,
-                        request.Price,
-                        cancellationToken);
-                    if (conflictMessage is not null)
-                    {
-                        return Json(new { success = false, message = conflictMessage });
-                    }
-
-                    oldListPrice = variant.Price;
-                }
+                listPriceChanged = variant.Price != request.Price;
             }
 
             if (request.VariantImage is { Length: > 0 })
@@ -715,7 +670,6 @@ public sealed class ProductsController : Controller
             {
                 variant.Color = request.Color;
                 variant.Size = request.Size;
-                variant.Price = request.Price;
                 variant.StockQuantity = request.StockQuantity;
                 variant.IsActive = request.IsActive;
                 variant.UpdatedAt = _timeProvider.GetUtcNow().UtcDateTime;
@@ -735,53 +689,79 @@ public sealed class ProductsController : Controller
                 await _context.SaveChangesAsync(cancellationToken);
             }
 
-            if (oldListPrice.HasValue)
+            VariantListPriceSnapshot? priceSnapshot = null;
+            if (!isNewVariant && listPriceChanged)
             {
-                var recalculation = await _effectivePriceService.RecalculateVariantsAsync(
-                    [variant.Id],
-                    "Admin",
-                    "Cập nhật biến thể và giá niêm yết",
-                    cancellationToken);
+                var priceResult =
+                    await _variantListPriceService.ChangeAsync(
+                        new VariantListPriceChangeCommand(
+                            variant.Id,
+                            request.Price,
+                            Convert.ToBase64String(variant.RowVersion),
+                            GetActor(),
+                            "Cập nhật biến thể và giá niêm yết",
+                            correlationId),
+                        cancellationToken);
 
-                if (recalculation.ChangedCount == 0)
+                if (!priceResult.Success
+                    || priceResult.Snapshot is null)
                 {
-                    _context.PriceHistories.Add(new PriceHistory
+                    await transaction.RollbackAsync(
+                        CancellationToken.None);
+
+                    return Json(new
                     {
-                        ProductVariantId = variant.Id,
-                        OldPrice = oldListPrice.Value,
-                        NewPrice = variant.Price,
-                        ChangedBy = "Admin",
-                        Note = "Cập nhật giá niêm yết; giá hiệu lực đang được giữ bởi chiến dịch.",
-                        CreatedAt = _timeProvider.GetUtcNow().UtcDateTime
+                        success = false,
+                        message = priceResult.Message,
+                        errorCode = priceResult.ErrorCode,
+                        correlationId
                     });
-                    await _context.SaveChangesAsync(cancellationToken);
                 }
+
+                priceSnapshot = priceResult.Snapshot;
+            }
+
+            if (priceSnapshot is null)
+            {
+                priceSnapshot = new VariantListPriceSnapshot(
+                    variant.Id,
+                    variant.SKU,
+                    variant.Price,
+                    variant.CurrentPrice,
+                    variant.RowVersion);
             }
 
             await transaction.CommitAsync(cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(oldImageReference))
             {
-                await DeleteReferencesQuietlyAsync([oldImageReference], CancellationToken.None);
+                await DeleteReferencesQuietlyAsync(
+                    [oldImageReference],
+                    CancellationToken.None);
             }
 
             return Json(new
             {
                 success = true,
-                message = isNewVariant ? $"Đã thêm biến thể {variant.SKU}." : $"Đã cập nhật biến thể {variant.SKU}.",
+                message = isNewVariant
+                    ? $"Đã thêm biến thể {variant.SKU}."
+                    : $"Đã cập nhật biến thể {variant.SKU}.",
                 data = new
                 {
                     id = variant.Id,
                     sku = variant.SKU,
                     color = variant.Color,
                     size = variant.Size,
-                    price = variant.Price,
-                    currentPrice = variant.CurrentPrice,
+                    price = priceSnapshot.ListPrice,
+                    currentPrice = priceSnapshot.CurrentPrice,
                     stockQuantity = variant.StockQuantity,
                     isActive = variant.IsActive,
                     imageUrl = variant.ImageUrl,
-                    rowVersion = Convert.ToBase64String(variant.RowVersion)
-                }
+                    rowVersion =
+                        Convert.ToBase64String(
+                            priceSnapshot.RowVersion)
+                },
+                correlationId
             });
         }
         catch (ProductImageValidationException exception)
@@ -931,28 +911,6 @@ public sealed class ProductsController : Controller
         {
             ModelState.AddModelError(nameof(ProductCreateViewModel.SelectedPromotionIds), "Danh sách khuyến mãi không hợp lệ.");
         }
-    }
-
-    private async Task<string?> FindCampaignPriceConflictAsync(
-        int variantId,
-        decimal newListPrice,
-        CancellationToken cancellationToken)
-    {
-        var nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        var conflict = await _context.PriceCampaignItems
-            .AsNoTracking()
-            .Where(item =>
-                item.VariantId == variantId
-                && item.Campaign.IsActive
-                && item.Campaign.EndDate > nowUtc
-                && item.NewPrice >= newListPrice)
-            .OrderBy(item => item.Campaign.StartDate)
-            .Select(item => new { item.Campaign.Name, item.NewPrice })
-            .FirstOrDefaultAsync(cancellationToken);
-
-        return conflict is null
-            ? null
-            : $"Giá niêm yết phải lớn hơn giá {conflict.NewPrice:N0} của chiến dịch “{conflict.Name}”.";
     }
 
     private async Task PopulateOptionsAsync(
@@ -1168,6 +1126,13 @@ public sealed class ProductsController : Controller
             .Select(error => error.ErrorMessage)
             .FirstOrDefault(message => !string.IsNullOrWhiteSpace(message))
             ?? "Dữ liệu không hợp lệ.";
+    }
+
+    private string GetActor()
+    {
+        return string.IsNullOrWhiteSpace(User.Identity?.Name)
+            ? "Admin"
+            : User.Identity.Name.Trim();
     }
 
     private static void Normalize(ProductCreateViewModel model)
