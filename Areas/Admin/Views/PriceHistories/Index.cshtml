@@ -1,108 +1,617 @@
-@using WebApplication2.Models
-@model IEnumerable<PriceHistory>
+@using System.Globalization
+@using WebApplication2.Areas.Admin.ViewModels.PriceHistories
+@using WebApplication2.Models.Enums
+@model PriceHistoryIndexPageViewModel
+
 @{
-    var filterProductName = ViewBag.FilterProductName as string;
-    ViewData["Title"] = !string.IsNullOrEmpty(filterProductName)
-        ? $"Nhật ký giá: {filterProductName}"
-        : "Nhật ký biến động giá";
+    ViewData["Title"] = "Lịch sử giá theo SKU";
+    var culture = CultureInfo.GetCultureInfo("vi-VN");
+    var invariant = CultureInfo.InvariantCulture;
+
+    string Selected(bool value) => value ? "selected" : string.Empty;
+
+    string SignedMoney(decimal value)
+    {
+        var prefix = value > 0 ? "+" : value < 0 ? "-" : string.Empty;
+        return $"{prefix}{Math.Abs(value).ToString("N0", culture)} ₫";
+    }
 }
 
-<section class="admin-page">
-    <header class="admin-page-header admin-page-header--hero">
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/pages/admin/price-history.css"
+          asp-append-version="true" />
+}
+
+<section class="admin-page price-history-page"
+         data-price-history-page>
+    <header class="admin-page-header admin-page-header--hero price-history-hero">
         <div>
-            <p class="admin-page-kicker">Kiểm toán giá bán</p>
-            <h2>@ViewData["Title"]</h2>
+            <p class="admin-page-kicker">Sổ giá bất biến</p>
+            <h2>Lịch sử giá theo từng mã hàng</h2>
             <p class="admin-page-lead">
-                Theo dõi giá hiệu lực của từng SKU theo thời điểm, nguồn thay đổi và người thực hiện.
-                Đây là nhật ký giá, không phải danh sách khuyến mãi, voucher hoặc flash sale.
+                Phân biệt giá niêm yết và giá bán hiệu lực, theo dõi mức thấp nhất
+                trong 30 ngày, kế hoạch đang tác động và người thực hiện mỗi thay đổi.
             </p>
         </div>
-        @if (!string.IsNullOrEmpty(filterProductName))
+
+        @if (Model.SelectedVariant is not null)
         {
-            <a asp-controller="Products"
-               asp-action="Index"
-               class="button button--secondary">
-                Quay lại sản phẩm
-            </a>
+            <div class="price-history-hero__selection">
+                <span>Mã hàng đang xem</span>
+                <strong>@Model.SelectedVariant.Sku</strong>
+                <small>
+                    @Model.SelectedVariant.ProductName
+                    · @Model.SelectedVariant.Description
+                </small>
+            </div>
         }
     </header>
 
-    <section class="admin-panel">
+    <section class="admin-panel price-history-filter-panel"
+             aria-labelledby="price-history-filter-heading">
         <header class="admin-panel__header">
             <div>
-                <p class="admin-page-kicker">Lịch sử hiệu lực</p>
-                <h3>Biến động giá theo SKU</h3>
-                <p>Giá cũ và giá mới phản ánh thay đổi giá bán; giảm giá tại giỏ hàng phải được quản lý ở nghiệp vụ riêng.</p>
+                <p class="admin-page-kicker">Bộ lọc kiểm toán</p>
+                <h3 id="price-history-filter-heading">
+                    Chọn sản phẩm, SKU và khoảng ngày
+                </h3>
+                <p>
+                    Khoảng ngày tối đa 366 ngày. Dữ liệu được hiển thị theo múi giờ Việt Nam.
+                </p>
+            </div>
+
+            <div class="price-history-range-presets"
+                 aria-label="Khoảng ngày nhanh">
+                <button type="button" data-price-history-days="7">7 ngày</button>
+                <button type="button" data-price-history-days="30">30 ngày</button>
+                <button type="button" data-price-history-days="90">90 ngày</button>
+                <button type="button" data-price-history-days="365">1 năm</button>
             </div>
         </header>
 
-        <div class="admin-table-wrap">
-            <table class="admin-data-table">
-                <thead>
-                    <tr>
-                        <th>Thời điểm</th>
-                        <th>Sản phẩm / SKU</th>
-                        <th class="u-text-end">Giá cũ</th>
-                        <th class="u-text-end">Giá mới</th>
-                        <th class="u-text-center">Biến động</th>
-                        <th>Người thực hiện</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @if (Model != null && Model.Any())
+        <form method="get"
+              asp-action="Index"
+              class="price-history-filter"
+              data-price-history-filter>
+            <label>
+                <span>Sản phẩm</span>
+                <select name="productId"
+                        data-price-history-product>
+                    @foreach (var option in Model.ProductOptions)
                     {
-                        foreach (var item in Model)
-                        {
-                            var difference = item.NewPrice - item.OldPrice;
-                            var differencePercent = item.OldPrice > 0
-                                ? Math.Abs(difference) / item.OldPrice * 100
-                                : 0;
-                            var directionClass = difference > 0
-                                ? "price-change price-change--increase"
-                                : difference < 0
-                                    ? "price-change price-change--decrease"
-                                    : "price-change";
-                            var sign = difference > 0 ? "+" : difference < 0 ? "-" : string.Empty;
+                        <option value="@option.Id"
+                                selected="@(
+                                    Model.Filter.ProductId == option.Id)">
+                            @option.Name
+                        </option>
+                    }
+                </select>
+            </label>
 
-                            <tr>
-                                <td>
-                                    <span class="admin-cell-primary">@item.CreatedAt.ToString("dd/MM/yyyy")</span>
-                                    <span class="admin-cell-secondary">@item.CreatedAt.ToString("HH:mm:ss")</span>
-                                </td>
-                                <td>
-                                    <span class="admin-cell-primary">@item.ProductVariant.Product.Name</span>
-                                    <span class="admin-cell-secondary">Mã hàng: @item.ProductVariant.SKU</span>
-                                </td>
-                                <td class="u-text-end">@item.OldPrice.ToString("N0") ₫</td>
-                                <td class="u-text-end"><strong>@item.NewPrice.ToString("N0") ₫</strong></td>
-                                <td class="u-text-center">
-                                    <span class="@directionClass">@differencePercent.ToString("0.0")%</span>
-                                    <small class="admin-cell-secondary">
-                                        @sign@Math.Abs(difference).ToString("N0") ₫
-                                    </small>
-                                </td>
-                                <td>
-                                    <span class="admin-cell-primary">@item.ChangedBy</span>
-                                    <span class="admin-cell-secondary" title="@item.Note">@item.Note</span>
-                                </td>
-                            </tr>
-                        }
-                    }
-                    else
+            <label class="price-history-filter__variant">
+                <span>SKU / lựa chọn bán</span>
+                <select name="variantId"
+                        data-price-history-variant>
+                    @foreach (var option in Model.VariantOptions)
                     {
-                        <tr>
-                            <td colspan="6">
-                                <div class="admin-empty-state admin-empty-state--compact">
-                                    <div>
-                                        <strong>Chưa có biến động giá</strong>
-                                        <span>Nhật ký sẽ xuất hiện khi giá hiệu lực của SKU thay đổi.</span>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
+                        <option value="@option.Id"
+                                data-product-id="@option.ProductId"
+                                selected="@(
+                                    Model.Filter.VariantId == option.Id)">
+                            @option.Sku · @option.Description
+                            @(!option.IsActive ? " · Tạm ngừng" : "")
+                            @(!option.HasHistory ? " · Chưa có lịch sử" : "")
+                        </option>
                     }
-                </tbody>
-            </table>
-        </div>
+                </select>
+            </label>
+
+            <label>
+                <span>Từ ngày</span>
+                <input type="date"
+                       name="fromDate"
+                       value="@Model.Filter.FromDate.ToString("yyyy-MM-dd")"
+                       data-price-history-from
+                       required />
+            </label>
+
+            <label>
+                <span>Đến ngày</span>
+                <input type="date"
+                       name="toDate"
+                       value="@Model.Filter.ToDate.ToString("yyyy-MM-dd")"
+                       data-price-history-to
+                       required />
+            </label>
+
+            <label>
+                <span>Loại giá</span>
+                <select name="priceKind">
+                    <option value="">Tất cả loại giá</option>
+                    <option value="ListPrice"
+                            selected="@(
+                                Model.Filter.PriceKind
+                                    == PriceHistoryKind.ListPrice)">
+                        Giá niêm yết
+                    </option>
+                    <option value="EffectivePrice"
+                            selected="@(
+                                Model.Filter.PriceKind
+                                    == PriceHistoryKind.EffectivePrice)">
+                        Giá bán hiệu lực
+                    </option>
+                </select>
+            </label>
+
+            <label>
+                <span>Nguồn thay đổi</span>
+                <select name="sourceType">
+                    <option value="">Tất cả nguồn</option>
+                    @foreach (var source in Enum.GetValues<PriceChangeSourceType>())
+                    {
+                        var label = source switch
+                        {
+                            PriceChangeSourceType.Manual => "Quản trị viên",
+                            PriceChangeSourceType.Market => "Điều chỉnh thị trường",
+                            PriceChangeSourceType.Promotion => "Khuyến mại",
+                            PriceChangeSourceType.Recovery => "Khôi phục",
+                            PriceChangeSourceType.System => "Hệ thống",
+                            _ => "Dữ liệu cũ"
+                        };
+
+                        <option value="@source"
+                                selected="@(
+                                    Model.Filter.SourceType == source)">
+                            @label
+                        </option>
+                    }
+                </select>
+            </label>
+
+            <label class="price-history-filter__search">
+                <span>Tìm trong nhật ký</span>
+                <input type="search"
+                       name="search"
+                       value="@Model.Filter.Search"
+                       maxlength="100"
+                       placeholder="Người thực hiện, lý do hoặc mã đối chiếu" />
+            </label>
+
+            <div class="price-history-filter__actions">
+                <button type="submit"
+                        class="button button--primary">
+                    Áp dụng
+                </button>
+                <a asp-action="Index"
+                   asp-route-productId="@Model.Filter.ProductId"
+                   asp-route-variantId="@Model.Filter.VariantId"
+                   class="button button--secondary">
+                    Đặt lại
+                </a>
+            </div>
+        </form>
+
+        @if (!string.IsNullOrWhiteSpace(Model.Filter.Notice))
+        {
+            <div class="admin-notice admin-notice--info"
+                 role="status">
+                @Model.Filter.Notice
+            </div>
+        }
     </section>
+
+    @if (Model.SelectedVariant is null || Model.Summary is null)
+    {
+        <section class="admin-panel">
+            <div class="admin-empty-state">
+                <div>
+                    <strong>Chưa có SKU để phân tích</strong>
+                    <span>
+                        Hãy tạo ít nhất một lựa chọn bán trong module sản phẩm.
+                    </span>
+                </div>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="price-history-kpis"
+                 aria-label="Tóm tắt giá">
+            <article class="price-history-kpi">
+                <span>Giá niêm yết hiện tại</span>
+                <strong>
+                    @Model.Summary.ListPrice.ToString("N0", culture) ₫
+                </strong>
+                <small>Giá cơ sở của SKU</small>
+            </article>
+
+            <article class="price-history-kpi price-history-kpi--accent">
+                <span>Giá bán hiệu lực</span>
+                <strong>
+                    @Model.Summary.CurrentPrice.ToString("N0", culture) ₫
+                </strong>
+                <small>
+                    @Model.SelectedVariant.CurrentSourceLabel
+                    @if (!string.IsNullOrWhiteSpace(
+                        Model.SelectedVariant.CurrentCampaignName))
+                    {
+                        <text> · @Model.SelectedVariant.CurrentCampaignName</text>
+                    }
+                </small>
+            </article>
+
+            <article class="price-history-kpi price-history-kpi--success">
+                <span>Thấp nhất quan sát 30 ngày</span>
+                <strong>
+                    @Model.Summary.LowestEffectivePrice30Days.ToString("N0", culture) ₫
+                </strong>
+                <small>
+                    @Model.Summary.EffectiveChangeCount30Days lần đổi giá hiệu lực
+                </small>
+            </article>
+
+            <article class="price-history-kpi">
+                <span>Cao nhất quan sát 30 ngày</span>
+                <strong>
+                    @Model.Summary.HighestEffectivePrice30Days.ToString("N0", culture) ₫
+                </strong>
+                <small>Không dùng làm giá gạch ngang tự động</small>
+            </article>
+
+            <article class="price-history-kpi">
+                <span>Chênh lệch với giá niêm yết</span>
+                <strong class="@(
+                    Model.Summary.DifferenceFromListPrice < 0
+                        ? "is-decrease"
+                        : Model.Summary.DifferenceFromListPrice > 0
+                            ? "is-increase"
+                            : null)">
+                    @SignedMoney(Model.Summary.DifferenceFromListPrice)
+                </strong>
+                <small>
+                    @Model.Summary.DiscountPercentFromListPrice.ToString("0.#")%
+                    thấp hơn giá niêm yết
+                </small>
+            </article>
+
+            <article class="price-history-kpi">
+                <span>Sự kiện theo bộ lọc</span>
+                <strong>@Model.Summary.FilteredEventCount</strong>
+                <small>
+                    @Model.Filter.FromDate.ToString("dd/MM/yyyy")
+                    – @Model.Filter.ToDate.ToString("dd/MM/yyyy")
+                </small>
+            </article>
+        </section>
+
+        <section class="admin-panel price-history-chart-panel"
+                 aria-labelledby="price-history-chart-heading">
+            <header class="admin-panel__header">
+                <div>
+                    <p class="admin-page-kicker">Biểu đồ bậc thang</p>
+                    <h3 id="price-history-chart-heading">
+                        Giá niêm yết và giá bán hiệu lực
+                    </h3>
+                    <p>
+                        Đường ngang biểu thị giá được giữ ổn định cho đến sự kiện
+                        tiếp theo; vùng nền cho biết thời gian kế hoạch giá tồn tại.
+                    </p>
+                </div>
+
+                <div class="price-history-chart-legend">
+                    @foreach (var series in Model.Chart.Series)
+                    {
+                        <span>
+                            <i class="price-history-chart-legend__line price-history-chart-legend__line--@series.Tone"></i>
+                            @series.Label
+                        </span>
+                    }
+                    @if (Model.Campaigns.Count > 0)
+                    {
+                        <span>
+                            <i class="price-history-chart-legend__campaign"></i>
+                            Khoảng kế hoạch giá
+                        </span>
+                    }
+                </div>
+            </header>
+
+            @if (Model.Chart.IsTruncated)
+            {
+                <div class="admin-notice admin-notice--warning">
+                    Biểu đồ chỉ lấy @Model.Chart.Series.Sum(item => item.Points.Count)
+                    sự kiện đầu tiên trong kỳ. Bảng phía dưới vẫn phân trang đầy đủ.
+                </div>
+            }
+
+            <div class="price-history-chart-scroll">
+                <div class="price-history-chart">
+                    <div class="price-history-chart__campaigns"
+                         aria-label="Khoảng thời gian kế hoạch giá">
+                        @foreach (var campaign in Model.Campaigns)
+                        {
+                            <a asp-area="Admin"
+                               asp-controller="PriceCampaigns"
+                               asp-action="Create"
+                               asp-route-id="@campaign.CampaignId"
+                               class="price-history-campaign-band price-history-campaign-band--@campaign.Tone"
+                               style="--band-left:@campaign.LeftPercent.ToString("0.###", invariant)%; --band-width:@campaign.WidthPercent.ToString("0.###", invariant)%"
+                               title="@($"{campaign.Code} · {campaign.Name} · {campaign.StatusLabel}")">
+                                <span>@campaign.Code</span>
+                            </a>
+                        }
+                    </div>
+
+                    <svg viewBox="0 0 1000 300"
+                         role="img"
+                         aria-label="Biểu đồ lịch sử giá theo thời gian"
+                         preserveAspectRatio="none">
+                        <g class="price-history-chart__grid"
+                           aria-hidden="true">
+                            @foreach (var label in Model.Chart.YAxisLabels)
+                            {
+                                <line x1="0"
+                                      x2="1000"
+                                      y1="@label.Position.ToString("0.###", invariant)"
+                                      y2="@label.Position.ToString("0.###", invariant)" />
+                            }
+                        </g>
+
+                        @foreach (var series in Model.Chart.Series)
+                        {
+                            <path class="price-history-chart__series price-history-chart__series--@series.Tone"
+                                  d="@series.SvgPath" />
+
+                            @foreach (var point in series.Points)
+                            {
+                                <circle class="price-history-chart__point price-history-chart__point--@series.Tone"
+                                        cx="@point.X.ToString("0.###", invariant)"
+                                        cy="@point.Y.ToString("0.###", invariant)"
+                                        r="4">
+                                    <title>
+                                        @point.EffectiveAtLocal.ToString("dd/MM/yyyy HH:mm")
+                                        · @point.Label
+                                    </title>
+                                </circle>
+                            }
+                        }
+                    </svg>
+
+                    <div class="price-history-chart__y-axis"
+                         aria-hidden="true">
+                        @foreach (var label in Model.Chart.YAxisLabels)
+                        {
+                            <span style="--axis-position:@label.Position.ToString("0.###", invariant)">
+                                @label.Label
+                            </span>
+                        }
+                    </div>
+
+                    <div class="price-history-chart__x-axis"
+                         aria-hidden="true">
+                        @foreach (var label in Model.Chart.XAxisLabels)
+                        {
+                            <span style="--axis-position:@label.Position.ToString("0.###", invariant)">
+                                @label.Label
+                            </span>
+                        }
+                    </div>
+
+                    @if (!Model.Chart.HasHistoryEvents)
+                    {
+                        <div class="price-history-chart__empty">
+                            <strong>Chưa có sự kiện phù hợp bộ lọc</strong>
+                            <span>
+                                Hai đường phẳng đang thể hiện giá hiện tại của SKU.
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (Model.Campaigns.Count > 0)
+            {
+                <div class="price-history-campaign-list">
+                    @foreach (var campaign in Model.Campaigns)
+                    {
+                        <a asp-area="Admin"
+                           asp-controller="PriceCampaigns"
+                           asp-action="Create"
+                           asp-route-id="@campaign.CampaignId">
+                            <span class="admin-badge admin-badge--@campaign.Tone">
+                                @campaign.StatusLabel
+                            </span>
+                            <strong>@campaign.Code · @campaign.Name</strong>
+                            <small>
+                                @campaign.StartLocal.ToString("dd/MM/yyyy HH:mm")
+                                –
+                                @(campaign.EndLocal?.ToString("dd/MM/yyyy HH:mm")
+                                    ?? "Không giới hạn")
+                            </small>
+                        </a>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="admin-panel price-history-timeline"
+                 aria-labelledby="price-history-timeline-heading">
+            <header class="admin-panel__header">
+                <div>
+                    <p class="admin-page-kicker">Timeline kiểm toán</p>
+                    <h3 id="price-history-timeline-heading">
+                        @Model.TotalEvents sự kiện phù hợp
+                    </h3>
+                    <p>
+                        Thời điểm hiệu lực và thời điểm hệ thống ghi nhận được
+                        hiển thị riêng để hỗ trợ đối soát.
+                    </p>
+                </div>
+
+                <a asp-area="Admin"
+                   asp-controller="Products"
+                   asp-action="Edit"
+                   asp-route-id="@Model.SelectedVariant.ProductId"
+                   class="admin-text-link">
+                    Mở sản phẩm
+                </a>
+            </header>
+
+            @if (Model.Events.Count == 0)
+            {
+                <div class="admin-empty-state">
+                    <div>
+                        <strong>Không có sự kiện trong khoảng đã chọn</strong>
+                        <span>
+                            Thử mở rộng khoảng ngày hoặc bỏ bớt điều kiện lọc.
+                        </span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="price-history-event-list">
+                    @foreach (var item in Model.Events)
+                    {
+                        <article class="price-history-event price-history-event--@item.DirectionTone">
+                            <div class="price-history-event__rail"
+                                 aria-hidden="true">
+                                <i></i>
+                            </div>
+
+                            <div class="price-history-event__main">
+                                <header>
+                                    <div>
+                                        <span class="admin-badge admin-badge--@item.PriceKindTone">
+                                            @item.PriceKindLabel
+                                        </span>
+                                        <strong>@item.EventLabel</strong>
+                                    </div>
+                                    <time datetime="@item.EffectiveFromLocal.ToString("O")">
+                                        @item.EffectiveFromLocal.ToString("dd/MM/yyyy HH:mm:ss")
+                                    </time>
+                                </header>
+
+                                <div class="price-history-event__prices">
+                                    <span>
+                                        <small>Giá trước</small>
+                                        @item.OldPrice.ToString("N0", culture) ₫
+                                    </span>
+                                    <i aria-hidden="true">→</i>
+                                    <span>
+                                        <small>Giá sau</small>
+                                        <strong>
+                                            @item.NewPrice.ToString("N0", culture) ₫
+                                        </strong>
+                                    </span>
+                                    <span class="price-history-event__difference price-history-event__difference--@item.DirectionTone">
+                                        @SignedMoney(item.Difference)
+                                        · @item.DifferencePercent.ToString("0.#")%
+                                    </span>
+                                </div>
+
+                                <div class="price-history-event__meta">
+                                    <span>
+                                        <small>Nguồn</small>
+                                        @item.SourceLabel
+                                    </span>
+                                    <span>
+                                        <small>Người thực hiện</small>
+                                        @item.ChangedBy
+                                    </span>
+                                    <span>
+                                        <small>Ghi nhận lúc</small>
+                                        @item.RecordedAtLocal.ToString("dd/MM/yyyy HH:mm:ss")
+                                    </span>
+                                    @if (item.EffectiveToLocal.HasValue)
+                                    {
+                                        <span>
+                                            <small>Hiệu lực đến</small>
+                                            @item.EffectiveToLocal.Value.ToString("dd/MM/yyyy HH:mm:ss")
+                                        </span>
+                                    }
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(item.CampaignName)
+                                    && item.SourceId.HasValue)
+                                {
+                                    <a asp-area="Admin"
+                                       asp-controller="PriceCampaigns"
+                                       asp-action="Create"
+                                       asp-route-id="@item.SourceId"
+                                       class="price-history-event__campaign">
+                                        Kế hoạch:
+                                        <strong>
+                                            @item.CampaignCode · @item.CampaignName
+                                        </strong>
+                                    </a>
+                                }
+
+                                <details class="price-history-event__details">
+                                    <summary>Xem dữ liệu kiểm toán</summary>
+                                    <dl>
+                                        <div>
+                                            <dt>Lý do</dt>
+                                            <dd>
+                                                @(string.IsNullOrWhiteSpace(item.Reason)
+                                                    ? "Không ghi nhận"
+                                                    : item.Reason)
+                                            </dd>
+                                        </div>
+                                        <div>
+                                            <dt>Ghi chú</dt>
+                                            <dd>@item.Note</dd>
+                                        </div>
+                                        <div>
+                                            <dt>Mã đối chiếu</dt>
+                                            <dd>
+                                                @(string.IsNullOrWhiteSpace(item.CorrelationId)
+                                                    ? "Không có"
+                                                    : item.CorrelationId)
+                                            </dd>
+                                        </div>
+                                        <div>
+                                            <dt>ID sự kiện</dt>
+                                            <dd>#@item.Id</dd>
+                                        </div>
+                                    </dl>
+                                </details>
+                            </div>
+                        </article>
+                    }
+                </div>
+
+                @if (Model.TotalPages > 1)
+                {
+                    <nav class="admin-pagination"
+                         aria-label="Phân trang lịch sử giá">
+                        @for (var pageNumber = 1;
+                            pageNumber <= Model.TotalPages;
+                            pageNumber++)
+                        {
+                            <a asp-action="Index"
+                               asp-route-productId="@Model.Filter.ProductId"
+                               asp-route-variantId="@Model.Filter.VariantId"
+                               asp-route-fromDate="@Model.Filter.FromDate.ToString("yyyy-MM-dd")"
+                               asp-route-toDate="@Model.Filter.ToDate.ToString("yyyy-MM-dd")"
+                               asp-route-priceKind="@Model.Filter.PriceKind"
+                               asp-route-sourceType="@Model.Filter.SourceType"
+                               asp-route-search="@Model.Filter.Search"
+                               asp-route-page="@pageNumber"
+                               class="@(pageNumber == Model.Page ? "is-active" : null)"
+                               aria-current="@(pageNumber == Model.Page ? "page" : null)">
+                                @pageNumber
+                            </a>
+                        }
+                    </nav>
+                }
+            }
+        </section>
+    }
 </section>
+
+@section Scripts {
+    <script src="~/js/pages/admin/price-history.js"
+            asp-append-version="true"></script>
+}
