@@ -754,3 +754,17 @@
         grid-template-columns: 1fr;
     }
 }
+
+
+.price-history-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.55rem;
+}
+
+@media (max-width: 60rem) {
+    .price-history-hero__actions {
+        justify-content: flex-start;
+    }
+}

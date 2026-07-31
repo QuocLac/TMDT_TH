@@ -1,0 +1,260 @@
+.price-risk-page {
+    gap: var(--space-5);
+}
+
+.price-risk-hero {
+    align-items: center;
+}
+
+.price-risk-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.6rem;
+}
+
+.price-risk-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+}
+
+.price-risk-summary article {
+    display: grid;
+    min-width: 0;
+    gap: 0.3rem;
+    padding: 1rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg-surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.price-risk-summary article.is-warning {
+    border-color:
+        color-mix(
+            in srgb,
+            var(--color-warning-text) 28%,
+            var(--color-border));
+}
+
+.price-risk-summary article.is-danger {
+    border-color:
+        color-mix(
+            in srgb,
+            var(--color-danger-text) 28%,
+            var(--color-border));
+}
+
+.price-risk-summary span,
+.price-risk-summary small {
+    color: var(--color-text-muted);
+    font-size: 0.66rem;
+}
+
+.price-risk-summary strong {
+    color: var(--color-text-primary);
+    font-size: 1.55rem;
+    font-weight: 950;
+}
+
+.price-risk-policy__grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.7rem;
+    padding: var(--space-5);
+}
+
+.price-risk-policy__grid article {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-subtle);
+}
+
+.price-risk-policy__grid span {
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+}
+
+.price-risk-policy__grid strong {
+    font-size: 0.72rem;
+}
+
+.price-risk-filter {
+    display: grid;
+    grid-template-columns:
+        minmax(11rem, 0.35fr)
+        minmax(18rem, 1fr)
+        auto;
+    align-items: end;
+    gap: 0.75rem;
+    padding: var(--space-5);
+}
+
+.price-risk-filter label {
+    display: grid;
+    min-width: 0;
+    gap: 0.38rem;
+}
+
+.price-risk-filter label > span {
+    color: var(--color-text-secondary);
+    font-size: 0.68rem;
+    font-weight: 850;
+}
+
+.price-risk-filter input,
+.price-risk-filter select {
+    width: 100%;
+    min-height: 2.65rem;
+    padding: 0.6rem 0.72rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-elevated);
+    color: var(--color-text-primary);
+    font: inherit;
+}
+
+.price-risk-filter > div {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.price-risk-table {
+    min-width: 76rem;
+}
+
+.price-risk-drift-table {
+    min-width: 74rem;
+}
+
+.price-risk-issues {
+    min-width: 12rem;
+}
+
+.price-risk-issues summary {
+    color: var(--color-accent-strong);
+    font-size: 0.68rem;
+    font-weight: 850;
+    cursor: pointer;
+}
+
+.price-risk-issues > div {
+    display: grid;
+    width: min(25rem, 70vw);
+    gap: 0.5rem;
+    margin-top: 0.55rem;
+}
+
+.price-risk-issue {
+    display: grid;
+    gap: 0.28rem;
+    padding: 0.68rem;
+    border: 1px solid var(--color-border);
+    border-left-width: 0.28rem;
+    border-radius: var(--radius-md);
+    background: var(--color-bg-elevated);
+}
+
+.price-risk-issue--danger {
+    border-left-color: var(--color-danger-text);
+}
+
+.price-risk-issue--warning {
+    border-left-color: var(--color-warning-text);
+}
+
+.price-risk-issue--info {
+    border-left-color: var(--color-accent);
+}
+
+.price-risk-issue header {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.price-risk-issue strong {
+    font-size: 0.68rem;
+}
+
+.price-risk-issue p {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.63rem;
+    line-height: 1.45;
+}
+
+.price-risk-issue small,
+.price-risk-issue code {
+    color: var(--color-text-muted);
+    font-size: 0.58rem;
+}
+
+.price-risk-page .page-feedback {
+    margin: 0 var(--space-5) var(--space-4);
+}
+
+.price-risk-page .page-feedback:not(:empty) {
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-subtle);
+}
+
+.price-risk-page .page-feedback.is-error {
+    border-color: var(--color-danger-text);
+    color: var(--color-danger-text);
+}
+
+.price-risk-page .page-feedback.is-success {
+    border-color: var(--color-success-text);
+    color: var(--color-success-text);
+}
+
+@media (max-width: 76rem) {
+    .price-risk-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .price-risk-policy__grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .price-risk-filter {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .price-risk-filter > div {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 52rem) {
+    .price-risk-hero {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .price-risk-hero__actions {
+        justify-content: flex-start;
+    }
+
+    .price-risk-summary,
+    .price-risk-policy__grid,
+    .price-risk-filter {
+        grid-template-columns: 1fr;
+    }
+
+    .price-risk-filter > div {
+        grid-column: auto;
+        flex-direction: column;
+    }
+
+    .price-risk-filter .button {
+        width: 100%;
+    }
+}

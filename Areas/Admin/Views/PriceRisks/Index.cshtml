@@ -1,0 +1,479 @@
+@using System.Globalization
+@using WebApplication2.Areas.Admin.ViewModels.PriceRisks
+@using WebApplication2.Services.Pricing
+@model PriceRiskIndexPageViewModel
+
+@{
+    ViewData["Title"] = "Kiểm soát rủi ro giá";
+    var culture = CultureInfo.GetCultureInfo("vi-VN");
+}
+
+@section Styles {
+    <link rel="stylesheet"
+          href="~/css/pages/admin/price-risks.css"
+          asp-append-version="true" />
+}
+
+<section class="admin-page price-risk-page"
+         data-price-risk-page>
+    <header class="admin-page-header admin-page-header--hero price-risk-hero">
+        <div>
+            <p class="admin-page-kicker">Pricing governance</p>
+            <h2>Kiểm soát rủi ro và đối soát giá</h2>
+            <p class="admin-page-lead">
+                Phát hiện mức giảm bất thường, tần suất thay đổi cao, kế hoạch
+                chồng lấn, vi phạm maker-checker và projection giá không đồng bộ.
+            </p>
+        </div>
+
+        <div class="price-risk-hero__actions">
+            <a asp-area="Admin"
+               asp-controller="PriceCampaigns"
+               asp-action="Index"
+               class="button button--primary">
+                Lịch áp dụng giá
+            </a>
+            <a asp-area="Admin"
+               asp-controller="PriceHistories"
+               asp-action="Index"
+               class="button button--secondary">
+                Lịch sử theo SKU
+            </a>
+        </div>
+    </header>
+
+    <div class="admin-notice admin-notice--warning">
+        <span>
+            Các ngưỡng bên dưới là chính sách kiểm soát nội bộ. Hệ thống hiện
+            chưa lưu giá vốn theo SKU nên chưa thể tự động chặn giá thấp hơn
+            chi phí. Không dùng KPI “cao nhất 30 ngày” làm giá gạch ngang.
+        </span>
+    </div>
+
+    <section class="price-risk-summary"
+             aria-label="Tổng quan rủi ro giá">
+        <article>
+            <span>Kế hoạch đang theo dõi</span>
+            <strong>@Model.Summary.CampaignCount</strong>
+            <small>Bản nháp, đã xác nhận, đã lên lịch và đang chạy</small>
+        </article>
+        <article class="is-danger">
+            <span>Rủi ro nghiêm trọng</span>
+            <strong>@Model.Summary.CriticalCampaignCount</strong>
+            <small>Có lỗi chặn hoặc sai nguyên tắc kiểm soát</small>
+        </article>
+        <article class="is-warning">
+            <span>Rủi ro cao</span>
+            <strong>@Model.Summary.HighCampaignCount</strong>
+            <small>Cần rà soát trước khi xác nhận</small>
+        </article>
+        <article>
+            <span>Cần người xác nhận thứ hai</span>
+            <strong>@Model.Summary.RequiresSecondApproverCount</strong>
+            <small>Maker và checker nên là hai quản trị viên khác nhau</small>
+        </article>
+        <article class="is-warning">
+            <span>Projection không khớp</span>
+            <strong>@Model.Summary.ProjectionDriftCount</strong>
+            <small>Giá hoặc nguồn giá lưu trữ lệch kết quả tính</small>
+        </article>
+        <article class="is-danger">
+            <span>Nhiều giá cùng hiệu lực</span>
+            <strong>@Model.Summary.AmbiguousEffectivePriceCount</strong>
+            <small>Phải xử lý chồng lấn trước khi đối soát</small>
+        </article>
+    </section>
+
+    <section class="admin-panel price-risk-policy"
+             aria-labelledby="price-risk-policy-heading">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">Guardrail hiện tại</p>
+                <h3 id="price-risk-policy-heading">
+                    Ngưỡng kiểm soát nội bộ
+                </h3>
+                <p>
+                    Các ngưỡng được khai báo tập trung trong
+                    <code>PriceRiskPolicy</code>.
+                </p>
+            </div>
+        </header>
+
+        <div class="price-risk-policy__grid">
+            <article>
+                <span>Chặn mức giảm</span>
+                <strong>
+                    ≥ @Model.Policy.CriticalDiscountPercent.ToString("0.#")%
+                </strong>
+            </article>
+            <article>
+                <span>Cần checker thứ hai</span>
+                <strong>
+                    ≥ @Model.Policy.SecondApproverDiscountPercent.ToString("0.#")%
+                </strong>
+            </article>
+            <article>
+                <span>Thấp hơn đáy 30 ngày</span>
+                <strong>
+                    ≥ @Model.Policy.ThirtyDayLowUndercutPercent.ToString("0.#")%
+                </strong>
+            </article>
+            <article>
+                <span>Đổi giá thường xuyên</span>
+                <strong>
+                    ≥ @Model.Policy.FrequentEffectiveChanges7Days lần/7 ngày
+                </strong>
+            </article>
+            <article>
+                <span>Phạm vi lớn</span>
+                <strong>
+                    ≥ @Model.Policy.LargeScopeVariantCount SKU
+                </strong>
+            </article>
+        </div>
+    </section>
+
+    <section class="admin-panel price-risk-filter-panel">
+        <form method="get"
+              asp-action="Index"
+              class="price-risk-filter">
+            <label>
+                <span>Mức rủi ro</span>
+                <select name="riskLevel">
+                    <option value="">Tất cả mức</option>
+                    @foreach (var level in Enum.GetValues<PriceRiskLevel>())
+                    {
+                        var label = level switch
+                        {
+                            PriceRiskLevel.Critical => "Nghiêm trọng",
+                            PriceRiskLevel.High => "Cao",
+                            PriceRiskLevel.Medium => "Trung bình",
+                            _ => "Thấp"
+                        };
+                        <option value="@level"
+                                selected="@(Model.Filter.RiskLevel == level)">
+                            @label
+                        </option>
+                    }
+                </select>
+            </label>
+
+            <label class="price-risk-filter__search">
+                <span>Tìm kế hoạch hoặc SKU</span>
+                <input type="search"
+                       name="search"
+                       value="@Model.Filter.Search"
+                       maxlength="100"
+                       placeholder="Mã, tên, người tạo, SKU hoặc nội dung cảnh báo" />
+            </label>
+
+            <div>
+                <button type="submit"
+                        class="button button--primary">
+                    Áp dụng
+                </button>
+                <a asp-action="Index"
+                   class="button button--secondary">
+                    Đặt lại
+                </a>
+            </div>
+        </form>
+    </section>
+
+    <section class="admin-panel"
+             aria-labelledby="campaign-risk-heading">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">Rủi ro theo kế hoạch</p>
+                <h3 id="campaign-risk-heading">
+                    @Model.Campaigns.Count kế hoạch phù hợp bộ lọc
+                </h3>
+                <p>
+                    Đánh giá lại theo dữ liệu giá và lịch sử tại thời điểm mở trang.
+                </p>
+            </div>
+            <small>
+                Cập nhật:
+                @Model.GeneratedAtUtc.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+            </small>
+        </header>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table price-risk-table">
+                <thead>
+                    <tr>
+                        <th>Kế hoạch</th>
+                        <th>Thời gian / phạm vi</th>
+                        <th>Chỉ số rủi ro</th>
+                        <th>Maker-checker</th>
+                        <th>Cảnh báo</th>
+                        <th class="u-text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Campaigns.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6">
+                                <div class="admin-empty-state">
+                                    <div>
+                                        <strong>Không có kế hoạch phù hợp</strong>
+                                        <span>Thử bỏ điều kiện lọc hoặc tạo lịch giá mới.</span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var campaign in Model.Campaigns)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="admin-cell-primary">
+                                        @campaign.Code · @campaign.Name
+                                    </span>
+                                    <span class="admin-cell-secondary">
+                                        @campaign.StatusLabel
+                                        · Tạo bởi @campaign.CreatedBy
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="admin-cell-primary">
+                                        @campaign.StartLocal.ToString("dd/MM/yyyy HH:mm")
+                                        →
+                                        @(campaign.EndLocal?.ToString("dd/MM/yyyy HH:mm")
+                                            ?? "Không thời hạn")
+                                    </span>
+                                    <span class="admin-cell-secondary">
+                                        @campaign.VariantCount SKU
+                                        · @campaign.OverlapCampaignCount kế hoạch chồng lấn
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="admin-badge admin-badge--@campaign.RiskTone">
+                                        @campaign.RiskLabel
+                                    </span>
+                                    <span class="admin-cell-secondary">
+                                        Giảm tối đa
+                                        @campaign.MaximumDiscountPercent.ToString("0.#")%
+                                    </span>
+                                    <span class="admin-cell-secondary">
+                                        Thấp hơn đáy 30 ngày
+                                        @campaign.MaximumThirtyDayLowUndercutPercent.ToString("0.#")%
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="admin-cell-primary">
+                                        @campaign.ControlLabel
+                                    </span>
+                                    <span class="admin-cell-secondary">
+                                        Maker: @campaign.CreatedBy
+                                    </span>
+                                    <span class="admin-cell-secondary">
+                                        Checker:
+                                        @(campaign.ConfirmedBy ?? "Chưa xác nhận")
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (campaign.Issues.Count == 0)
+                                    {
+                                        <span class="admin-badge admin-badge--success">
+                                            Chưa phát hiện bất thường
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <details class="price-risk-issues">
+                                            <summary>
+                                                @campaign.Issues.Count cảnh báo
+                                            </summary>
+                                            <div>
+                                                @foreach (var issue in campaign.Issues)
+                                                {
+                                                    <article class="price-risk-issue price-risk-issue--@issue.Tone">
+                                                        <header>
+                                                            <span class="admin-badge admin-badge--@issue.Tone">
+                                                                @issue.SeverityLabel
+                                                            </span>
+                                                            <strong>@issue.Title</strong>
+                                                        </header>
+                                                        <p>@issue.Detail</p>
+                                                        @if (!string.IsNullOrWhiteSpace(issue.Sku))
+                                                        {
+                                                            <small>SKU: @issue.Sku</small>
+                                                        }
+                                                        <code>@issue.Code</code>
+                                                    </article>
+                                                }
+                                            </div>
+                                        </details>
+                                    }
+                                </td>
+                                <td class="u-text-end">
+                                    <a asp-area="Admin"
+                                       asp-controller="PriceCampaigns"
+                                       asp-action="Create"
+                                       asp-route-id="@campaign.CampaignId"
+                                       class="button button--secondary button--small">
+                                        Mở kế hoạch
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="admin-panel"
+             aria-labelledby="projection-drift-heading">
+        <header class="admin-panel__header">
+            <div>
+                <p class="admin-page-kicker">Đối soát projection</p>
+                <h3 id="projection-drift-heading">
+                    @Model.TotalProjectionDrifts SKU không khớp
+                </h3>
+                <p>
+                    So sánh <code>CurrentPrice</code> và nguồn giá lưu trữ với
+                    kế hoạch thực sự đang hiệu lực.
+                </p>
+            </div>
+
+            <button type="button"
+                    class="button button--primary"
+                    data-reconcile-selected
+                    disabled>
+                Đối soát SKU đã chọn
+            </button>
+        </header>
+
+        <div class="page-feedback"
+             data-price-risk-feedback
+             role="status"
+             aria-live="polite"></div>
+
+        <div class="admin-table-wrap">
+            <table class="admin-data-table price-risk-drift-table">
+                <thead>
+                    <tr>
+                        <th class="u-text-center">
+                            <input type="checkbox"
+                                   data-select-all-drift
+                                   aria-label="Chọn tất cả SKU có thể đối soát" />
+                        </th>
+                        <th>Sản phẩm / SKU</th>
+                        <th>Giá đang lưu</th>
+                        <th>Giá được tính</th>
+                        <th>Nguồn đang lưu</th>
+                        <th>Nguồn được tính</th>
+                        <th>Vấn đề</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.ProjectionDrifts.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7">
+                                <div class="admin-empty-state admin-empty-state--compact">
+                                    <div>
+                                        <strong>Projection giá đang đồng bộ</strong>
+                                        <span>Chưa phát hiện SKU lệch giá hoặc nguồn giá.</span>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in Model.ProjectionDrifts)
+                        {
+                            <tr>
+                                <td class="u-text-center">
+                                    <input type="checkbox"
+                                           value="@row.VariantId"
+                                           data-drift-checkbox
+                                           disabled="@row.IsAmbiguous"
+                                           aria-label="Chọn @row.Sku để đối soát" />
+                                </td>
+                                <td>
+                                    <a asp-area="Admin"
+                                       asp-controller="Products"
+                                       asp-action="Edit"
+                                       asp-route-id="@row.ProductId"
+                                       class="admin-cell-primary">
+                                        @row.ProductName
+                                    </a>
+                                    <span class="admin-cell-secondary">
+                                        @row.Sku · ID @row.VariantId
+                                    </span>
+                                </td>
+                                <td>
+                                    <strong>
+                                        @row.StoredCurrentPrice.ToString("N0", culture) ₫
+                                    </strong>
+                                    <span class="admin-cell-secondary">
+                                        Niêm yết:
+                                        @row.ListPrice.ToString("N0", culture) ₫
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (row.ExpectedCurrentPrice.HasValue)
+                                    {
+                                        <strong>
+                                            @row.ExpectedCurrentPrice.Value.ToString("N0", culture) ₫
+                                        </strong>
+                                    }
+                                    else
+                                    {
+                                        <span>Không xác định</span>
+                                    }
+                                </td>
+                                <td>
+                                    @row.StoredSourceType
+                                    @if (row.StoredSourceId.HasValue)
+                                    {
+                                        <span class="admin-cell-secondary">
+                                            #@row.StoredSourceId
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    @(row.ExpectedSourceType?.ToString() ?? "Không xác định")
+                                    @if (row.ExpectedSourceId.HasValue)
+                                    {
+                                        <span class="admin-cell-secondary">
+                                            #@row.ExpectedSourceId
+                                        </span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="admin-badge admin-badge--@row.Tone">
+                                        @(row.IsAmbiguous ? "Chồng lấn" : "Lệch projection")
+                                    </span>
+                                    <span class="admin-cell-secondary">
+                                        @row.Issue
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.TotalProjectionDrifts > Model.ProjectionDrifts.Count)
+        {
+            <div class="admin-notice admin-notice--info">
+                Trang chỉ hiển thị 100 SKU đầu tiên. Hãy đối soát rồi tải lại
+                để xem phần còn lại.
+            </div>
+        }
+    </section>
+</section>
+
+@section Scripts {
+    <script src="~/js/pages/admin/price-risks.js"
+            asp-append-version="true"></script>
+}

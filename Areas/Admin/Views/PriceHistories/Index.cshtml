@@ -35,6 +35,15 @@
             </p>
         </div>
 
+        <div class="price-history-hero__actions">
+            <a asp-area="Admin"
+               asp-controller="PriceRisks"
+               asp-action="Index"
+               class="button button--secondary">
+                Kiểm tra rủi ro giá
+            </a>
+        </div>
+
         @if (Model.SelectedVariant is not null)
         {
             <div class="price-history-hero__selection">
