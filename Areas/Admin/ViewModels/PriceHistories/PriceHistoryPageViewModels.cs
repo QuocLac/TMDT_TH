@@ -14,6 +14,9 @@ public sealed class PriceHistoryIndexPageViewModel
     public IReadOnlyList<PriceHistoryVariantOptionViewModel>
         VariantOptions { get; init; } = [];
 
+    public IReadOnlyList<PriceHistoryProductListItemViewModel>
+        ProductCatalog { get; init; } = [];
+
     public PriceHistorySelectedVariantViewModel?
         SelectedVariant { get; init; }
 
@@ -60,6 +63,38 @@ public sealed record PriceHistoryVariantOptionViewModel(
     string Description,
     bool IsActive,
     bool HasHistory);
+
+
+public sealed class PriceHistoryProductListItemViewModel
+{
+    public int Id { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string CategoryName { get; init; } = string.Empty;
+    public string? BrandName { get; init; }
+    public string? ImageUrl { get; init; }
+    public bool IsActive { get; init; }
+    public int VariantCount { get; init; }
+    public int HistoryEventCount { get; init; }
+    public bool IsSelected { get; init; }
+
+    public IReadOnlyList<PriceHistoryVariantListItemViewModel>
+        Variants { get; init; } = [];
+}
+
+public sealed class PriceHistoryVariantListItemViewModel
+{
+    public int Id { get; init; }
+    public string Sku { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public bool IsActive { get; init; }
+    public bool HasHistory { get; init; }
+    public int HistoryEventCount { get; init; }
+    public decimal ListPrice { get; init; }
+    public decimal CurrentPrice { get; init; }
+    public EffectivePriceSourceType CurrentSourceType { get; init; }
+    public DateTime? LastChangedAtLocal { get; init; }
+    public bool IsSelected { get; init; }
+}
 
 public sealed class PriceHistorySelectedVariantViewModel
 {

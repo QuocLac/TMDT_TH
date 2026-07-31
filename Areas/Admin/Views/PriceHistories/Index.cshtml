@@ -57,158 +57,351 @@
         }
     </header>
 
-    <section class="admin-panel price-history-filter-panel"
-             aria-labelledby="price-history-filter-heading">
-        <header class="admin-panel__header">
-            <div>
-                <p class="admin-page-kicker">Bộ lọc kiểm toán</p>
-                <h3 id="price-history-filter-heading">
-                    Chọn sản phẩm, SKU và khoảng ngày
-                </h3>
-                <p>
-                    Khoảng ngày tối đa 366 ngày. Dữ liệu được hiển thị theo múi giờ Việt Nam.
-                </p>
+    <div class="price-history-workspace">
+        <aside class="admin-panel price-history-catalog"
+               aria-labelledby="price-history-catalog-heading">
+            <header class="price-history-catalog__header">
+                <div>
+                    <p class="admin-page-kicker">Danh mục giá</p>
+                    <h3 id="price-history-catalog-heading">
+                        Sản phẩm và SKU
+                    </h3>
+                    <p>
+                        @Model.ProductCatalog.Count sản phẩm
+                        · @Model.ProductCatalog.Sum(item => item.VariantCount) SKU
+                    </p>
+                </div>
+            </header>
+
+            <div class="price-history-catalog__tools">
+                <label class="price-history-catalog-search">
+                    <span class="u-visually-hidden">
+                        Tìm sản phẩm hoặc SKU
+                    </span>
+                    <input type="search"
+                           placeholder="Tìm tên sản phẩm, SKU, màu, kích thước"
+                           autocomplete="off"
+                           data-price-history-catalog-search />
+                </label>
+
+                <div class="price-history-catalog-filters"
+                     aria-label="Lọc danh sách SKU">
+                    <button type="button"
+                            class="is-active"
+                            data-price-history-catalog-filter="all">
+                        Tất cả
+                    </button>
+                    <button type="button"
+                            data-price-history-catalog-filter="history">
+                        Có lịch sử
+                    </button>
+                    <button type="button"
+                            data-price-history-catalog-filter="campaign">
+                        Đang theo kế hoạch
+                    </button>
+                    <button type="button"
+                            data-price-history-catalog-filter="inactive">
+                        Tạm ngừng
+                    </button>
+                </div>
             </div>
 
-            <div class="price-history-range-presets"
-                 aria-label="Khoảng ngày nhanh">
-                <button type="button" data-price-history-days="7">7 ngày</button>
-                <button type="button" data-price-history-days="30">30 ngày</button>
-                <button type="button" data-price-history-days="90">90 ngày</button>
-                <button type="button" data-price-history-days="365">1 năm</button>
+            <div class="price-history-product-list"
+                 data-price-history-product-list>
+                @foreach (var product in Model.ProductCatalog)
+                {
+                    var productSearchText =
+                        $"{product.Name} {product.CategoryName} "
+                        + $"{product.BrandName} "
+                        + string.Join(
+                            " ",
+                            product.Variants.Select(item =>
+                                $"{item.Sku} {item.Description}"));
+
+                    <details class="price-history-product-card"
+                             open="@product.IsSelected"
+                             data-price-history-product-card
+                             data-search="@productSearchText.ToLowerInvariant()">
+                        <summary>
+                            <span class="price-history-product-card__image"
+                                  aria-hidden="true">
+                                @if (!string.IsNullOrWhiteSpace(product.ImageUrl))
+                                {
+                                    <img src="@product.ImageUrl"
+                                         alt=""
+                                         loading="lazy" />
+                                }
+                                else
+                                {
+                                    <span>
+                                        @product.Name.Substring(0, 1).ToUpperInvariant()
+                                    </span>
+                                }
+                            </span>
+
+                            <span class="price-history-product-card__copy">
+                                <strong>@product.Name</strong>
+                                <small>
+                                    @product.CategoryName
+                                    @if (!string.IsNullOrWhiteSpace(product.BrandName))
+                                    {
+                                        <text> · @product.BrandName</text>
+                                    }
+                                </small>
+                                <span>
+                                    @product.VariantCount SKU
+                                    · @product.HistoryEventCount sự kiện
+                                </span>
+                            </span>
+
+                            <i class="fa-solid fa-chevron-down"
+                               aria-hidden="true"></i>
+                        </summary>
+
+                        <div class="price-history-variant-list">
+                            @foreach (var variant in product.Variants)
+                            {
+                                var stateTokens = new List<string>();
+                                if (variant.HasHistory)
+                                {
+                                    stateTokens.Add("history");
+                                }
+                                if (variant.CurrentSourceType
+                                    == EffectivePriceSourceType.Campaign)
+                                {
+                                    stateTokens.Add("campaign");
+                                }
+                                if (!variant.IsActive)
+                                {
+                                    stateTokens.Add("inactive");
+                                }
+
+                                <a asp-action="Index"
+                                   asp-route-productId="@product.Id"
+                                   asp-route-variantId="@variant.Id"
+                                   asp-route-fromDate="@Model.Filter.FromDate.ToString("yyyy-MM-dd")"
+                                   asp-route-toDate="@Model.Filter.ToDate.ToString("yyyy-MM-dd")"
+                                   asp-route-priceKind="@Model.Filter.PriceKind"
+                                   asp-route-sourceType="@Model.Filter.SourceType"
+                                   asp-route-search="@Model.Filter.Search"
+                                   class="price-history-variant-item @(variant.IsSelected ? "is-selected" : null)"
+                                   aria-current="@(variant.IsSelected ? "true" : null)"
+                                   data-price-history-variant-item
+                                   data-state="@string.Join(" ", stateTokens)"
+                                   data-search="@($"{variant.Sku} {variant.Description}".ToLowerInvariant())">
+                                    <span class="price-history-variant-item__top">
+                                        <strong>@variant.Sku</strong>
+                                        @if (variant.CurrentSourceType
+                                            == EffectivePriceSourceType.Campaign)
+                                        {
+                                            <span class="admin-badge admin-badge--success">
+                                                Kế hoạch
+                                            </span>
+                                        }
+                                        else if (!variant.IsActive)
+                                        {
+                                            <span class="admin-badge admin-badge--warning">
+                                                Tạm ngừng
+                                            </span>
+                                        }
+                                    </span>
+
+                                    <small>@variant.Description</small>
+
+                                    <span class="price-history-variant-item__prices">
+                                        <span>
+                                            <small>Niêm yết</small>
+                                            @variant.ListPrice.ToString("N0", culture) ₫
+                                        </span>
+                                        <span>
+                                            <small>Hiệu lực</small>
+                                            <strong>
+                                                @variant.CurrentPrice.ToString("N0", culture) ₫
+                                            </strong>
+                                        </span>
+                                    </span>
+
+                                    <span class="price-history-variant-item__meta">
+                                        <span>
+                                            @variant.HistoryEventCount sự kiện
+                                        </span>
+                                        <span>
+                                            @(variant.LastChangedAtLocal.HasValue
+                                                ? $"Đổi gần nhất {variant.LastChangedAtLocal.Value:dd/MM HH:mm}"
+                                                : "Chưa có biến động")
+                                        </span>
+                                    </span>
+                                </a>
+                            }
+                        </div>
+                    </details>
+                }
+
+                <div class="price-history-catalog-empty"
+                     data-price-history-catalog-empty
+                     hidden>
+                    Không tìm thấy sản phẩm hoặc SKU phù hợp.
+                </div>
             </div>
-        </header>
+        </aside>
 
-        <form method="get"
-              asp-action="Index"
-              class="price-history-filter"
-              data-price-history-filter>
-            <label>
-                <span>Sản phẩm</span>
-                <select name="productId"
-                        data-price-history-product>
-                    @foreach (var option in Model.ProductOptions)
-                    {
-                        <option value="@option.Id"
-                                selected="@(
-                                    Model.Filter.ProductId == option.Id)">
-                            @option.Name
-                        </option>
-                    }
-                </select>
-            </label>
+        <main class="price-history-detail">
+            @if (Model.SelectedVariant is not null)
+            {
+                <section class="admin-panel price-history-selected-card">
+                    <div>
+                        <p class="admin-page-kicker">SKU đang phân tích</p>
+                        <h3>
+                            @Model.SelectedVariant.ProductName
+                        </h3>
+                        <p>
+                            @Model.SelectedVariant.Sku
+                            · @Model.SelectedVariant.Description
+                        </p>
+                    </div>
 
-            <label class="price-history-filter__variant">
-                <span>SKU / lựa chọn bán</span>
-                <select name="variantId"
-                        data-price-history-variant>
-                    @foreach (var option in Model.VariantOptions)
-                    {
-                        <option value="@option.Id"
-                                data-product-id="@option.ProductId"
-                                selected="@(
-                                    Model.Filter.VariantId == option.Id)">
-                            @option.Sku · @option.Description
-                            @(!option.IsActive ? " · Tạm ngừng" : "")
-                            @(!option.HasHistory ? " · Chưa có lịch sử" : "")
-                        </option>
-                    }
-                </select>
-            </label>
+                    <div class="price-history-selected-card__actions">
+                        <a asp-area="Admin"
+                           asp-controller="Products"
+                           asp-action="Edit"
+                           asp-route-id="@Model.SelectedVariant.ProductId"
+                           class="button button--secondary">
+                            Mở sản phẩm
+                        </a>
+                    </div>
+                </section>
+            }
 
-            <label>
-                <span>Từ ngày</span>
-                <input type="date"
-                       name="fromDate"
-                       value="@Model.Filter.FromDate.ToString("yyyy-MM-dd")"
-                       data-price-history-from
-                       required />
-            </label>
+            <section class="admin-panel price-history-filter-panel"
+                     aria-labelledby="price-history-filter-heading">
+                <header class="admin-panel__header">
+                    <div>
+                        <p class="admin-page-kicker">Bộ lọc nhật ký</p>
+                        <h3 id="price-history-filter-heading">
+                            Khoảng ngày và loại biến động
+                        </h3>
+                        <p>
+                            Bộ lọc chỉ áp dụng cho SKU đang chọn ở danh sách bên trái.
+                        </p>
+                    </div>
 
-            <label>
-                <span>Đến ngày</span>
-                <input type="date"
-                       name="toDate"
-                       value="@Model.Filter.ToDate.ToString("yyyy-MM-dd")"
-                       data-price-history-to
-                       required />
-            </label>
+                    <div class="price-history-range-presets"
+                         aria-label="Khoảng ngày nhanh">
+                        <button type="button"
+                                data-price-history-days="7">7 ngày</button>
+                        <button type="button"
+                                data-price-history-days="30">30 ngày</button>
+                        <button type="button"
+                                data-price-history-days="90">90 ngày</button>
+                        <button type="button"
+                                data-price-history-days="365">1 năm</button>
+                    </div>
+                </header>
 
-            <label>
-                <span>Loại giá</span>
-                <select name="priceKind">
-                    <option value="">Tất cả loại giá</option>
-                    <option value="ListPrice"
-                            selected="@(
-                                Model.Filter.PriceKind
-                                    == PriceHistoryKind.ListPrice)">
-                        Giá niêm yết
-                    </option>
-                    <option value="EffectivePrice"
-                            selected="@(
-                                Model.Filter.PriceKind
-                                    == PriceHistoryKind.EffectivePrice)">
-                        Giá bán hiệu lực
-                    </option>
-                </select>
-            </label>
+                <form method="get"
+                      asp-action="Index"
+                      class="price-history-filter price-history-filter--detail"
+                      data-price-history-filter>
+                    <input type="hidden"
+                           name="productId"
+                           value="@Model.Filter.ProductId" />
+                    <input type="hidden"
+                           name="variantId"
+                           value="@Model.Filter.VariantId" />
 
-            <label>
-                <span>Nguồn thay đổi</span>
-                <select name="sourceType">
-                    <option value="">Tất cả nguồn</option>
-                    @foreach (var source in Enum.GetValues<PriceChangeSourceType>())
-                    {
-                        var label = source switch
-                        {
-                            PriceChangeSourceType.Manual => "Quản trị viên",
-                            PriceChangeSourceType.Market => "Điều chỉnh thị trường",
-                            PriceChangeSourceType.Promotion => "Khuyến mại",
-                            PriceChangeSourceType.Recovery => "Khôi phục",
-                            PriceChangeSourceType.System => "Hệ thống",
-                            _ => "Dữ liệu cũ"
-                        };
+                    <label>
+                        <span>Từ ngày</span>
+                        <input type="date"
+                               name="fromDate"
+                               value="@Model.Filter.FromDate.ToString("yyyy-MM-dd")"
+                               data-price-history-from
+                               required />
+                    </label>
 
-                        <option value="@source"
-                                selected="@(
-                                    Model.Filter.SourceType == source)">
-                            @label
-                        </option>
-                    }
-                </select>
-            </label>
+                    <label>
+                        <span>Đến ngày</span>
+                        <input type="date"
+                               name="toDate"
+                               value="@Model.Filter.ToDate.ToString("yyyy-MM-dd")"
+                               data-price-history-to
+                               required />
+                    </label>
 
-            <label class="price-history-filter__search">
-                <span>Tìm trong nhật ký</span>
-                <input type="search"
-                       name="search"
-                       value="@Model.Filter.Search"
-                       maxlength="100"
-                       placeholder="Người thực hiện, lý do hoặc mã đối chiếu" />
-            </label>
+                    <label>
+                        <span>Loại giá</span>
+                        <select name="priceKind">
+                            <option value="">Tất cả loại giá</option>
+                            <option value="ListPrice"
+                                    selected="@(
+                                        Model.Filter.PriceKind
+                                            == PriceHistoryKind.ListPrice)">
+                                Giá niêm yết
+                            </option>
+                            <option value="EffectivePrice"
+                                    selected="@(
+                                        Model.Filter.PriceKind
+                                            == PriceHistoryKind.EffectivePrice)">
+                                Giá bán hiệu lực
+                            </option>
+                        </select>
+                    </label>
 
-            <div class="price-history-filter__actions">
-                <button type="submit"
-                        class="button button--primary">
-                    Áp dụng
-                </button>
-                <a asp-action="Index"
-                   asp-route-productId="@Model.Filter.ProductId"
-                   asp-route-variantId="@Model.Filter.VariantId"
-                   class="button button--secondary">
-                    Đặt lại
-                </a>
-            </div>
-        </form>
+                    <label>
+                        <span>Nguồn thay đổi</span>
+                        <select name="sourceType">
+                            <option value="">Tất cả nguồn</option>
+                            @foreach (var source in Enum.GetValues<PriceChangeSourceType>())
+                            {
+                                var label = source switch
+                                {
+                                    PriceChangeSourceType.Manual => "Quản trị viên",
+                                    PriceChangeSourceType.Market => "Điều chỉnh thị trường",
+                                    PriceChangeSourceType.Promotion => "Khuyến mại",
+                                    PriceChangeSourceType.Recovery => "Khôi phục",
+                                    PriceChangeSourceType.System => "Hệ thống",
+                                    _ => "Dữ liệu cũ"
+                                };
 
-        @if (!string.IsNullOrWhiteSpace(Model.Filter.Notice))
-        {
-            <div class="admin-notice admin-notice--info"
-                 role="status">
-                @Model.Filter.Notice
-            </div>
-        }
-    </section>
+                                <option value="@source"
+                                        selected="@(
+                                            Model.Filter.SourceType == source)">
+                                    @label
+                                </option>
+                            }
+                        </select>
+                    </label>
+
+                    <label class="price-history-filter__search">
+                        <span>Tìm trong nhật ký</span>
+                        <input type="search"
+                               name="search"
+                               value="@Model.Filter.Search"
+                               maxlength="100"
+                               placeholder="Người thực hiện, lý do hoặc mã đối chiếu" />
+                    </label>
+
+                    <div class="price-history-filter__actions">
+                        <button type="submit"
+                                class="button button--primary">
+                            Áp dụng
+                        </button>
+                        <a asp-action="Index"
+                           asp-route-productId="@Model.Filter.ProductId"
+                           asp-route-variantId="@Model.Filter.VariantId"
+                           class="button button--secondary">
+                            Đặt lại bộ lọc
+                        </a>
+                    </div>
+                </form>
+
+                @if (!string.IsNullOrWhiteSpace(Model.Filter.Notice))
+                {
+                    <div class="admin-notice admin-notice--info"
+                         role="status">
+                        @Model.Filter.Notice
+                    </div>
+                }
+            </section>
 
     @if (Model.SelectedVariant is null || Model.Summary is null)
     {
@@ -618,6 +811,8 @@
             }
         </section>
     }
+        </main>
+    </div>
 </section>
 
 @section Scripts {

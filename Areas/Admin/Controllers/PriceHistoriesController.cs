@@ -65,16 +65,6 @@ public sealed class PriceHistoriesController : Controller
         var normalizedSearch = search?.Trim() ?? string.Empty;
         page = Math.Max(page, 1);
 
-        var productRows = await _context.Products
-            .AsNoTracking()
-            .Where(item => item.Variants.Any())
-            .OrderBy(item => item.Name)
-            .ThenBy(item => item.Id)
-            .Select(item => new PriceHistoryProductOptionViewModel(
-                item.Id,
-                item.Name))
-            .ToListAsync(cancellationToken);
-
         var variantRows = await _context.ProductVariants
             .AsNoTracking()
             .OrderBy(item => item.Product.Name)
@@ -83,16 +73,51 @@ public sealed class PriceHistoriesController : Controller
                 item.Id,
                 item.ProductId,
                 item.Product.Name,
+                item.Product.Category.Name,
+                item.Product.Brand != null
+                    ? item.Product.Brand.Name
+                    : null,
+                item.Product.IsActive,
+                item.Product.Images
+                    .OrderByDescending(image => image.IsMain)
+                    .ThenBy(image => image.Id)
+                    .Select(image => image.ImageUrl)
+                    .FirstOrDefault(),
                 item.SKU,
                 item.Color,
                 item.Size,
                 item.IsActive,
                 item.PriceHistories.Any(),
+                item.PriceHistories.Count(),
+                item.PriceHistories
+                    .OrderByDescending(history =>
+                        history.EffectiveFrom
+                        ?? history.CreatedAt)
+                    .ThenByDescending(history => history.Id)
+                    .Select(history =>
+                        (DateTime?)(
+                            history.EffectiveFrom
+                            ?? history.CreatedAt))
+                    .FirstOrDefault(),
                 item.Price,
                 item.CurrentPrice,
                 item.CurrentPriceSourceType,
                 item.CurrentPriceSourceId))
             .ToListAsync(cancellationToken);
+
+        var productRows = variantRows
+            .GroupBy(item => new
+            {
+                item.ProductId,
+                item.ProductName
+            })
+            .OrderBy(group => group.Key.ProductName)
+            .ThenBy(group => group.Key.ProductId)
+            .Select(group =>
+                new PriceHistoryProductOptionViewModel(
+                    group.Key.ProductId,
+                    group.Key.ProductName))
+            .ToList();
 
         var selected = variantRows.FirstOrDefault(item =>
                 variantId.HasValue
@@ -114,6 +139,65 @@ public sealed class PriceHistoriesController : Controller
                 item.HasHistory))
             .ToArray();
 
+        var productCatalog = variantRows
+            .GroupBy(item => new
+            {
+                item.ProductId,
+                item.ProductName,
+                item.CategoryName,
+                item.BrandName,
+                item.ProductImageUrl,
+                item.ProductIsActive
+            })
+            .OrderBy(group => group.Key.ProductName)
+            .ThenBy(group => group.Key.ProductId)
+            .Select(group =>
+                new PriceHistoryProductListItemViewModel
+                {
+                    Id = group.Key.ProductId,
+                    Name = group.Key.ProductName,
+                    CategoryName = group.Key.CategoryName,
+                    BrandName = group.Key.BrandName,
+                    ImageUrl = group.Key.ProductImageUrl,
+                    IsActive = group.Key.ProductIsActive,
+                    VariantCount = group.Count(),
+                    HistoryEventCount = group.Sum(item =>
+                        item.HistoryEventCount),
+                    IsSelected = selected is not null
+                        && group.Key.ProductId
+                            == selected.ProductId,
+                    Variants = group
+                        .OrderBy(item => item.Sku)
+                        .Select(item =>
+                            new PriceHistoryVariantListItemViewModel
+                            {
+                                Id = item.Id,
+                                Sku = item.Sku,
+                                Description =
+                                    BuildVariantDescription(
+                                        item.Color,
+                                        item.Size),
+                                IsActive = item.IsActive,
+                                HasHistory = item.HasHistory,
+                                HistoryEventCount =
+                                    item.HistoryEventCount,
+                                ListPrice = item.ListPrice,
+                                CurrentPrice =
+                                    item.CurrentPrice,
+                                CurrentSourceType =
+                                    item.CurrentSourceType,
+                                LastChangedAtLocal =
+                                    item.LastHistoryAtUtc.HasValue
+                                        ? ToBusinessTime(
+                                            item.LastHistoryAtUtc.Value)
+                                        : null,
+                                IsSelected = selected is not null
+                                    && item.Id == selected.Id
+                            })
+                        .ToArray()
+                })
+            .ToArray();
+
         if (selected is null)
         {
             return View(new PriceHistoryIndexPageViewModel
@@ -133,6 +217,7 @@ public sealed class PriceHistoriesController : Controller
                 },
                 ProductOptions = productRows,
                 VariantOptions = variantOptions,
+                ProductCatalog = productCatalog,
                 Page = 1,
                 PageSize = PageSize
             });
@@ -324,6 +409,7 @@ public sealed class PriceHistoriesController : Controller
             },
             ProductOptions = productRows,
             VariantOptions = variantOptions,
+            ProductCatalog = productCatalog,
             SelectedVariant = selectedVariant,
             Summary = BuildSummary(
                 selected,
@@ -992,11 +1078,17 @@ public sealed class PriceHistoriesController : Controller
         int Id,
         int ProductId,
         string ProductName,
+        string CategoryName,
+        string? BrandName,
+        bool ProductIsActive,
+        string? ProductImageUrl,
         string Sku,
         string? Color,
         string? Size,
         bool IsActive,
         bool HasHistory,
+        int HistoryEventCount,
+        DateTime? LastHistoryAtUtc,
         decimal ListPrice,
         decimal CurrentPrice,
         EffectivePriceSourceType CurrentSourceType,
