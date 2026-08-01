@@ -213,7 +213,10 @@ builder.Services.AddScoped<IRefundSettlementService, RefundSettlementService>();
 builder.Services.AddHostedService<VnPayPaymentExpirationWorker>();
 
 builder.Services.AddScoped<EffectivePriceService>();
-builder.Services.AddScoped<IEffectivePriceService, ReliableEffectivePriceService>();
+builder.Services.AddScoped<ReliableEffectivePriceService>();
+builder.Services.AddScoped<
+    IEffectivePriceService,
+    ExtendedEffectivePriceService>();
 builder.Services.AddScoped<
     IVariantListPriceService,
     VariantListPriceService>();

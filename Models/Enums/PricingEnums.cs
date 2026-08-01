@@ -38,7 +38,9 @@ public enum PriceAdjustmentType
 {
     FixedPrice = 1,
     PercentOff = 2,
-    AmountOff = 3
+    AmountOff = 3,
+    PercentIncrease = 4,
+    AmountIncrease = 5
 }
 
 public enum EffectivePriceSourceType

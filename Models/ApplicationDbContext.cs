@@ -228,7 +228,9 @@ public sealed class ApplicationDbContext : DbContext
                     "[PreviousEffectivePriceSnapshot] > 0");
                 table.HasCheckConstraint(
                     "CK_PriceCampaignItem_AdjustmentType",
-                    "[AdjustmentType] IN ('FixedPrice','PercentOff','AmountOff')");
+                    "[AdjustmentType] IN "
+                    + "('FixedPrice','PercentOff','AmountOff',"
+                    + "'PercentIncrease','AmountIncrease')");
             });
         });
 

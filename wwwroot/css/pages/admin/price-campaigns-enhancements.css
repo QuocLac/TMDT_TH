@@ -1,0 +1,142 @@
+/*
+   Pricing modal and explicit increase-operation enhancements.
+*/
+
+.pricing-dialog[open] {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+}
+
+.timeline-dialog {
+    width: min(72rem, calc(100vw - 2rem));
+    max-width: calc(100vw - 2rem);
+    max-height: calc(100dvh - 2rem);
+    overflow: hidden;
+}
+
+.timeline-dialog .pricing-dialog__surface--wide {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    max-height: calc(100dvh - 2rem);
+    grid-template-rows:
+        auto
+        minmax(0, 1fr)
+        auto;
+}
+
+.timeline-dialog .pricing-dialog__header,
+.timeline-dialog .pricing-dialog__footer,
+.timeline-dialog .pricing-dialog__body {
+    min-width: 0;
+}
+
+.timeline-dialog .pricing-dialog__header > div {
+    min-width: 0;
+}
+
+.timeline-dialog .pricing-dialog__header h3,
+.timeline-dialog .pricing-dialog__header span {
+    overflow-wrap: anywhere;
+}
+
+.timeline-dialog .pricing-dialog__body {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+}
+
+.timeline-dialog .timeline-overview {
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+}
+
+.timeline-dialog .timeline-variants,
+.timeline-dialog .table-responsive {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.timeline-dialog .table-responsive {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+}
+
+.timeline-dialog .timeline-variants table {
+    width: 100%;
+    min-width: 48rem;
+    table-layout: auto;
+}
+
+.timeline-dialog .timeline-variants th,
+.timeline-dialog .timeline-variants td {
+    max-width: 24rem;
+    overflow-wrap: anywhere;
+    vertical-align: top;
+}
+
+.timeline-dialog .timeline-variants th:nth-child(n + 3),
+.timeline-dialog .timeline-variants td:nth-child(n + 3) {
+    white-space: nowrap;
+}
+
+.timeline-dialog .audit-event {
+    min-width: 0;
+}
+
+.timeline-dialog .audit-event header {
+    min-width: 0;
+}
+
+.timeline-dialog .audit-event p,
+.timeline-dialog .audit-event small {
+    overflow-wrap: anywhere;
+}
+
+.pricing-dialog [data-adjustment-type] {
+    min-width: 0;
+}
+
+.pricing-dialog [data-configuration-preview] {
+    line-height: 1.5;
+}
+
+@media (max-width: 64rem) {
+    .timeline-dialog {
+        width: calc(100vw - 1rem);
+        max-width: calc(100vw - 1rem);
+        max-height: calc(100dvh - 1rem);
+    }
+
+    .timeline-dialog .pricing-dialog__surface--wide {
+        max-height: calc(100dvh - 1rem);
+    }
+
+    .timeline-dialog .timeline-overview {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 40rem) {
+    .timeline-dialog .timeline-overview {
+        grid-template-columns: 1fr;
+    }
+
+    .timeline-dialog .pricing-dialog__header {
+        align-items: flex-start;
+    }
+
+    .timeline-dialog .pricing-dialog__footer {
+        align-items: stretch;
+        flex-direction: column-reverse;
+    }
+
+    .timeline-dialog .pricing-dialog__footer .button,
+    .timeline-dialog .pricing-dialog__footer .btn {
+        width: 100%;
+    }
+}

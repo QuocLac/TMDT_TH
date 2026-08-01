@@ -3,6 +3,7 @@
 
     const storageKey = "fastbuy-theme";
     const iconSystemVersion = "2026.07.25.1";
+    const pricingEnhancementVersion = "2026.07.31.1";
     const root = document.documentElement;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const currentScript = document.currentScript;
@@ -23,6 +24,39 @@
         script.src = iconScriptUrl.href;
         script.async = false;
         script.dataset.fastbuyIconsScript = "true";
+        document.head.append(script);
+    }
+
+    function ensurePricingEnhancements() {
+        const normalizedPath =
+            window.location.pathname.toLowerCase();
+
+        if (!normalizedPath.startsWith(
+                "/admin/pricecampaigns")) {
+            return;
+        }
+
+        if (document.querySelector(
+                "[data-fastbuy-pricing-enhancements]")) {
+            return;
+        }
+
+        const enhancementUrl = currentScript?.src
+            ? new URL(
+                "../pages/admin/price-campaigns-enhancements.js",
+                currentScript.src)
+            : new URL(
+                "/js/pages/admin/price-campaigns-enhancements.js",
+                window.location.origin);
+
+        enhancementUrl.searchParams.set(
+            "v",
+            pricingEnhancementVersion);
+
+        const script = document.createElement("script");
+        script.src = enhancementUrl.href;
+        script.async = false;
+        script.dataset.fastbuyPricingEnhancements = "true";
         document.head.append(script);
     }
 
@@ -63,6 +97,7 @@
     }
 
     ensureIconSystem();
+    ensurePricingEnhancements();
 
     const initialTheme = resolveTheme();
     applyTheme(initialTheme);
